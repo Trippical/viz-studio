@@ -21,13 +21,20 @@ runs SQL against a warehouse.
 
 ## Commands
 
+The project virtualenv is `.venv/` at the repo root, created with Python
+3.11 (`py -3.11 -m venv .venv`). The system default `python` on this machine
+is 3.10 and must not be used. Always call the venv interpreter explicitly:
+
 ```
-pip install -e ".[dev]"        # once, inside a virtualenv
-python -m pytest                # the whole suite, must pass before every commit
-python -m pytest tests/x -v     # one file
-viz-server                      # serve ./sample-bucket on http://127.0.0.1:8000
-python sample-bucket/generate.py   # regenerate the synthetic sample bucket
+.venv/Scripts/python -m pip install -e ".[dev]"   # once
+.venv/Scripts/python -m pytest                     # the whole suite, must pass before every commit
+.venv/Scripts/python -m pytest tests/x -v          # one file
+.venv/Scripts/viz-server                           # serve ./sample-bucket on http://127.0.0.1:8000
+.venv/Scripts/python sample-bucket/generate.py     # regenerate the synthetic sample bucket
 ```
+
+On Linux or macOS the paths are `.venv/bin/python` and `.venv/bin/viz-server`.
+Where a plan step says `python -m pytest`, run `.venv/Scripts/python -m pytest`.
 
 ## Rules
 
