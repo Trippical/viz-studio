@@ -2,16 +2,27 @@ import os
 import sys
 from datetime import datetime
 
+import boto3
 import pytest
+from moto import mock_aws
 
 from viz.storage.base import NotFound, ObjectInfo
 from viz.storage.local import LocalStorage
+from viz.storage.s3 import S3Storage
 
 
-@pytest.fixture(params=["local"])
-def storage(request, tmp_path):
+@pytest.fixture(params=["local", "s3"])
+def storage(request, tmp_path, monkeypatch):
     if request.param == "local":
         yield LocalStorage(tmp_path / "bucket")
+        return
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket="test-bucket")
+        yield S3Storage("test-bucket", client=client)
 
 
 def test_put_get_head(storage):
