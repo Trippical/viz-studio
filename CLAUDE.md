@@ -51,6 +51,11 @@ Where a plan step says `python -m pytest`, run `.venv/Scripts/python -m pytest`.
    A future reader may be a smaller model than you.
 7. **Do not add dependencies** beyond those in `pyproject.toml` without saying
    so in the commit message and the handoff summary.
+8. **Never discard work you did not create.** Do not run `git checkout -- .`,
+   `git restore`, `git stash`, `git clean`, or `git reset` on files you did
+   not change in your task. Other work may be in progress in the same
+   checkout. Stage only your own files by name, and leave everything else in
+   the working tree exactly as you found it.
 
 ## Commit messages
 

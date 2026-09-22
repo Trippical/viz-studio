@@ -23,6 +23,10 @@ Key decisions (all confirmed by the user):
 
 - Plan 1 written: `docs/superpowers/plans/2026-09-22-plan-1-contract-storage-server.md` (12 TDD tasks: scaffold, ids, schemas, local + S3 storage, settings, sample bucket, app + middleware, documents + tree cache, routes, streaming data route, SPA + entry point). Plans 2 (front end + bake-off), 3 (CLI + skill), 4 (refresher scaffold, Docker, Helm, CI, IAM files) are written after their predecessors ship. Data route amended to `GET /api/data/{id}` in the spec.
 
+- User chose subagent-driven execution and asked that everything be future-proofed for smaller models: `CLAUDE.md` now carries commands, commit recipe, and Windows gotchas; the plan has an execution-notes section. Memory saved under the project memory dir.
+- Execution is in progress on branch `plan-1-contract-storage-server` (in place, no worktree). Ledger with all rulings: `.superpowers/sdd/2026-09-22-plan-1-contract-storage-server/progress.md` (git-ignored). Tasks 1-6 complete and reviewed; Task 7 (sample bucket) implemented and under review.
+- Environment: venv at `.venv/` is Python 3.11 (system default is 3.10, do not use). Commit trailers name the model that made the commit.
+
 ## Next concrete step
 
-Execute Plan 1. User picks subagent-driven (`superpowers:subagent-driven-development`) or inline (`superpowers:executing-plans`). Then write Plan 2 (front end, three renderer adapters, bake-off samples, DuckDB large lane) against the real server.
+Continue `superpowers:subagent-driven-development` for Plan 1 from the ledger: resume at the first task without a `complete` line. After Task 12 and the final whole-branch review, use `superpowers:finishing-a-development-branch`, then write Plan 2 (front end, three renderer adapters, bake-off samples, DuckDB large lane) against the real server.
