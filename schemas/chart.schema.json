@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://viz-site.dev/schemas/chart.schema.json",
+  "title": "Chart",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "title", "renderer", "spec", "data"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"$ref": "#/$defs/id"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 200},
+    "description": {"type": "string", "maxLength": 8192},
+    "tags": {"type": "array", "maxItems": 32, "items": {"type": "string", "minLength": 1, "maxLength": 64}},
+    "author": {"type": "string", "maxLength": 200},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "renderer": {"enum": ["vega-lite", "plotly", "echarts", "stat"]},
+    "spec": {"$ref": "#/$defs/noForbiddenKeys"},
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "lane", "rows", "bytes", "columns"],
+      "properties": {
+        "format": {"enum": ["json", "parquet"]},
+        "lane": {"enum": ["small", "large"]},
+        "rows": {"type": "integer", "minimum": 0},
+        "bytes": {"type": "integer", "minimum": 0},
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "type"],
+            "properties": {
+              "name": {"$ref": "#/$defs/columnName"},
+              "type": {"enum": ["string", "number", "integer", "boolean", "date", "timestamp"]}
+            }
+          }
+        }
+      }
+    },
+    "aggregate": {"type": ["string", "null"], "maxLength": 8192},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sql"],
+      "properties": {
+        "kind": {"const": "databricks-sql"},
+        "sql": {"type": "string", "minLength": 1, "maxLength": 65536},
+        "warehouse_id": {"type": "string", "maxLength": 64},
+        "schedule": {"type": "string", "maxLength": 64},
+        "show_sql": {"type": "boolean"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"data": {"properties": {"lane": {"const": "small"}}}}},
+      "then": {
+        "properties": {
+          "data": {"properties": {"format": {"const": "json"}, "rows": {"maximum": 100000}, "bytes": {"maximum": 20971520}}},
+          "aggregate": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"data": {"properties": {"lane": {"const": "large"}}}}},
+      "then": {
+        "required": ["aggregate"],
+        "properties": {
+          "data": {"properties": {"format": {"const": "parquet"}, "bytes": {"maximum": 209715200}}},
+          "aggregate": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"renderer": {"const": "stat"}}},
+      "then": {"properties": {"spec": {"$ref": "#/$defs/statSpec"}}}
+    }
+  ],
+  "$defs": {
+    "id": {"type": "string", "maxLength": 512, "pattern": "^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*$"},
+    "columnName": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+    "agg": {"enum": ["sum", "avg", "min", "max", "count", "last"]},
+    "statSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "agg"],
+      "properties": {
+        "value": {"$ref": "#/$defs/columnName"},
+        "agg": {"$ref": "#/$defs/agg"},
+        "format": {"type": "string", "maxLength": 32},
+        "compare": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["column", "agg"],
+          "properties": {"column": {"$ref": "#/$defs/columnName"}, "agg": {"$ref": "#/$defs/agg"}}
+        }
+      }
+    },
+    "noForbiddenKeys": {
+      "if": {"type": "object"},
+      "then": {
+        "propertyNames": {
+          "not": {
+            "enum": ["url", "href", "usermeta", "link", "sublink", "graphic", "extraCssText", "appendTo", "className", "images", "mapbox", "map", "__proto__", "constructor", "prototype"]
+          }
+        },
+        "additionalProperties": {"$ref": "#/$defs/noForbiddenKeys"}
+      },
+      "else": {
+        "if": {"type": "array"},
+        "then": {"items": {"$ref": "#/$defs/noForbiddenKeys"}}
+      }
+    }
+  }
+}

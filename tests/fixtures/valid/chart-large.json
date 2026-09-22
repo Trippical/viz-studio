@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "sales/order-lines",
+  "title": "Order lines, aggregated by day",
+  "author": "sample@example.com",
+  "renderer": "vega-lite",
+  "spec": {
+    "data": {"name": "data"},
+    "mark": "bar",
+    "encoding": {
+      "x": {"field": "day", "type": "temporal"},
+      "y": {"field": "total", "type": "quantitative"}
+    }
+  },
+  "data": {
+    "format": "parquet",
+    "lane": "large",
+    "rows": 2500000,
+    "bytes": 52428800,
+    "columns": [
+      {"name": "day", "type": "date"},
+      {"name": "region", "type": "string"},
+      {"name": "amount", "type": "number"}
+    ]
+  },
+  "aggregate": "SELECT day, sum(amount) AS total FROM data GROUP BY day ORDER BY day"
+}

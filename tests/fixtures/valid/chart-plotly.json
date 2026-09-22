@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "sales/orders-by-region",
+  "title": "Orders by region",
+  "author": "sample@example.com",
+  "renderer": "plotly",
+  "spec": {
+    "traces": [
+      {"type": "bar", "x": {"column": "region"}, "y": {"column": "orders"}, "name": "Orders"}
+    ],
+    "layout": {"title": {"text": "Orders by region"}, "barmode": "group"}
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 4,
+    "bytes": 200,
+    "columns": [
+      {"name": "region", "type": "string"},
+      {"name": "orders", "type": "integer"}
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "sales/orders-by-region-echarts",
+  "title": "Orders by region",
+  "author": "sample@example.com",
+  "renderer": "echarts",
+  "spec": {
+    "xAxis": {"type": "category"},
+    "yAxis": {"type": "value"},
+    "tooltip": {"trigger": "axis", "renderMode": "richText"},
+    "series": [{"type": "bar", "encode": {"x": "region", "y": "orders"}}]
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 4,
+    "bytes": 200,
+    "columns": [
+      {"name": "region", "type": "string"},
+      {"name": "orders", "type": "integer"}
+    ]
+  }
+}
