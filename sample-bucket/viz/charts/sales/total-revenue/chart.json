@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "sales/total-revenue",
+  "title": "Total revenue",
+  "description": "Sum of revenue over the selected period. One-off publish, no source.",
+  "tags": [
+    "sales",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "stat",
+  "spec": {
+    "value": "revenue",
+    "agg": "sum",
+    "format": "$,.0f",
+    "compare": {
+      "column": "orders",
+      "agg": "sum"
+    }
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}
