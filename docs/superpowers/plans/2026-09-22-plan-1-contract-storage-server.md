@@ -28,6 +28,22 @@
   `Claude-Session: https://claude.ai/code/session_014JyBpbUMQyfxRP89X12AES`
 - Run tests with `python -m pytest` from the repo root. All tests must pass before each commit.
 
+## How to execute a task (read this whether you are a large or a small model)
+
+1. Read `CLAUDE.md` at the repo root first. It has the commands, the commit
+   trailers, and the environment gotchas.
+2. Work only on the task you were given. Do not start the next one.
+3. Do the steps in order. Each step is one action. Do not skip the "run the
+   test and see it fail" step; it proves the test is real.
+4. Copy the code from the step exactly. If the code in a step does not work as
+   written, fix the smallest thing that makes it work, and say what you
+   changed and why in your report. Do not redesign.
+5. If a command fails and you cannot fix it within the task's scope, stop and
+   report the full error output. Do not work around it by weakening a test.
+6. Before committing, run the whole suite: `python -m pytest`. It must pass.
+7. Report back with: the commit hash, the test summary line, and any deviation
+   from the plan. Nothing else is needed.
+
 ---
 
 ## File structure
