@@ -11,7 +11,7 @@ Brainstormed the full design with the user and wrote the spec to `docs/superpowe
 Key decisions (all confirmed by the user):
 - One Python package (`viz`: storage, server, publish, refresh) plus a Vite/React/TS front end, one container image. Viewer and refresher are the same app; refresher is a scaffold in v1, off by default.
 - Contract: charts are reusable atoms under `charts/<id>/chart.json` plus a data file; dashboards under `dashboards/<id>.json` reference charts by id. Ids are slash paths, so folders are bucket prefixes. Optional `_folder.json` per folder. Folders are v1.
-- Two data lanes: small (JSON, <=50k rows/10MB) and large (parquet <=200MB, DuckDB-WASM in browser with a per-chart `aggregate` SQL). Site never runs SQL against Databricks.
+- Two data lanes: small (JSON, <=100k rows/20MB) and large (parquet <=200MB, DuckDB-WASM in browser with a per-chart `aggregate` SQL). Site never runs SQL against Databricks.
 - Viewer-side controls (date-range, select, number-range) bind by column name and filter client-side.
 - Chart renderer bake-off: Vega-Lite, Plotly, ECharts built side by side with identical samples; user picks one, losers deleted.
 - Publisher: `viz` CLI (query, stage, validate, publish, move, preview) plus `skills/publish-viz/SKILL.md`, usable from Databricks Genie Code and local Claude Code. Two publish modes: refreshable (has `source` SQL) and one-off (no source, shows "static" badge).

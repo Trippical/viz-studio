@@ -145,7 +145,7 @@ Field rules:
   with `compare` optional.
 - `data.format`: `json` (array of row objects) for small lane, `parquet` for
   large lane. Nothing else.
-- `data.lane`: `small` or `large`. Small: at most 50,000 rows and 10 MB. Large:
+- `data.lane`: `small` or `large`. Small: at most 100,000 rows and 20 MB. Large:
   at most 200 MB. The CLI refuses to publish beyond the caps.
 - `data.columns[].type`: one of `string`, `number`, `integer`, `boolean`,
   `date`, `timestamp`. Dates are ISO 8601 strings in JSON and native types in
