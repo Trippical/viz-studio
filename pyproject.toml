@@ -37,3 +37,10 @@ packages = ["viz"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Library-originated deprecations raised on importing starlette.testclient
+# (Starlette 1.6 with httpx 0.28 and anyio 4.15). Our own code must stay
+# warning-free; these two filters are narrow on purpose.
+filterwarnings = [
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated:UserWarning",
+  "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]
