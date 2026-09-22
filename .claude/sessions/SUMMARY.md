@@ -1,0 +1,25 @@
+# Session handoff
+
+## Current objective
+
+Build viz-site: an open-source, self-hosted visualization site that is a viewer over an S3 folder, fed by a Claude skill plus a Python CLI. Replaces Databricks built-in dashboards for the user's team. Developed on the user's personal AWS account, then connected on their work machine inside a VPN-gated VPC on a small k8s cluster.
+
+## Last session summary (2026-09-22)
+
+Brainstormed the full design with the user and wrote the spec to `docs/superpowers/specs/2026-09-22-viz-site-design.md`. Repo was empty at start; git was initialized this session.
+
+Key decisions (all confirmed by the user):
+- One Python package (`viz`: storage, server, publish, refresh) plus a Vite/React/TS front end, one container image. Viewer and refresher are the same app; refresher is a scaffold in v1, off by default.
+- Contract: charts are reusable atoms under `charts/<id>/chart.json` plus a data file; dashboards under `dashboards/<id>.json` reference charts by id. Ids are slash paths, so folders are bucket prefixes. Optional `_folder.json` per folder. Folders are v1.
+- Two data lanes: small (JSON, <=50k rows/10MB) and large (parquet <=200MB, DuckDB-WASM in browser with a per-chart `aggregate` SQL). Site never runs SQL against Databricks.
+- Viewer-side controls (date-range, select, number-range) bind by column name and filter client-side.
+- Chart renderer bake-off: Vega-Lite, Plotly, ECharts built side by side with identical samples; user picks one, losers deleted.
+- Publisher: `viz` CLI (query, stage, validate, publish, move, preview) plus `skills/publish-viz/SKILL.md`, usable from Databricks Genie Code and local Claude Code. Two publish modes: refreshable (has `source` SQL) and one-off (no source, shows "static" badge).
+- No app auth in v1 (VPN is the gate). Server is read-only, four GET routes, strict id validation.
+- MIT license, GitHub Actions CI, Helm chart.
+
+## Next concrete step
+
+User is reviewing the spec. Once approved, invoke the `superpowers:writing-plans` skill to produce the implementation plan, following the build order in spec section 10 (contract first, then storage, server, front end, bake-off, CLI/skill, then refresher scaffold and deploy).
+
+The user also said they have some off-topic related questions to ask once design is done.
