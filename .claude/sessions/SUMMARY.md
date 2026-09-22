@@ -24,7 +24,7 @@ Key decisions (all confirmed by the user):
 - Plan 1 written: `docs/superpowers/plans/2026-09-22-plan-1-contract-storage-server.md` (12 TDD tasks: scaffold, ids, schemas, local + S3 storage, settings, sample bucket, app + middleware, documents + tree cache, routes, streaming data route, SPA + entry point). Plans 2 (front end + bake-off), 3 (CLI + skill), 4 (refresher scaffold, Docker, Helm, CI, IAM files) are written after their predecessors ship. Data route amended to `GET /api/data/{id}` in the spec.
 
 - User chose subagent-driven execution and asked that everything be future-proofed for smaller models: `CLAUDE.md` now carries commands, commit recipe, and Windows gotchas; the plan has an execution-notes section. Memory saved under the project memory dir.
-- Execution is in progress on branch `plan-1-contract-storage-server` (in place, no worktree). Ledger with all rulings: `.superpowers/sdd/2026-09-22-plan-1-contract-storage-server/progress.md` (git-ignored). Tasks 1-6 complete and reviewed; Task 7 (sample bucket) implemented and under review.
+- Execution is in progress on branch `plan-1-contract-storage-server` (in place, no worktree). Ledger with all rulings: `.superpowers/sdd/2026-09-22-plan-1-contract-storage-server/progress.md` (git-ignored). Tasks 1-11 complete and reviewed (160 tests passing, 1 Windows skip, warning-free); Task 12 (SPA serving + viz-server entry point) dispatched. Next after it: final whole-branch review, then finishing-a-development-branch.
 - Environment: venv at `.venv/` is Python 3.11 (system default is 3.10, do not use). Commit trailers name the model that made the commit.
 
 ## Next concrete step

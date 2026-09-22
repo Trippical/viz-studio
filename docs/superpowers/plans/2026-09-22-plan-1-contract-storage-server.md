@@ -3090,30 +3090,52 @@ Expected: FAIL (`/dashboards/...` currently returns FastAPI's default 404 with `
 
 - [ ] **Step 3: Implement**
 
+The SPA fallback is a 404 exception handler, not a catch-all route. A
+catch-all `@app.get("/{path:path}")` registered inside `create_app` would
+shadow any route added after `create_app` returns (the Task 8 crash test adds
+`/api/boom` afterwards and expects a 500). When no route matches, Starlette
+raises `HTTPException(404)` inside the app, so an exception handler sees it;
+every other `HTTPException` is delegated to FastAPI's default handler so API
+error responses (400, 404, 413, 416 with its `Content-Range`, 422) are
+unchanged.
+
 ```python
 # viz/server/static.py
-"""Serve the built front end. Every non-API path falls back to index.html."""
+"""Serve the built front end. Unknown non-API paths fall back to index.html.
+
+Implemented as a 404 exception handler rather than a catch-all route, so
+routes registered after create_app() still resolve normally.
+"""
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.staticfiles import StaticFiles
 
 
 def mount_spa(app: FastAPI, dist: Path) -> None:
     dist = Path(dist)
     index = dist / "index.html"
+    assets = dist / "assets"
+    if assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
-    @app.get("/{path:path}", include_in_schema=False)
-    def spa(path: str):
-        if path == "api" or path.startswith("api/"):
-            return JSONResponse({"detail": "not found"}, status_code=404)
-        if not index.is_file():
-            return JSONResponse({"detail": "front end not built"}, status_code=404)
-        if path:
-            candidate = (dist / path).resolve()
-            if candidate.is_file() and dist.resolve() in candidate.parents:
-                return FileResponse(candidate)
-        return FileResponse(index)
+    @app.exception_handler(StarletteHTTPException)
+    async def spa_fallback(request: Request, exc: StarletteHTTPException):
+        path = request.url.path
+        is_api = path == "/api" or path.startswith("/api/")
+        if exc.status_code == 404 and request.method in ("GET", "HEAD") and not is_api:
+            if not index.is_file():
+                return JSONResponse({"detail": "front end not built"}, status_code=404)
+            rel = path.lstrip("/")
+            if rel:
+                candidate = (dist / rel).resolve()
+                if candidate.is_file() and dist.resolve() in candidate.parents:
+                    return FileResponse(candidate)
+            return FileResponse(index)
+        return await http_exception_handler(request, exc)
 ```
 
 ```python
