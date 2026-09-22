@@ -2,6 +2,7 @@
 import logging
 import time
 
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
@@ -20,11 +21,19 @@ SECURITY_HEADERS = {
 }
 
 access_log = logging.getLogger("viz.access")
+error_log = logging.getLogger("viz.server")
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Outermost middleware: every response leaving the app carries these headers,
+    including ones rejected by TrustedHost and ones from an unhandled exception."""
+
     async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            error_log.exception("unhandled error on %s %s", request.method, request.url.path)
+            response = JSONResponse({"detail": "internal server error"}, status_code=500)
         for name, value in SECURITY_HEADERS.items():
             response.headers[name] = value
         return response
@@ -45,7 +54,15 @@ class IdentityMiddleware(BaseHTTPMiddleware):
         user = request.headers.get(self.header) or None
         request.state.user = user
         started = time.perf_counter()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            access_log.info(
+                "user=%s method=%s path=%s status=%s ms=%.1f",
+                user or "-", request.method, request.url.path, 500, elapsed_ms,
+            )
+            raise
         elapsed_ms = (time.perf_counter() - started) * 1000
         access_log.info(
             "user=%s method=%s path=%s status=%s ms=%.1f",

@@ -49,3 +49,26 @@ def test_missing_identity_logs_anonymous(client, caplog):
     with caplog.at_level("INFO", logger="viz.access"):
         client.get("/api/health")
     assert any("user=-" in rec.getMessage() for rec in caplog.records)
+
+
+def test_untrusted_host_response_still_has_security_headers(settings):
+    app = create_app(settings)
+    with TestClient(app, base_url="http://evil.example") as c:
+        r = c.get("/api/health")
+    assert r.status_code == 400
+    assert r.headers["content-security-policy"] == CSP
+
+
+def test_crash_gets_headers_and_access_log(settings, caplog):
+    app = create_app(settings)
+
+    @app.get("/api/boom")
+    def boom():
+        raise RuntimeError("boom")
+
+    with caplog.at_level("INFO", logger="viz.access"):
+        r = TestClient(app, raise_server_exceptions=False).get("/api/boom")
+    assert r.status_code == 500
+    assert r.json() == {"detail": "internal server error"}
+    assert r.headers["content-security-policy"] == CSP
+    assert any("status=500" in rec.getMessage() and "path=/api/boom" in rec.getMessage() for rec in caplog.records)
