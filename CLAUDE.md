@@ -54,32 +54,34 @@ Where a plan step says `python -m pytest`, run `.venv/Scripts/python -m pytest`.
 
 ## Commit messages
 
-Write the message to a file, then commit with `-F`. Never build a multi-line
-message from several `-m` flags: git inserts blank lines between them and
-breaks the trailer block. The file layout is:
+A commit message is a subject line, a blank line, an optional body, a blank
+line, and then a block of two trailer lines that sit together at the very end
+with no blank line between them:
 
 ```
-<one-line summary, imperative>
-
-<optional body>
-
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_014JyBpbUMQyfxRP89X12AES
+Co-Authored-By: <the model name your harness gave you> <noreply@anthropic.com>
+Claude-Session: <the session URL your harness gave you>
 ```
 
-The last two lines are trailers. They are contiguous, with no blank line
-between them, and nothing after them. Put the file at
-`.superpowers/commitmsg.txt` (git-ignored) and run:
+`Co-Authored-By` names the model that actually made the commit, exactly as
+your harness states it (for example `Claude Fable 5.1`, `Claude Haiku 4.5`).
+`Claude-Session` is the session URL your harness states. If your harness
+gives you no such lines, use `Co-Authored-By: Claude <noreply@anthropic.com>`
+alone.
+
+The reliable way to produce that layout is two `-m` flags, where the second
+one contains a real line break between the two trailers:
 
 ```
-git -c user.name="tripp" -c user.email="dom4domg@gmail.com" commit -F .superpowers/commitmsg.txt
+git -c user.name="tripp" -c user.email="dom4domg@gmail.com" commit -m "<subject>" -m "Co-Authored-By: <model> <noreply@anthropic.com>
+Claude-Session: <session url>"
 ```
 
-The trailer values above belong to the session that wrote this file. If you
-are a different session and your harness gave you different attribution
-lines, use yours and update this block. Whatever model you are, the trailer
-identifies the session, not the subagent: a subagent doing work for a session
-uses the session's trailers.
+Git puts exactly one blank line between the two `-m` values, which is the
+blank line after the subject. Do not use three or more `-m` flags for the
+trailers; that splits them with a blank line. Verify with
+`git log -1 --format=%B`: the subject on line 1, an empty line 2, and the two
+trailers as the last two non-empty lines, adjacent.
 
 Amending is allowed only to fix the message of a commit that has not been
 pushed, and only when a reviewer asks for it. Never rewrite pushed history.

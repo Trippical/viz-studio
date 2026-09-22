@@ -23,9 +23,10 @@
 - No CORS middleware anywhere. `TrustedHostMiddleware` is always on.
 - Data route is `GET /api/data/{id}` (amended from the spec's `/api/charts/{id}/data`, which is ambiguous when an id ends in `/data`).
 - Sample bucket content is synthetic: `author` is always `sample@example.com`, any `source.warehouse_id` is `sample`.
-- Every commit message ends with these two trailer lines:
-  `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`
-  `Claude-Session: https://claude.ai/code/session_014JyBpbUMQyfxRP89X12AES`
+- Every commit message follows the "Commit messages" section of `CLAUDE.md`:
+  subject, blank line, then two contiguous trailer lines (`Co-Authored-By`
+  naming the model that made the commit as its harness states it, and
+  `Claude-Session` with the session URL its harness states).
 - Run tests with `python -m pytest` from the repo root. All tests must pass before each commit.
 
 ## How to execute a task (read this whether you are a large or a small model)
