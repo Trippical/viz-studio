@@ -1,11 +1,14 @@
 """Load and validate one document from storage. The only way the server reads JSON."""
 import json
+import logging
 from typing import Callable
 
 from ..config import Settings
 from ..ids import chart_key, dashboard_key, folder_key
 from ..schemas import SchemaError, validate_chart, validate_dashboard, validate_folder
 from ..storage import NotFound, Storage
+
+_log = logging.getLogger("viz.server")
 
 
 class DocumentTooLarge(ValueError):
@@ -15,7 +18,8 @@ class DocumentTooLarge(ValueError):
 def _read(storage: Storage, settings: Settings, key: str) -> dict:
     info = storage.head(key)
     if info.size > settings.max_document_bytes:
-        raise DocumentTooLarge(f"{key}: {info.size} bytes exceeds {settings.max_document_bytes}")
+        _log.warning("document too large: %s (%d bytes)", key, info.size)
+        raise DocumentTooLarge(f"document exceeds {settings.max_document_bytes} bytes")
     raw = storage.get(key)
     try:
         return json.loads(raw)

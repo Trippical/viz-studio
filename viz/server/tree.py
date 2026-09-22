@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from ..config import Settings
 from ..ids import InvalidId, is_ancestor, validate_id
 from ..schemas import SchemaError
-from ..storage import Storage
+from ..storage import NotFound, Storage
 from .documents import DocumentTooLarge, load_chart, load_dashboard, load_folder
 
 _log = logging.getLogger("viz.server")
@@ -24,6 +24,8 @@ def _chart_node(storage, settings, chart_id: str) -> dict:
         doc = load_chart(storage, settings, chart_id)
     except InvalidId:
         return {"type": "chart", "id": chart_id, "error": "invalid id"}
+    except NotFound:
+        return {"type": "chart", "id": chart_id, "error": "not found"}
     except (SchemaError, DocumentTooLarge) as err:
         return {"type": "chart", "id": chart_id, "error": str(err)}
     return {
@@ -39,6 +41,8 @@ def _dashboard_node(storage, settings, dashboard_id: str) -> dict:
         doc = load_dashboard(storage, settings, dashboard_id)
     except InvalidId:
         return {"type": "dashboard", "id": dashboard_id, "error": "invalid id"}
+    except NotFound:
+        return {"type": "dashboard", "id": dashboard_id, "error": "not found"}
     except (SchemaError, DocumentTooLarge) as err:
         return {"type": "dashboard", "id": dashboard_id, "error": str(err)}
     return {
@@ -108,13 +112,13 @@ def build_tree(storage: Storage, settings: Settings) -> dict:
         rel = obj.key[len(charts_prefix):]
         if rel.endswith("/chart.json"):
             chart_ids.append(rel[: -len("/chart.json")])
-        elif rel.endswith("_folder.json"):
+        elif rel == "_folder.json" or rel.endswith("/_folder.json"):
             chart_folders.add(rel[: -len("_folder.json")].rstrip("/"))
 
     dashboard_ids, dashboard_folders = [], set()
     for obj in storage.list(dashboards_prefix):
         rel = obj.key[len(dashboards_prefix):]
-        if rel.endswith("_folder.json"):
+        if rel == "_folder.json" or rel.endswith("/_folder.json"):
             dashboard_folders.add(rel[: -len("_folder.json")].rstrip("/"))
         elif rel.endswith(".json"):
             dashboard_ids.append(rel[: -len(".json")])

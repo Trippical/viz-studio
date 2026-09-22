@@ -33,6 +33,13 @@ def test_spa_fallback_and_assets(settings, tmp_path):
     assert r.status_code in (200, 404)  # normalized by the client; must never escape dist
     assert r.headers["content-security-policy"]
 
+    (tmp_path / "secret.txt").write_text("TOP SECRET", encoding="utf-8")
+    for path in ("/%2e%2e%2fsecret.txt", "/..%2fsecret.txt"):
+        r = client.get(path)
+        assert r.status_code == 200
+        assert "<title>viz</title>" in r.text
+        assert "TOP SECRET" not in r.text
+
 
 def test_security_headers_on_static(settings, tmp_path):
     dist = tmp_path / "dist"

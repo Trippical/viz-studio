@@ -7,10 +7,6 @@ from typing import Any, Iterator
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-FORBIDDEN_SPEC_KEYS = frozenset(
-    ["url", "href", "usermeta", "link", "sublink", "graphic", "extraCssText", "appendTo",
-     "className", "images", "mapbox", "map", "__proto__", "constructor", "prototype"]
-)
 PLOTLY_BOUND_KEYS = ("x", "y", "z", "text", "hovertext", "labels", "values", "customdata")
 PLOTLY_FORBIDDEN_TRACE_TYPES = frozenset(
     ["scattergeo", "choropleth", "scattermapbox", "choroplethmapbox", "densitymapbox",

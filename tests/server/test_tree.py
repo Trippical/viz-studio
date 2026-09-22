@@ -4,7 +4,7 @@ import json
 import pytest
 
 from viz.server.tree import TreeCache, build_tree
-from viz.storage import get_storage
+from viz.storage import NotFound, get_storage
 
 
 @pytest.fixture
@@ -89,6 +89,34 @@ def test_prefix_conflict_marks_both(storage, settings):
     assert "conflicts" in child["error"]
     assert set(top) == {"type", "id", "error"}
     assert set(child) == {"type", "id", "error"}
+
+
+def test_document_deleted_between_list_and_load_becomes_error_node(storage, settings, monkeypatch):
+    real_get = storage.get
+    real_head = storage.head
+
+    def vanishing_get(key):
+        if key.endswith("sales/total-revenue/chart.json"):
+            raise NotFound(key)
+        return real_get(key)
+
+    def vanishing_head(key):
+        if key.endswith("sales/total-revenue/chart.json"):
+            raise NotFound(key)
+        return real_head(key)
+
+    monkeypatch.setattr(storage, "get", vanishing_get)
+    monkeypatch.setattr(storage, "head", vanishing_head)
+    tree = build_tree(storage, settings)
+    sales = _find_folder(tree["charts"], "sales")
+    node = next(i for i in sales["items"] if i["id"] == "sales/total-revenue")
+    assert node["error"] == "not found"
+
+
+def test_stray_underscore_folder_key_is_not_a_folder(storage, settings):
+    storage.put("viz/charts/weird_folder.json", b"{}", "application/json")
+    tree = build_tree(storage, settings)
+    assert [f["name"] for f in tree["charts"]["folders"]] == ["sales"]
 
 
 def test_bad_folder_metadata_does_not_break_tree(storage, settings):

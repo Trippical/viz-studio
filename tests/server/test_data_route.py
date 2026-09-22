@@ -81,6 +81,24 @@ def test_data_invalid_id_400_and_missing_404(client):
     assert client.get("/api/data/sales/nope").status_code == 404
 
 
+def test_head_matches_get_headers_without_body(client):
+    get = client.get("/api/data/sales/revenue-by-region")
+    head = client.head("/api/data/sales/revenue-by-region")
+    assert head.status_code == 200
+    assert head.content == b""
+    for name in ("etag", "accept-ranges", "content-disposition", "cache-control", "content-length", "content-type"):
+        assert head.headers[name] == get.headers[name]
+    ranged = client.head("/api/data/sales/revenue-by-region", headers={"Range": "bytes=0-9"})
+    assert ranged.status_code == 206
+    assert ranged.content == b""
+    assert ranged.headers["content-range"] == f"bytes 0-9/{get.headers['content-length']}"
+
+
+def test_absurd_range_digits_are_ignored(client):
+    r = client.get("/api/data/sales/revenue-by-region", headers={"Range": "bytes=" + "9" * 5000 + "-"})
+    assert r.status_code == 200
+
+
 def test_suffix_range_on_empty_file_is_416(client, storage):
     doc = json.loads(storage.get("viz/charts/sales/total-revenue/chart.json"))
     doc.update({"id": "sales/empty", "data": {**doc["data"], "rows": 0, "bytes": 0}})

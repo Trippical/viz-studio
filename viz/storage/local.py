@@ -1,4 +1,5 @@
 """Filesystem backend. The root directory is the bucket."""
+import logging
 import os
 import shutil
 from datetime import datetime, timezone
@@ -8,13 +9,15 @@ from typing import Iterator
 from .base import NotFound, ObjectInfo
 
 CHUNK = 1024 * 1024
+_log = logging.getLogger("viz.storage")
 
 
 class LocalStorage:
     def __init__(self, root: Path):
         self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
         self._resolved_root = self.root.resolve()
+        if not self.root.exists():
+            _log.warning("local storage root does not exist: %s", self.root)
 
     def _path(self, key: str) -> Path:
         if key.startswith("/") or ".." in key.split("/"):
@@ -47,7 +50,10 @@ class LocalStorage:
                     self._path(key)
                 except NotFound:
                     continue
-                out.append(self._info(key, path))
+                try:
+                    out.append(self._info(key, path))
+                except FileNotFoundError:
+                    continue
         return sorted(out, key=lambda o: o.key)
 
     def head(self, key: str) -> ObjectInfo:

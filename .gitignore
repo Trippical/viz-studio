@@ -4,6 +4,6 @@ __pycache__/
 .venv/
 node_modules/
 web/dist/
-.env
+.env*
 .superpowers/
 viz/_schemas/

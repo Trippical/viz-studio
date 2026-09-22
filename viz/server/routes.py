@@ -12,7 +12,7 @@ from .documents import DocumentTooLarge, load_chart, load_dashboard, public_char
 router = APIRouter()
 
 MEDIA_TYPES = {"json": "application/json; charset=utf-8", "parquet": "application/octet-stream"}
-_RANGE = re.compile(r"^bytes=(\d*)-(\d*)$")
+_RANGE = re.compile(r"^bytes=(\d{0,19})-(\d{0,19})$")
 
 
 def _id(value: str) -> str:
@@ -75,7 +75,7 @@ def _parse_range(header: str | None, size: int) -> tuple[int, int] | None | str:
     return start, end
 
 
-@router.get("/data/{chart_id:path}")
+@router.api_route("/data/{chart_id:path}", methods=["GET", "HEAD"])
 def data(chart_id: str, request: Request):
     chart_id = _id(chart_id)
     doc = _document(load_chart, request, chart_id)
@@ -102,12 +102,18 @@ def data(chart_id: str, request: Request):
     if rng == "unsatisfiable":
         headers["Content-Range"] = f"bytes */{info.size}"
         raise HTTPException(status_code=416, detail="range not satisfiable", headers=headers)
+
+    is_head = request.method == "HEAD"
     if rng is None:
         headers["Content-Length"] = str(info.size)
+        if is_head:
+            return Response(status_code=200, headers=headers, media_type=MEDIA_TYPES[fmt])
         return StreamingResponse(storage.open(key), status_code=200, headers=headers, media_type=MEDIA_TYPES[fmt])
 
     start, end = rng
     headers["Content-Range"] = f"bytes {start}-{end}/{info.size}"
     headers["Content-Length"] = str(end - start + 1)
+    if is_head:
+        return Response(status_code=206, headers=headers, media_type=MEDIA_TYPES[fmt])
     return StreamingResponse(storage.open(key, start=start, end=end), status_code=206, headers=headers,
                               media_type=MEDIA_TYPES[fmt])

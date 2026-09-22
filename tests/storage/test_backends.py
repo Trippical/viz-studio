@@ -14,6 +14,7 @@ from viz.storage.s3 import S3Storage
 @pytest.fixture(params=["local", "s3"])
 def storage(request, tmp_path, monkeypatch):
     if request.param == "local":
+        (tmp_path / "bucket").mkdir()
         yield LocalStorage(tmp_path / "bucket")
         return
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
@@ -100,3 +101,12 @@ def test_local_refuses_dotdot(tmp_path):
     storage = LocalStorage(tmp_path / "bucket")
     with pytest.raises(NotFound):
         storage.get("../outside.txt")
+
+
+def test_local_missing_root_is_empty_not_created(tmp_path, caplog):
+    root = tmp_path / "does-not-exist"
+    with caplog.at_level("WARNING", logger="viz.storage"):
+        storage = LocalStorage(root)
+    assert not root.exists()
+    assert storage.list("") == []
+    assert any("does not exist" in rec.getMessage() for rec in caplog.records)
