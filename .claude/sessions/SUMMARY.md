@@ -17,9 +17,10 @@ Key decisions (all confirmed by the user):
 - Publisher: `viz` CLI (query, stage, validate, publish, move, preview) plus `skills/publish-viz/SKILL.md`, usable from Databricks Genie Code and local Claude Code. Two publish modes: refreshable (has `source` SQL) and one-off (no source, shows "static" badge).
 - No app auth in v1 (VPN is the gate). Server is read-only, four GET routes, strict id validation.
 - MIT license, GitHub Actions CI, Helm chart.
+- Spec section 11 reserves seams for later optional modules (MCP server, in-portal chat, real auth for an external portal), all off by default and never touching the publish path.
+- Three parallel security reviewers assessed the user's claim "no security concern, same as Databricks". Verdict: not true as stated, but closable with defaults. Merged findings in `docs/superpowers/specs/2026-09-22-security-review.md`; the v1 requirements are now spec section 12 (CSP, sanitized markdown, per-renderer deny-lists, locked-down DuckDB, parameterized control filters, CLI guardrails, IAM policies, Helm hardening, refresher as a separate process with no Databricks creds in v1). Contract edits: `data.path` removed, column-name regex, `source` is closed with advisory `warehouse_id` and opt-in `show_sql`.
+- Renderer attack surface is a bake-off criterion: ECharts smallest once locked down, Vega-Lite close second, Plotly largest.
 
 ## Next concrete step
 
-User is reviewing the spec. Once approved, invoke the `superpowers:writing-plans` skill to produce the implementation plan, following the build order in spec section 10 (contract first, then storage, server, front end, bake-off, CLI/skill, then refresher scaffold and deploy).
-
-The user also said they have some off-topic related questions to ask once design is done.
+User has approved the design and the security additions. Invoke the `superpowers:writing-plans` skill to produce the implementation plan, following the build order in spec section 10 (contract first, then storage, server, front end, bake-off, CLI/skill, then refresher scaffold and deploy), with section 12 requirements folded into each step.
