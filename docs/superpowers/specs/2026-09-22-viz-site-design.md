@@ -394,3 +394,40 @@ viz-site/
 7. Refresher scaffold, Dockerfile, Helm chart, CI.
 
 Each step is usable on its own before the next starts.
+
+## 11. Extension points and optional modules
+
+Two later products share this codebase: an assistant that knows every
+dashboard, control, and chart and can drive the portal (MCP server, and maybe
+an in-portal chat), and an external, access-controlled portal deployed
+separately from the internal one. Both are out of scope for v1 and get their
+own specs. v1 only leaves the seams below, and each seam is either a no-op or
+an optional module that is off unless enabled. None of them touches the
+publish path, so the quick chart-to-bucket loop stays exactly as fast.
+
+Seams built into v1 (no behavior change):
+
+- **Control state is URL-addressable.** Changing a control updates the query
+  string, loading a URL restores the controls. Every dashboard state is a deep
+  link.
+- **The tree endpoint carries reasoning metadata.** Titles, descriptions,
+  tags, and each dashboard's control list, so a model can pick a dashboard and
+  set its filters without opening every file.
+- **One auth middleware slot** in front of the API routes, a no-op in v1.
+- **Visibility is decided in one place.** The tree endpoint is the only
+  authority on what exists. The front end renders whatever it returns and never
+  assumes a flat, fully visible namespace. Direct routes apply the same rule.
+  Folders are the future permission unit.
+
+Optional modules (separate packages or subpackages, each behind its own enable
+flag, none imported unless enabled):
+
+- `viz.mcp`: an MCP server exposing list, describe, search, and set-controls
+  tools over the same tree and dashboard data. First lever is deep links; live
+  session control over a websocket is a later step.
+- `viz.chat`: an in-portal assistant that calls a model server-side with the
+  same tool definitions. Needs a model API key at the deployment.
+- `viz.auth`: real authentication and folder-level permissions for the
+  external portal, plugged into the middleware slot and the visibility rule.
+
+The build order in section 10 is unchanged. These modules are not built in v1.
