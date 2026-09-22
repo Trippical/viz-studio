@@ -1,6 +1,5 @@
 import asyncio
 import json
-import sys
 
 import pytest
 
@@ -71,15 +70,10 @@ def test_invalid_chart_becomes_error_node(storage, settings):
     assert "invalid JSON" in bad["error"]
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="NTFS is case-insensitive: writing 'Sales/chart.json' lands in the "
-    "existing 'sales' directory instead of creating a distinct entry",
-)
 def test_invalid_id_becomes_error_node(storage, settings):
-    storage.put("viz/charts/Sales/chart.json", b"{}", "application/json")
+    storage.put("viz/charts/bad_id/chart.json", b"{}", "application/json")
     tree = build_tree(storage, settings)
-    bad = next(i for i in tree["charts"]["items"] if i["id"] == "Sales")
+    bad = next(i for i in tree["charts"]["items"] if i["id"] == "bad_id")
     assert "invalid id" in bad["error"]
 
 
