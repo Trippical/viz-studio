@@ -6,6 +6,7 @@ from ..config import Settings
 from ..storage import get_storage
 from .middleware import IdentityMiddleware, SecurityHeadersMiddleware
 from .routes import router
+from .static import mount_spa
 from .tree import TreeCache
 
 
@@ -27,4 +28,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(router, prefix="/api")
+    mount_spa(app, settings.web_dist)
     return app
