@@ -21,6 +21,8 @@ Key decisions (all confirmed by the user):
 - Three parallel security reviewers assessed the user's claim "no security concern, same as Databricks". Verdict: not true as stated, but closable with defaults. Merged findings in `docs/superpowers/specs/2026-09-22-security-review.md`; the v1 requirements are now spec section 12 (CSP, sanitized markdown, per-renderer deny-lists, locked-down DuckDB, parameterized control filters, CLI guardrails, IAM policies, Helm hardening, refresher as a separate process with no Databricks creds in v1). Contract edits: `data.path` removed, column-name regex, `source` is closed with advisory `warehouse_id` and opt-in `show_sql`.
 - Renderer attack surface is a bake-off criterion: ECharts smallest once locked down, Vega-Lite close second, Plotly largest.
 
+- Plan 1 written: `docs/superpowers/plans/2026-09-22-plan-1-contract-storage-server.md` (12 TDD tasks: scaffold, ids, schemas, local + S3 storage, settings, sample bucket, app + middleware, documents + tree cache, routes, streaming data route, SPA + entry point). Plans 2 (front end + bake-off), 3 (CLI + skill), 4 (refresher scaffold, Docker, Helm, CI, IAM files) are written after their predecessors ship. Data route amended to `GET /api/data/{id}` in the spec.
+
 ## Next concrete step
 
-User has approved the design and the security additions. Invoke the `superpowers:writing-plans` skill to produce the implementation plan, following the build order in spec section 10 (contract first, then storage, server, front end, bake-off, CLI/skill, then refresher scaffold and deploy), with section 12 requirements folded into each step.
+Execute Plan 1. User picks subagent-driven (`superpowers:subagent-driven-development`) or inline (`superpowers:executing-plans`). Then write Plan 2 (front end, three renderer adapters, bake-off samples, DuckDB large lane) against the real server.

@@ -229,7 +229,7 @@ FastAPI app, `viz.server`. Routes:
 | `GET /api/tree` | Merged tree of folders, dashboards, and charts with titles and folder metadata |
 | `GET /api/dashboards/{id}` | Validated dashboard JSON |
 | `GET /api/charts/{id}` | Validated chart JSON |
-| `GET /api/charts/{id}/data` | The data file, streamed, with content type and ETag |
+| `GET /api/data/{id}` | The data file, streamed, with content type, ETag and Range support (route is not nested under `/api/charts/{id}` because ids may end in `/data`) |
 | `GET /*` | Static front end, SPA fallback to index.html |
 
 Behavior:
