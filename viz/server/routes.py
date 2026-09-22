@@ -60,6 +60,8 @@ def _parse_range(header: str | None, size: int) -> tuple[int, int] | None | str:
     m = _RANGE.match(header.strip())
     if not m or (m.group(1) == "" and m.group(2) == ""):
         return None
+    if size == 0:
+        return "unsatisfiable"
     first, last = m.group(1), m.group(2)
     if first == "":
         suffix = int(last)

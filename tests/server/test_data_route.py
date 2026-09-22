@@ -79,3 +79,17 @@ def test_data_for_invalid_chart_is_422(client, storage):
 def test_data_invalid_id_400_and_missing_404(client):
     assert client.get("/api/data/Bad").status_code == 400
     assert client.get("/api/data/sales/nope").status_code == 404
+
+
+def test_suffix_range_on_empty_file_is_416(client, storage):
+    doc = json.loads(storage.get("viz/charts/sales/total-revenue/chart.json"))
+    doc.update({"id": "sales/empty", "data": {**doc["data"], "rows": 0, "bytes": 0}})
+    storage.put("viz/charts/sales/empty/chart.json", json.dumps(doc).encode(), "application/json")
+    storage.put("viz/charts/sales/empty/data.json", b"", "application/json")
+    r = client.get("/api/data/sales/empty", headers={"Range": "bytes=-5"})
+    assert r.status_code == 416
+    assert r.headers["content-range"] == "bytes */0"
+    r = client.get("/api/data/sales/empty")
+    assert r.status_code == 200
+    assert r.content == b""
+    assert r.headers["content-length"] == "0"
