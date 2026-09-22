@@ -54,17 +54,36 @@ Where a plan step says `python -m pytest`, run `.venv/Scripts/python -m pytest`.
 
 ## Commit messages
 
-One line summary in the imperative, optional body, then these two trailer
-lines exactly:
+Write the message to a file, then commit with `-F`. Never build a multi-line
+message from several `-m` flags: git inserts blank lines between them and
+breaks the trailer block. The file layout is:
 
 ```
+<one-line summary, imperative>
+
+<optional body>
+
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014JyBpbUMQyfxRP89X12AES
 ```
 
-Commit with `git -c user.name="tripp" -c user.email="dom4domg@gmail.com" commit ...`
-if the global git identity is not set. Use multiple `-m` flags for multi-line
-messages. Never use `git commit --amend` or force pushes.
+The last two lines are trailers. They are contiguous, with no blank line
+between them, and nothing after them. Put the file at
+`.superpowers/commitmsg.txt` (git-ignored) and run:
+
+```
+git -c user.name="tripp" -c user.email="dom4domg@gmail.com" commit -F .superpowers/commitmsg.txt
+```
+
+The trailer values above belong to the session that wrote this file. If you
+are a different session and your harness gave you different attribution
+lines, use yours and update this block. Whatever model you are, the trailer
+identifies the session, not the subagent: a subagent doing work for a session
+uses the session's trailers.
+
+Amending is allowed only to fix the message of a commit that has not been
+pushed, and only when a reviewer asks for it. Never rewrite pushed history.
+No force pushes.
 
 ## Environment gotchas (Windows, Git Bash)
 
