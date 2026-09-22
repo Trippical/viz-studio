@@ -6,6 +6,7 @@ from ..config import Settings
 from ..storage import get_storage
 from .middleware import IdentityMiddleware, SecurityHeadersMiddleware
 from .routes import router
+from .tree import TreeCache
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -15,6 +16,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="viz-site", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.storage = storage
+    app.state.tree = TreeCache(storage, settings)
 
     # Last added runs outermost. Order: SecurityHeaders -> TrustedHost -> Identity -> routes.
     # SecurityHeaders is outermost so every response leaving the app carries the
