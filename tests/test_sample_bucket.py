@@ -38,6 +38,7 @@ def test_every_dashboard_validates_and_references_existing_charts():
     assert len(dashboards) >= 1
     for path in dashboards:
         doc = schemas.validate_dashboard(json.loads(path.read_text(encoding="utf-8")))
+        assert doc["author"] == "sample@example.com"
         for tile in doc["layout"]:
             if "chart" in tile:
                 assert (ROOT / "charts" / tile["chart"] / "chart.json").is_file()
