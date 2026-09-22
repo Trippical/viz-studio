@@ -63,6 +63,10 @@ def _walk(node: Any, path: str = "spec") -> Iterator[tuple[str, str, Any]]:
             yield from _walk(value, f"{path}/{i}")
 
 
+# `columns` is accepted for a uniform signature with the other renderer
+# checks and is intentionally unchecked here: Vega-Lite specs may legitimately
+# reference fields produced by transforms (calculate, aggregate, window),
+# which are not in the declared column set.
 def _check_vegalite(spec: dict, columns: set[str]) -> list[str]:
     errors = []
     for path, key, value in _walk(spec):
@@ -75,6 +79,10 @@ def _check_vegalite(spec: dict, columns: set[str]) -> list[str]:
     return errors
 
 
+# `columns` is accepted for a uniform signature with the other renderer
+# checks and is intentionally unchecked here: ECharts specs may legitimately
+# reference fields produced by transforms or encode on derived dimensions,
+# which are not in the declared column set.
 def _check_echarts(spec: dict, columns: set[str]) -> list[str]:
     errors = []
     for path, key, value in _walk(spec):
@@ -136,9 +144,19 @@ _RENDERER_CHECKS = {
 
 def validate_chart(doc: Any) -> dict:
     errors = _schema_errors("chart", doc)
-    if isinstance(doc, dict) and isinstance(doc.get("spec"), dict) and doc.get("renderer") in _RENDERER_CHECKS:
-        columns = {c.get("name") for c in doc.get("data", {}).get("columns", []) if isinstance(c, dict)}
-        errors += _RENDERER_CHECKS[doc["renderer"]](doc["spec"], columns)
+    renderer = doc.get("renderer") if isinstance(doc, dict) else None
+    if (
+        isinstance(doc, dict)
+        and isinstance(doc.get("spec"), dict)
+        and isinstance(renderer, str)
+        and renderer in _RENDERER_CHECKS
+    ):
+        data = doc.get("data")
+        data_columns = data.get("columns") if isinstance(data, dict) else None
+        columns = {
+            c.get("name") for c in data_columns if isinstance(c, dict)
+        } if isinstance(data_columns, list) else set()
+        errors += _RENDERER_CHECKS[renderer](doc["spec"], columns)
     if errors:
         raise SchemaError(errors)
     return doc

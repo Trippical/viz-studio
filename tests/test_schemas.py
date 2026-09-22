@@ -150,3 +150,17 @@ def test_schema_error_lists_all_errors():
     with pytest.raises(schemas.SchemaError) as excinfo:
         schemas.validate_chart(doc)
     assert len(excinfo.value.errors) >= 2
+
+
+def test_malformed_data_block_is_schema_error_not_crash():
+    doc = copy.deepcopy(load("chart-vegalite.json"))
+    doc["data"] = None
+    with pytest.raises(schemas.SchemaError):
+        schemas.validate_chart(doc)
+
+
+def test_unhashable_renderer_is_schema_error_not_crash():
+    doc = copy.deepcopy(load("chart-vegalite.json"))
+    doc["renderer"] = ["vega-lite"]
+    with pytest.raises(schemas.SchemaError):
+        schemas.validate_chart(doc)
