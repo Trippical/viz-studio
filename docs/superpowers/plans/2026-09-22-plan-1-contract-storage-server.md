@@ -2705,7 +2705,7 @@ def test_chart_strips_sql_unless_show_sql(client, storage):
     assert r.json()["source"] == {"kind": "databricks-sql", "schedule": "0 6 * * *", "show_sql": False}
 
 
-@pytest.mark.parametrize("path", ["/api/charts/Sales", "/api/charts/a//b", "/api/dashboards/../x", "/api/charts/a%2F..%2Fb"])
+@pytest.mark.parametrize("path", ["/api/charts/Sales", "/api/charts/a//b", "/api/dashboards/sales/..%2Fx", "/api/charts/a%2F..%2Fb"])
 def test_invalid_ids_are_400(client, path):
     r = client.get(path)
     assert r.status_code == 400
