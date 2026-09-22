@@ -1,5 +1,6 @@
 """Build the folder tree from storage and cache it with single-flight refresh."""
 import asyncio
+import logging
 import time
 from datetime import datetime, timezone
 
@@ -9,10 +10,12 @@ from ..schemas import SchemaError
 from ..storage import Storage
 from .documents import DocumentTooLarge, load_chart, load_dashboard, load_folder
 
+_log = logging.getLogger("viz.server")
+
 
 def _folder_node(path: str) -> dict:
     return {"type": "folder", "path": path, "name": path.rsplit("/", 1)[-1] if path else "",
-            "title": None, "description": None, "order": None, "folders": [], "items": []}
+            "title": None, "description": None, "order": None, "error": None, "folders": [], "items": []}
 
 
 def _chart_node(storage, settings, chart_id: str) -> dict:
@@ -46,10 +49,10 @@ def _dashboard_node(storage, settings, dashboard_id: str) -> dict:
 
 def _mark_conflicts(nodes: list[dict]) -> None:
     ids = [n["id"] for n in nodes]
-    for node in nodes:
+    for i, node in enumerate(list(nodes)):
         others = [other for other in ids if other != node["id"] and (is_ancestor(node["id"], other) or is_ancestor(other, node["id"]))]
         if others:
-            node["error"] = f"id conflicts with {', '.join(sorted(others))}"
+            nodes[i] = {"type": node["type"], "id": node["id"], "error": f"id conflicts with {', '.join(sorted(others))}"}
 
 
 def _assemble(kind: str, storage, settings, items: list[dict], folder_paths: set[str]) -> dict:
@@ -73,7 +76,13 @@ def _assemble(kind: str, storage, settings, items: list[dict], folder_paths: set
         folder_for(parent_path)["items"].append(item)
 
     for path, node in index.items():
-        meta = load_folder(storage, settings, kind, path) if path in folder_paths or path == "" else None
+        if path not in folder_paths and path != "":
+            continue
+        try:
+            meta = load_folder(storage, settings, kind, path)
+        except (SchemaError, DocumentTooLarge) as err:
+            node["error"] = str(err)
+            continue
         if meta:
             node["title"] = meta.get("title")
             node["description"] = meta.get("description")
@@ -133,6 +142,7 @@ class TreeCache:
         self._built_at = 0.0
         self._lock = asyncio.Lock()
         self._refresh_task: asyncio.Task | None = None
+        self._generation = 0
 
     def _build(self) -> dict:
         self.builds += 1
@@ -151,9 +161,16 @@ class TreeCache:
         return self._value
 
     async def _refresh(self) -> None:
-        value = await asyncio.to_thread(self._build)
-        self._value = value
-        self._built_at = time.monotonic()
+        generation = self._generation
+        try:
+            value = await asyncio.to_thread(self._build)
+        except Exception:
+            _log.exception("tree refresh failed")
+            return
+        if self._generation == generation:
+            self._value = value
+            self._built_at = time.monotonic()
 
     def invalidate(self) -> None:
         self._value = None
+        self._generation += 1

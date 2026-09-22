@@ -87,6 +87,17 @@ def test_prefix_conflict_marks_both(storage, settings):
     sales = _find_folder(tree["charts"], "sales")
     child = next(i for i in sales["items"] if i["id"] == "sales/total-revenue")
     assert "conflicts" in child["error"]
+    assert set(top) == {"type", "id", "error"}
+    assert set(child) == {"type", "id", "error"}
+
+
+def test_bad_folder_metadata_does_not_break_tree(storage, settings):
+    storage.put("viz/charts/sales/_folder.json", b"{not json", "application/json")
+    tree = build_tree(storage, settings)
+    sales = _find_folder(tree["charts"], "sales")
+    assert sales["title"] is None
+    assert "invalid JSON" in sales["error"]
+    assert len(sales["items"]) == 2
 
 
 async def test_cache_builds_once_and_refreshes_in_background(storage, settings):
@@ -115,3 +126,31 @@ async def test_cache_invalidate(storage, settings):
     cache.invalidate()
     await cache.get()
     assert cache.builds == 2
+
+
+async def test_invalidate_discards_in_flight_refresh(storage, settings, monkeypatch):
+    import threading
+    from viz.server import tree as tree_module
+
+    settings.tree_ttl_seconds = 0
+    gate = threading.Event()
+    real_build = tree_module.build_tree
+    calls = []
+
+    def gated_build(s, st):
+        calls.append(1)
+        if len(calls) == 2:          # the background refresh
+            gate.wait(5)
+        return real_build(s, st)
+
+    monkeypatch.setattr(tree_module, "build_tree", gated_build)
+    cache = TreeCache(storage, settings)
+    await cache.get()                # build 1 (cold)
+    await cache.get()                # stale: starts build 2, blocked on the gate
+    await asyncio.sleep(0.05)
+    cache.invalidate()
+    gate.set()
+    await cache._refresh_task
+    assert cache._value is None      # the stale refresh must not resurrect old data
+    await cache.get()                # build 3 (cold again)
+    assert cache.builds == 3
