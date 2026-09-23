@@ -23,9 +23,10 @@
 - No CORS middleware anywhere. `TrustedHostMiddleware` is always on.
 - Data route is `GET /api/data/{id}` (amended from the spec's `/api/charts/{id}/data`, which is ambiguous when an id ends in `/data`).
 - Sample bucket content is synthetic: `author` is always `sample@example.com`, any `source.warehouse_id` is `sample`.
-- Every commit message ends with these two trailer lines:
-  `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`
-  `Claude-Session: https://claude.ai/code/session_014JyBpbUMQyfxRP89X12AES`
+- Every commit message follows the "Commit messages" section of `CLAUDE.md`:
+  subject, blank line, then two contiguous trailer lines (`Co-Authored-By`
+  naming the model that made the commit as its harness states it, and
+  `Claude-Session` with the session URL its harness states).
 - Run tests with `python -m pytest` from the repo root. All tests must pass before each commit.
 
 ## How to execute a task (read this whether you are a large or a small model)
@@ -2705,7 +2706,7 @@ def test_chart_strips_sql_unless_show_sql(client, storage):
     assert r.json()["source"] == {"kind": "databricks-sql", "schedule": "0 6 * * *", "show_sql": False}
 
 
-@pytest.mark.parametrize("path", ["/api/charts/Sales", "/api/charts/a//b", "/api/dashboards/../x", "/api/charts/a%2F..%2Fb"])
+@pytest.mark.parametrize("path", ["/api/charts/Sales", "/api/charts/a//b", "/api/dashboards/sales/..%2Fx", "/api/charts/a%2F..%2Fb"])
 def test_invalid_ids_are_400(client, path):
     r = client.get(path)
     assert r.status_code == 400
@@ -3089,30 +3090,52 @@ Expected: FAIL (`/dashboards/...` currently returns FastAPI's default 404 with `
 
 - [ ] **Step 3: Implement**
 
+The SPA fallback is a 404 exception handler, not a catch-all route. A
+catch-all `@app.get("/{path:path}")` registered inside `create_app` would
+shadow any route added after `create_app` returns (the Task 8 crash test adds
+`/api/boom` afterwards and expects a 500). When no route matches, Starlette
+raises `HTTPException(404)` inside the app, so an exception handler sees it;
+every other `HTTPException` is delegated to FastAPI's default handler so API
+error responses (400, 404, 413, 416 with its `Content-Range`, 422) are
+unchanged.
+
 ```python
 # viz/server/static.py
-"""Serve the built front end. Every non-API path falls back to index.html."""
+"""Serve the built front end. Unknown non-API paths fall back to index.html.
+
+Implemented as a 404 exception handler rather than a catch-all route, so
+routes registered after create_app() still resolve normally.
+"""
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.staticfiles import StaticFiles
 
 
 def mount_spa(app: FastAPI, dist: Path) -> None:
     dist = Path(dist)
     index = dist / "index.html"
+    assets = dist / "assets"
+    if assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
-    @app.get("/{path:path}", include_in_schema=False)
-    def spa(path: str):
-        if path == "api" or path.startswith("api/"):
-            return JSONResponse({"detail": "not found"}, status_code=404)
-        if not index.is_file():
-            return JSONResponse({"detail": "front end not built"}, status_code=404)
-        if path:
-            candidate = (dist / path).resolve()
-            if candidate.is_file() and dist.resolve() in candidate.parents:
-                return FileResponse(candidate)
-        return FileResponse(index)
+    @app.exception_handler(StarletteHTTPException)
+    async def spa_fallback(request: Request, exc: StarletteHTTPException):
+        path = request.url.path
+        is_api = path == "/api" or path.startswith("/api/")
+        if exc.status_code == 404 and request.method in ("GET", "HEAD") and not is_api:
+            if not index.is_file():
+                return JSONResponse({"detail": "front end not built"}, status_code=404)
+            rel = path.lstrip("/")
+            if rel:
+                candidate = (dist / rel).resolve()
+                if candidate.is_file() and dist.resolve() in candidate.parents:
+                    return FileResponse(candidate)
+            return FileResponse(index)
+        return await http_exception_handler(request, exc)
 ```
 
 ```python

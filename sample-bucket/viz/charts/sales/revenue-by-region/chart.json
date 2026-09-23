@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "id": "sales/revenue-by-region",
+  "title": "Revenue by region, monthly",
+  "description": "Monthly revenue for each region over the last three years. Synthetic data.",
+  "tags": [
+    "sales",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "data": {
+      "name": "data"
+    },
+    "mark": {
+      "type": "line",
+      "point": true
+    },
+    "encoding": {
+      "x": {
+        "field": "month",
+        "type": "temporal",
+        "title": "Month"
+      },
+      "y": {
+        "field": "revenue",
+        "type": "quantitative",
+        "title": "Revenue"
+      },
+      "color": {
+        "field": "region",
+        "type": "nominal",
+        "title": "Region"
+      }
+    }
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null,
+  "source": {
+    "kind": "databricks-sql",
+    "sql": "SELECT month, region, revenue, orders FROM sample.sales.monthly_revenue ORDER BY month, region",
+    "warehouse_id": "sample",
+    "schedule": "0 6 * * *",
+    "show_sql": true
+  }
+}

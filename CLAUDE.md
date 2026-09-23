@@ -21,13 +21,20 @@ runs SQL against a warehouse.
 
 ## Commands
 
+The project virtualenv is `.venv/` at the repo root, created with Python
+3.11 (`py -3.11 -m venv .venv`). The system default `python` on this machine
+is 3.10 and must not be used. Always call the venv interpreter explicitly:
+
 ```
-pip install -e ".[dev]"        # once, inside a virtualenv
-python -m pytest                # the whole suite, must pass before every commit
-python -m pytest tests/x -v     # one file
-viz-server                      # serve ./sample-bucket on http://127.0.0.1:8000
-python sample-bucket/generate.py   # regenerate the synthetic sample bucket
+.venv/Scripts/python -m pip install -e ".[dev]"   # once
+.venv/Scripts/python -m pytest                     # the whole suite, must pass before every commit
+.venv/Scripts/python -m pytest tests/x -v          # one file
+.venv/Scripts/viz-server                           # serve ./sample-bucket on http://127.0.0.1:8000
+.venv/Scripts/python sample-bucket/generate.py     # regenerate the synthetic sample bucket
 ```
+
+On Linux or macOS the paths are `.venv/bin/python` and `.venv/bin/viz-server`.
+Where a plan step says `python -m pytest`, run `.venv/Scripts/python -m pytest`.
 
 ## Rules
 
@@ -44,20 +51,46 @@ python sample-bucket/generate.py   # regenerate the synthetic sample bucket
    A future reader may be a smaller model than you.
 7. **Do not add dependencies** beyond those in `pyproject.toml` without saying
    so in the commit message and the handoff summary.
+8. **Never discard work you did not create.** Do not run `git checkout -- .`,
+   `git restore`, `git stash`, `git clean`, or `git reset` on files you did
+   not change in your task. Other work may be in progress in the same
+   checkout. Stage only your own files by name, and leave everything else in
+   the working tree exactly as you found it.
 
 ## Commit messages
 
-One line summary in the imperative, optional body, then these two trailer
-lines exactly:
+A commit message is a subject line, a blank line, an optional body, a blank
+line, and then a block of two trailer lines that sit together at the very end
+with no blank line between them:
 
 ```
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_014JyBpbUMQyfxRP89X12AES
+Co-Authored-By: <the model name your harness gave you> <noreply@anthropic.com>
+Claude-Session: <the session URL your harness gave you>
 ```
 
-Commit with `git -c user.name="tripp" -c user.email="dom4domg@gmail.com" commit ...`
-if the global git identity is not set. Use multiple `-m` flags for multi-line
-messages. Never use `git commit --amend` or force pushes.
+`Co-Authored-By` names the model that actually made the commit, exactly as
+your harness states it (for example `Claude Fable 5.1`, `Claude Haiku 4.5`).
+`Claude-Session` is the session URL your harness states. If your harness
+gives you no such lines, use `Co-Authored-By: Claude <noreply@anthropic.com>`
+alone.
+
+The reliable way to produce that layout is two `-m` flags, where the second
+one contains a real line break between the two trailers:
+
+```
+git -c user.name="tripp" -c user.email="dom4domg@gmail.com" commit -m "<subject>" -m "Co-Authored-By: <model> <noreply@anthropic.com>
+Claude-Session: <session url>"
+```
+
+Git puts exactly one blank line between the two `-m` values, which is the
+blank line after the subject. Do not use three or more `-m` flags for the
+trailers; that splits them with a blank line. Verify with
+`git log -1 --format=%B`: the subject on line 1, an empty line 2, and the two
+trailers as the last two non-empty lines, adjacent.
+
+Amending is allowed only to fix the message of a commit that has not been
+pushed, and only when a reviewer asks for it. Never rewrite pushed history.
+No force pushes.
 
 ## Environment gotchas (Windows, Git Bash)
 

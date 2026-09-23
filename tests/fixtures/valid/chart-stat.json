@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "sales/total-revenue",
+  "title": "Total revenue",
+  "author": "sample@example.com",
+  "renderer": "stat",
+  "spec": {"value": "revenue", "agg": "sum", "format": "$,.0f", "compare": {"column": "orders", "agg": "sum"}},
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 9000,
+    "columns": [
+      {"name": "month", "type": "date"},
+      {"name": "region", "type": "string"},
+      {"name": "revenue", "type": "number"},
+      {"name": "orders", "type": "integer"}
+    ]
+  }
+}
