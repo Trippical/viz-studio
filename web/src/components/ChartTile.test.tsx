@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     destroy: vi.fn(),
   },
   getAdapter: vi.fn(),
+  queryLargeLane: vi.fn(),
 }));
 
 vi.mock('../api/client', async (importOriginal) => ({
@@ -25,6 +26,7 @@ vi.mock('../api/client', async (importOriginal) => ({
   fetchRows: mocks.fetchRows,
 }));
 vi.mock('../renderers', () => ({ getAdapter: mocks.getAdapter }));
+vi.mock('../data/duckdb', () => ({ queryLargeLane: mocks.queryLargeLane }));
 
 const chart: Chart = {
   schema_version: 1,
@@ -56,6 +58,7 @@ beforeEach(() => {
   mocks.adapter.update.mockClear();
   mocks.adapter.destroy.mockClear();
   mocks.getAdapter.mockReset().mockReturnValue(mocks.adapter);
+  mocks.queryLargeLane.mockReset();
 });
 
 // vitest.config.ts does not set `test.globals`, so @testing-library/react's
@@ -144,10 +147,30 @@ describe('ChartTile', () => {
     await waitFor(() => expect(tile('sales/bad').dataset.state).toBe('error'));
   });
 
-  it('shows an error card for the large lane until Task 14', async () => {
+  it('runs the aggregate through DuckDB for the large lane and re-runs on filter change', async () => {
+    const large: Chart = { ...chart, data: { ...chart.data, lane: 'large', format: 'parquet' }, aggregate: 'SELECT region, sum(revenue) AS revenue FROM data GROUP BY region' };
+    mocks.fetchChart.mockResolvedValue(large);
+    mocks.queryLargeLane.mockResolvedValueOnce([{ region: 'EMEA', revenue: 1 }, { region: 'NA', revenue: 2 }]).mockResolvedValueOnce([{ region: 'NA', revenue: 2 }]);
+    const filter = { controlId: 'r', column: 'region', value: { type: 'select' as const, values: ['NA'] } };
+    const { rerender } = render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(mocks.fetchRows).not.toHaveBeenCalled();
+    expect(mocks.queryLargeLane).toHaveBeenCalledWith('sales/x', large.aggregate, large.data.columns, []);
+    expect(tile().dataset.rows).toBe('2');
+    rerender(<ChartTile chartId="sales/x" filters={[filter]} />);
+    await waitFor(() => expect(mocks.queryLargeLane).toHaveBeenCalledTimes(2));
+    expect(mocks.queryLargeLane.mock.calls[1][3]).toEqual([filter]);
+    await waitFor(() => expect(tile().dataset.rows).toBe('1'));
+    expect(mocks.adapter.update).toHaveBeenCalledWith([{ region: 'NA', revenue: 2 }]);
+  });
+
+  it('shows a query failure as an error card', async () => {
     mocks.fetchChart.mockResolvedValue({ ...chart, data: { ...chart.data, lane: 'large', format: 'parquet' }, aggregate: 'SELECT 1' });
+    const err = new Error('query timed out after 15000 ms');
+    err.name = 'DuckDbError';
+    mocks.queryLargeLane.mockRejectedValue(err);
     render(<ChartTile chartId="sales/x" filters={[]} />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('large lane');
+    expect(await screen.findByRole('alert')).toHaveTextContent('query failed: query timed out');
   });
 
   it('destroys the adapter on unmount', async () => {

@@ -53,6 +53,7 @@ class TileErrorBoundary extends Component<{ id: string; onError?: (err: unknown)
 export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartTileProps) {
   const [chart, setChart] = useState<Chart | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [largeRows, setLargeRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rendered, setRendered] = useState(false);
   const mountRef = useRef<HTMLDivElement>(null);
@@ -67,12 +68,16 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
     let cancelled = false;
     setChart(null);
     setRows(null);
+    setLargeRows(null);
     setError(null);
     setRendered(false);
     (async () => {
       try {
         const doc = await fetchChart(chartId);
-        if (doc.data.lane === 'large') throw new Error('large lane is not supported yet');
+        if (doc.data.lane === 'large') {
+          if (!cancelled) setChart(doc);
+          return;
+        }
         const data = await fetchRows(chartId);
         if (cancelled) return;
         setChart(doc);
@@ -88,7 +93,30 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
   }, [chartId]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands in for `filters`
-  const filtered = useMemo(() => (chart && rows ? applyFilters(rows, chart.data.columns, filters) : null), [chart, rows, key]);
+  const filtered = useMemo(() => {
+    if (!chart) return null;
+    if (chart.data.lane === 'large') return largeRows;
+    return rows ? applyFilters(rows, chart.data.columns, filters) : null;
+  }, [chart, rows, largeRows, key]);
+
+  // Large lane: every filter change is a new DuckDB query over the parquet table.
+  useEffect(() => {
+    if (!chart || chart.data.lane !== 'large' || error) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { queryLargeLane } = await import('../data/duckdb');
+        const result = await queryLargeLane(chartId, chart.aggregate ?? '', chart.data.columns, filters);
+        if (!cancelled) setLargeRows(result);
+      } catch (err) {
+        if (!cancelled) setError(describeError(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands in for `filters`
+  }, [chart, chartId, key, error]);
 
   // Mount once, then update on every filter change. Operations are serialized.
   // The cleanup below also fires on a chartId change (it is in the deps), so
