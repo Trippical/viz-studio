@@ -122,6 +122,17 @@ def test_empty_table_is_refused(tmp_path):
         write_staged_chart(pa.table({}), "sales/empty", tmp_path, author="a@b", now=NOW)
 
 
+def test_failed_restage_leaves_no_dangling_chart_json(tmp_path, monkeypatch):
+    staged = write_staged_chart(_table(), "sales/restage", tmp_path, author="tester@example.com", now=NOW)
+    assert staged.data_path.name == "data.json" and staged.chart_path.is_file()
+    monkeypatch.setattr(staging, "SMALL_MAX_ROWS", 0)
+    monkeypatch.setattr(staging, "LARGE_MAX_BYTES", 10)
+    with pytest.raises(LaneError):
+        write_staged_chart(_table(), "sales/restage", tmp_path, author="tester@example.com", now=NOW)
+    assert not (staged.dir / "chart.json").exists()
+    assert not (staged.dir / "data.parquet").exists()
+
+
 def test_column_summary(tmp_path):
     text = column_summary(_table())
     lines = text.splitlines()

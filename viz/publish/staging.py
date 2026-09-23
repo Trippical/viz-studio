@@ -93,14 +93,14 @@ def write_staged_chart(table: pa.Table, chart_id: str, staging_root: Path, *, au
     columns = infer_columns(table)
     directory = chart_dir(staging_root, chart_id)
     directory.mkdir(parents=True, exist_ok=True)
-    for stale in ("data.json", "data.parquet"):
-        (directory / stale).unlink(missing_ok=True)
 
     payload = json.dumps(rows_from_table(table), ensure_ascii=False).encode("utf-8")
     if len(table) <= SMALL_MAX_ROWS and len(payload) <= SMALL_MAX_BYTES:
         fmt, lane = "json", "small"
         data_path = directory / "data.json"
         _write_bytes(data_path, payload)
+        # Clean up old-format file after successful write
+        (directory / "data.parquet").unlink(missing_ok=True)
     else:
         fmt, lane = "parquet", "large"
         data_path = directory / "data.parquet"
@@ -108,7 +108,10 @@ def write_staged_chart(table: pa.Table, chart_id: str, staging_root: Path, *, au
         if data_path.stat().st_size > LARGE_MAX_BYTES:
             size = data_path.stat().st_size
             data_path.unlink()
+            (directory / "chart.json").unlink(missing_ok=True)
             raise LaneError(f"parquet file is {size} bytes, over the large-lane cap of {LARGE_MAX_BYTES} bytes")
+        # Clean up old-format file after successful write
+        (directory / "data.json").unlink(missing_ok=True)
 
     doc = skeleton(chart_id, columns, fmt, lane, len(table), data_path.stat().st_size, author, now, source)
     chart_path = directory / "chart.json"
