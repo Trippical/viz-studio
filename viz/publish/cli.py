@@ -15,6 +15,7 @@ from .move import MoveError, apply_move, describe, plan_move
 from .pii import drop_columns, parse_drop_list, pii_warning
 from .publish import PublishRefused, publish_chart, publish_dashboard
 from .preview import run_preview
+from .query import QueryError, read_sql_argument, resolve_warehouse, run_query
 from .staging import LaneError, column_summary, write_staged_chart
 from .validate import validate_dashboard_file, validate_staged_chart
 
@@ -123,6 +124,18 @@ def _cmd_preview(args) -> int:
     return 0
 
 
+def _cmd_query(args) -> int:
+    settings = Settings()
+    try:
+        sql = read_sql_argument(args.sql)
+        table, user = run_query(sql, settings, args.warehouse)
+        warehouse = resolve_warehouse(args.warehouse)
+    except QueryError as err:
+        raise CliError(str(err), code=err.code) from err
+    source = {"kind": "databricks-sql", "sql": sql, "warehouse_id": warehouse}
+    return _stage_table(table, args.id, settings, args, author=user, source=source)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="viz", description="Stage, validate and publish charts and dashboards.")
     parser.add_argument("--version", action="version", version=f"viz {__version__}")
@@ -160,6 +173,14 @@ def build_parser() -> argparse.ArgumentParser:
     preview_p.add_argument("--host", default="127.0.0.1")
     preview_p.add_argument("--port", type=int, default=8000)
     preview_p.set_defaults(func=_cmd_preview)
+
+    query_p = sub.add_parser("query", help="run SQL on Databricks and stage the result as a chart")
+    query_p.add_argument("--sql", required=True, metavar="SQL_OR_@FILE")
+    query_p.add_argument("--id", required=True, help="chart id, for example sales/emea/revenue")
+    query_p.add_argument("--warehouse", default=None, metavar="ID", help="SQL warehouse id (default DATABRICKS_WAREHOUSE_ID)")
+    query_p.add_argument("--drop-columns", default=None, metavar="a,b")
+    query_p.add_argument("--staging", default=None, metavar="DIR", help="staging directory (default ./.viz-staging)")
+    query_p.set_defaults(func=_cmd_query)
 
     # Later tasks add their subcommands below this line.
 
