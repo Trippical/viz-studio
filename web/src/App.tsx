@@ -1,4 +1,5 @@
 import { Link, Route, Routes } from 'react-router-dom';
+import { DashboardPage } from './pages/DashboardPage';
 import { TreePage } from './pages/TreePage';
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<TreePage kind="dashboards" />} />
           <Route path="/charts" element={<TreePage kind="charts" />} />
+          <Route path="/d/*" element={<DashboardPage />} />
         </Routes>
       </main>
     </div>

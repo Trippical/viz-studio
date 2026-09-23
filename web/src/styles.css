@@ -48,3 +48,6 @@ a { color: var(--accent); }
 .columns-table { border-collapse: collapse; font-size: 13px; }
 .columns-table td, .columns-table th { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 pre.sql { background: #f6f6f6; padding: 10px; overflow: auto; font-size: 12px; }
+
+.grid-cell { min-width: 0; min-height: 0; }
+.grid-cell > .tile { height: 100%; }
