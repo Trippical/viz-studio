@@ -8,6 +8,7 @@ import {
   isActive,
   resolveLast,
   selectOptions,
+  type Filter,
 } from './filters';
 
 const columns: Column[] = [
@@ -79,6 +80,11 @@ describe('resolveLast', () => {
   it('rejects malformed input', () => {
     expect(() => resolveLast('12', today)).toThrow();
   });
+  it('clamps the day at month ends', () => {
+    expect(resolveLast('6m', new Date(2026, 7, 31))).toEqual({ from: '2026-02-28', to: '2026-08-31' });
+    expect(resolveLast('1y', new Date(2028, 1, 29))).toEqual({ from: '2027-02-28', to: '2028-02-29' });
+    expect(resolveLast('1m', new Date(2026, 2, 31))).toEqual({ from: '2026-02-28', to: '2026-03-31' });
+  });
 });
 
 describe('defaultFilterValue', () => {
@@ -107,7 +113,7 @@ describe('isActive and filterKey', () => {
     expect(isActive({ type: 'text', text: 'a' })).toBe(true);
   });
   it('filterKey is stable', () => {
-    const f = [{ controlId: 'r', column: 'region', value: { type: 'select', values: ['a'] } as const }];
+    const f: Filter[] = [{ controlId: 'r', column: 'region', value: { type: 'select', values: ['a'] } }];
     expect(filterKey(f)).toBe(filterKey([...f]));
   });
 });

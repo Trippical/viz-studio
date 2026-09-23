@@ -2,7 +2,7 @@ import type { Column, Control, Row } from '../api/types';
 
 export type FilterValue =
   | { type: 'date-range'; from: string | null; to: string | null }
-  | { type: 'select'; values: readonly string[] }
+  | { type: 'select'; values: string[] }
   | { type: 'number-range'; min: number | null; max: number | null }
   | { type: 'text'; text: string };
 
@@ -100,12 +100,22 @@ export function resolveLast(last: string, today: Date): { from: string; to: stri
     case 'w':
       from.setDate(from.getDate() - 7 * n);
       break;
-    case 'm':
+    case 'm': {
+      const originalDay = from.getDate();
+      from.setDate(1);
       from.setMonth(from.getMonth() - n);
+      const daysInMonth = new Date(from.getFullYear(), from.getMonth() + 1, 0).getDate();
+      from.setDate(Math.min(originalDay, daysInMonth));
       break;
-    case 'y':
+    }
+    case 'y': {
+      const originalDay = from.getDate();
+      from.setDate(1);
       from.setFullYear(from.getFullYear() - n);
+      const daysInMonth = new Date(from.getFullYear(), from.getMonth() + 1, 0).getDate();
+      from.setDate(Math.min(originalDay, daysInMonth));
       break;
+    }
   }
   return { from: isoDate(from), to: isoDate(today) };
 }
