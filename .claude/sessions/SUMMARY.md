@@ -29,6 +29,8 @@ Key decisions (all confirmed by the user):
 - Design changes made during execution (all recorded in the plan): security headers middleware is outermost and converts crashes to JSON 500 with headers; SPA fallback is a 404 exception handler, not a catch-all route; FolderNode has an always-present `error` key; refresher and Databricks credentials are entirely out of the server; commit trailers name the model that made the commit.
 - Environment: venv at `.venv/` is Python 3.11 (system default is 3.10, do not use). Commit trailers name the model that made the commit.
 
+- Remote: https://github.com/Trippical/viz-studio (`origin`). `main` and `plan-1-contract-storage-server` pushed 2026-09-22. No `gh` CLI on this machine; PR description drafted at `docs/superpowers/plans/2026-09-22-plan-1-pr-description.md`.
+
 ## Next concrete step
 
-Continue `superpowers:subagent-driven-development` for Plan 1 from the ledger: resume at the first task without a `complete` line. After Task 12 and the final whole-branch review, use `superpowers:finishing-a-development-branch`, then write Plan 2 (front end, three renderer adapters, bake-off samples, DuckDB large lane) against the real server.
+User opens the Plan 1 pull request on GitHub (compare link: https://github.com/Trippical/viz-studio/pull/new/plan-1-contract-storage-server) and merges it. Then write Plan 2 (front end: Vite/React/TS, three renderer adapters with the section 12.3 deny-lists, bake-off samples, controls with URL state, DuckDB-WASM large lane) using `superpowers:writing-plans` against the real server API, and execute it the same way.
