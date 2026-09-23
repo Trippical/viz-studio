@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
+    # Publisher (viz CLI) settings. The server ignores them.
+    author: str | None = None
+    query_deny: str = ""
+    pii_pattern: str = r"(?i)(email|ssn|phone|name|address|dob|salary|\bip\b)"
+    staging_dir: Path = Path("./.viz-staging")
+
     @field_validator("root_prefix")
     @classmethod
     def _normalize_root(cls, value: str) -> str:
