@@ -6,14 +6,20 @@ const ALLOWED_SCHEMES = new Set(['http', 'https', 'mailto']);
 
 /** Returns the URL if it may be rendered, otherwise an empty string. */
 export function safeUrl(url: string): string {
-  const trimmed = url.trim();
-  if (trimmed === '') return '';
-  if (trimmed.startsWith('//')) return '';
-  const colon = trimmed.indexOf(':');
-  if (colon > 0 && /^[a-z][a-z0-9+.-]*$/i.test(trimmed.slice(0, colon))) {
-    return ALLOWED_SCHEMES.has(trimmed.slice(0, colon).toLowerCase()) ? trimmed : '';
+  // Browsers strip ASCII tab, newline and carriage return from a URL
+  // before parsing its scheme, so an attacker can hide "javascript:" as
+  // "java\tscript:". Strip the same characters before any other check so
+  // every later check runs against what the browser will actually see.
+  const cleaned = url.trim().replace(/[\t\n\r]/g, '');
+  if (cleaned === '') return '';
+  if (cleaned.startsWith('//')) return '';
+  const colon = cleaned.indexOf(':');
+  const delimiter = cleaned.search(/[/?#]/);
+  const hasScheme = colon > 0 && (delimiter === -1 || colon < delimiter);
+  if (hasScheme) {
+    return ALLOWED_SCHEMES.has(cleaned.slice(0, colon).toLowerCase()) ? cleaned : '';
   }
-  return trimmed;
+  return cleaned;
 }
 
 export function isSameOrigin(url: string): boolean {

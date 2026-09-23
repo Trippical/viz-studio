@@ -19,6 +19,19 @@ describe('safeUrl', () => {
     expect(safeUrl('//evil.example/x')).toBe('');
     expect(safeUrl('  javascript:1')).toBe('');
   });
+
+  it('strips embedded control characters before checking the scheme', () => {
+    expect(safeUrl('java\tscript:alert(1)')).toBe('');
+    expect(safeUrl('java\nscript:alert(1)')).toBe('');
+    expect(safeUrl('java\rscript:alert(1)')).toBe('');
+    expect(safeUrl('\tjavascript:alert(1)')).toBe('');
+  });
+
+  it('does not mistake a colon after a path or query character for a scheme', () => {
+    expect(safeUrl('/a:b')).toBe('/a:b');
+    expect(safeUrl('?q=a:b')).toBe('?q=a:b');
+    expect(safeUrl('https://ok.example/x')).toBe('https://ok.example/x');
+  });
 });
 
 describe('Markdown', () => {
