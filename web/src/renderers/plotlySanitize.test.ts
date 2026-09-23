@@ -48,6 +48,17 @@ describe('plotly sanitize', () => {
     expect(sanitize(JSON.parse('{"traces":[{"type":"bar","__proto__":{"x":1}}]}')).traces[0]).toEqual({ type: 'bar' });
   });
 
+  it('rejects anchor tags anywhere in the spec but allows other tags', () => {
+    expect(() =>
+      sanitize({ traces: base.traces, layout: { title: { text: 'x <a href="javascript:alert(1)">y</a>' } } }),
+    ).toThrow(/anchor/);
+    expect(() => sanitize({ traces: base.traces, layout: { title: { text: 'line<br>two' } } })).not.toThrow();
+    expect(() =>
+      sanitize({ traces: [{ type: 'bar', hovertemplate: '%{y}<extra></extra>' }] }),
+    ).not.toThrow();
+    expect(() => sanitize({ traces: [{ type: 'bar', name: '<A HREF=x>' }] })).toThrow(/anchor/);
+  });
+
   it('publishes its rule list', () => {
     expect(RULES.length).toBeGreaterThanOrEqual(6);
   });

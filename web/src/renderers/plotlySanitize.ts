@@ -11,9 +11,12 @@ export const RULES: readonly string[] = [
   'split, when present, must be a string',
   'layout keys images, mapbox, map, geo deleted at any depth',
   'keys __proto__, constructor, prototype dropped',
-  '"<" escaped in every string bound to text or hovertext',
+  '"<" escaped in every string bound to text, hovertext or customdata',
+  'anchor tags (<a ...>) rejected in any string at any depth, in traces or layout',
   'cloud export, chart studio and the Plotly logo disabled in config',
 ];
+
+const ANCHOR_RE = /<\s*a[\s>]/i;
 
 export const BOUND_KEYS = ['x', 'y', 'z', 'text', 'hovertext', 'labels', 'values', 'customdata'] as const;
 
@@ -66,5 +69,10 @@ export function sanitize(spec: unknown): PlotlySpec {
       if (LAYOUT_DELETE_KEYS.has(key)) delete obj[key];
     }, 'spec/layout');
   }
+  walk(clean, (_obj, _key, value, path) => {
+    if (typeof value === 'string' && ANCHOR_RE.test(value)) {
+      throw new SanitizeError(`${path}: anchor tags are not allowed`);
+    }
+  }, 'spec');
   return { traces: traces as Record<string, unknown>[], layout };
 }

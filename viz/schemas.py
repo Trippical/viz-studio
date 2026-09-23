@@ -1,6 +1,7 @@
 # viz/schemas.py
 """Document validation: JSON Schema plus renderer-specific spec rules."""
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterator
@@ -12,6 +13,7 @@ PLOTLY_FORBIDDEN_TRACE_TYPES = frozenset(
     ["scattergeo", "choropleth", "scattermapbox", "choroplethmapbox", "densitymapbox",
      "scattermap", "choroplethmap", "densitymap"]
 )
+PLOTLY_ANCHOR_RE = re.compile(r"<\s*a[\s>]", re.IGNORECASE)
 
 _CANDIDATE_DIRS = (
     Path(__file__).parent / "_schemas",
@@ -118,6 +120,9 @@ def _check_plotly(spec: dict, columns: set[str]) -> list[str]:
                 errors.append(f"spec/traces/{i}/{key}: must be a column binding {{\"column\": name}}")
             elif binding["column"] not in columns:
                 errors.append(f"spec/traces/{i}/{key}: unknown column {binding['column']!r}")
+    for path, key, value in _walk(spec):
+        if isinstance(value, str) and PLOTLY_ANCHOR_RE.search(value):
+            errors.append(f"{path}: anchor tags are not allowed")
     return errors
 
 

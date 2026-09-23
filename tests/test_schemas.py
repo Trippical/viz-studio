@@ -97,6 +97,7 @@ CHART_CASES = [
     ("plotly geo trace", "chart-plotly.json", _set("spec.traces.0.type", "choropleth"), "type"),
     ("plotly extra top-level key", "chart-plotly.json", _set("spec.frames", []), "frames"),
     ("plotly layout images", "chart-plotly.json", _set("spec.layout.images", []), "images"),
+    ("plotly anchor tag", "chart-plotly.json", _set("spec.layout.title", {"text": "<a href='x'>y</a>"}), "anchor"),
     ("stat unknown column", "chart-stat.json", _set("spec.value", "nope"), "nope"),
     ("stat bad agg", "chart-stat.json", _set("spec.agg", "median"), "agg"),
     ("stat compare unknown column", "chart-stat.json", _set("spec.compare.column", "nope"), "nope"),

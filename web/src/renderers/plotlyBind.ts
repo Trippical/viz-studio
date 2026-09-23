@@ -2,7 +2,7 @@ import type { Column, Row } from '../api/types';
 import { SanitizeError, UNSAFE_KEYS, isPlainObject } from './common';
 import { BOUND_KEYS } from './plotlySanitize';
 
-const ESCAPED_KEYS = new Set(['text', 'hovertext']);
+const ESCAPED_KEYS = new Set(['text', 'hovertext', 'customdata']);
 
 export function escapeLt(v: unknown): unknown {
   return typeof v === 'string' ? v.replace(/</g, '&lt;') : v;

@@ -3,20 +3,26 @@ import { SanitizeError } from './common';
 import { bindTraces, escapeLt } from './plotlyBind';
 
 const rows = [
-  { region: 'EMEA', orders: 1, label: '<b>x</b>' },
-  { region: 'NA', orders: 2, label: 'y' },
-  { region: 'EMEA', orders: 3, label: 'z' },
+  { region: 'EMEA', orders: 1, label: '<b>x</b>', note: '<b>x</b>' },
+  { region: 'NA', orders: 2, label: 'y', note: 'y' },
+  { region: 'EMEA', orders: 3, label: 'z', note: 'z' },
 ];
 const columns = [
   { name: 'region', type: 'string' as const },
   { name: 'orders', type: 'integer' as const },
   { name: 'label', type: 'string' as const },
+  { name: 'note', type: 'string' as const },
 ];
 
 describe('bindTraces', () => {
   it('replaces bindings with column arrays and escapes text', () => {
     const out = bindTraces([{ type: 'bar', x: { column: 'region' }, y: { column: 'orders' }, text: { column: 'label' } }], rows, columns);
     expect(out).toEqual([{ type: 'bar', x: ['EMEA', 'NA', 'EMEA'], y: [1, 2, 3], text: ['&lt;b>x&lt;/b>', 'y', 'z'] }]);
+  });
+
+  it('escapes customdata the same as text', () => {
+    const out = bindTraces([{ type: 'scatter', customdata: { column: 'note' } }], rows, columns);
+    expect(out).toEqual([{ type: 'scatter', customdata: ['&lt;b>x&lt;/b>', 'y', 'z'] }]);
   });
 
   it('expands split into one trace per value', () => {
