@@ -11,6 +11,7 @@ from .errors import CliError
 from .identity import resolve_author
 from .infer import UnsupportedColumn, table_from_file
 from .pii import drop_columns, parse_drop_list, pii_warning
+from .publish import PublishRefused, publish_chart, publish_dashboard
 from .staging import LaneError, column_summary, write_staged_chart
 from .validate import validate_dashboard_file, validate_staged_chart
 
@@ -81,6 +82,22 @@ def _cmd_validate(args) -> int:
     return 0
 
 
+def _cmd_publish(args) -> int:
+    settings = Settings()
+    storage = get_storage(settings)
+    path = Path(args.path)
+    try:
+        if path.is_dir():
+            publish_chart(path, settings, storage, force=args.force, allow_row_level=args.allow_row_level)
+        elif path.is_file():
+            publish_dashboard(path, settings, storage, force=args.force)
+        else:
+            raise CliError(f"path not found: {path}", code=2)
+    except PublishRefused as err:
+        raise CliError(err.errors, code=1) from err
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="viz", description="Stage, validate and publish charts and dashboards.")
     parser.add_argument("--version", action="version", version=f"viz {__version__}")
@@ -100,6 +117,12 @@ def build_parser() -> argparse.ArgumentParser:
     validate_p.add_argument("path", metavar="PATH")
     validate_p.add_argument("--allow-row-level", action="store_true", help="confirm publishing a large-lane (row-level) chart")
     validate_p.set_defaults(func=_cmd_validate)
+
+    publish_p = sub.add_parser("publish", help="validate, then upload a staged chart directory or a dashboard file")
+    publish_p.add_argument("path", metavar="PATH")
+    publish_p.add_argument("--force", action="store_true", help="overwrite an existing id")
+    publish_p.add_argument("--allow-row-level", action="store_true", help="confirm publishing a large-lane (row-level) chart")
+    publish_p.set_defaults(func=_cmd_publish)
 
     # Later tasks add their subcommands below this line.
 
