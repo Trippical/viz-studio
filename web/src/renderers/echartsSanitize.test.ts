@@ -19,6 +19,26 @@ describe('echarts sanitize', () => {
     expect(sanitize({ ...base, tooltip: { renderMode: 'html' } }).tooltip).toEqual({ renderMode: 'richText' });
   });
 
+  it('keeps tooltip false as false and rejects other tooltip types', () => {
+    expect(sanitize({ ...base, tooltip: false }).tooltip).toBe(false);
+    expect(() => sanitize({ ...base, tooltip: 'x' })).toThrow(SanitizeError);
+    expect(() => sanitize({ ...base, tooltip: 3 })).toThrow(SanitizeError);
+    expect(() => sanitize({ ...base, tooltip: [] })).toThrow(SanitizeError);
+  });
+
+  it('rejects image fills and image:// symbols', () => {
+    expect(() =>
+      sanitize({ ...base, series: [{ type: 'bar', itemStyle: { color: { image: 'http://evil/x.png' } } }] }),
+    ).toThrow(SanitizeError);
+    expect(() =>
+      sanitize({ ...base, series: [{ type: 'bar', label: { rich: { a: { backgroundColor: { image: 'x' } } } } }] }),
+    ).toThrow(SanitizeError);
+    expect(() => sanitize({ ...base, series: [{ type: 'scatter', symbol: 'image://http://evil/x.png' }] })).toThrow(
+      SanitizeError,
+    );
+    expect(() => sanitize({ ...base, series: [{ type: 'scatter', symbol: 'circle' }] })).not.toThrow();
+  });
+
   it('deletes the DOM-reaching keys at any depth', () => {
     const out = sanitize({
       ...base,
