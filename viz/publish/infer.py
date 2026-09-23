@@ -97,7 +97,11 @@ def _promote_strings(table: pa.Table) -> pa.Table:
 
 
 def table_from_rows(rows: list[dict]) -> pa.Table:
-    return _promote_strings(pa.Table.from_pylist(rows))
+    try:
+        table = pa.Table.from_pylist(rows)
+    except (OverflowError, pa.ArrowInvalid, pa.ArrowTypeError) as err:
+        raise UnsupportedColumn(f"cannot infer column types from rows: {err}") from err
+    return _promote_strings(table)
 
 
 def table_from_file(path: Path) -> pa.Table:

@@ -128,3 +128,8 @@ def test_table_from_file_json_must_be_an_array_of_objects(tmp_path):
     bad.write_text('{"a": 1}', encoding="utf-8")
     with pytest.raises(UnsupportedColumn, match="array of objects"):
         table_from_file(bad)
+
+
+def test_table_from_rows_rejects_integers_beyond_int64():
+    with pytest.raises(UnsupportedColumn, match="cannot infer column types"):
+        table_from_rows([{"i": 99999999999999999999}])
