@@ -31,6 +31,8 @@ is 3.10 and must not be used. Always call the venv interpreter explicitly:
 .venv/Scripts/python -m pytest tests/x -v          # one file
 .venv/Scripts/viz-server                           # serve ./sample-bucket on http://127.0.0.1:8000
 .venv/Scripts/python sample-bucket/generate.py     # regenerate the synthetic sample bucket
+.venv/Scripts/viz --help                           # the publisher CLI: query, stage, validate, publish, move, preview
+.venv/Scripts/viz preview                          # serve ./.viz-staging on http://127.0.0.1:8000
 ```
 
 On Linux or macOS the paths are `.venv/bin/python` and `.venv/bin/viz-server`.
@@ -112,7 +114,7 @@ No force pushes.
 ## Layout
 
 ```
-viz/            python package: ids, schemas, config, storage/, server/, (later) publish/, refresh/
+viz/            python package: ids, schemas, config, storage/, server/, publish/, (later) refresh/
 schemas/        JSON Schemas, the single source of truth for the contract
 sample-bucket/  synthetic sample data; viz/ inside it mirrors the bucket
 tests/          mirrors the package layout; fixtures under tests/fixtures
