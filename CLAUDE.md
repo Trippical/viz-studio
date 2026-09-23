@@ -103,6 +103,11 @@ No force pushes.
 - Symlink creation needs privileges on Windows; tests that need symlinks are
   skipped there and run in CI on Linux.
 - Line endings: `.gitattributes` forces LF. Ignore the CRLF warnings git prints.
+- Node.js 24 LTS is installed at `C:\Program Files\nodejs` (via winget). Shells
+  opened before the install do not have it on PATH. In Git Bash run
+  `export PATH="/c/Program Files/nodejs:$PATH"` first; in PowerShell use
+  `$env:Path = "C:\Program Files\nodejs;" + $env:Path`. npm commands for the
+  front end run from `web/`.
 
 ## Layout
 

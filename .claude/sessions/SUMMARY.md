@@ -6,15 +6,20 @@ Latest log: .claude/sessions/logs/2026-09-22-plan-1-design-and-build.md
 
 ## Current objective
 
-Harden Plan 1 before building on it. The user wants a few sessions to "pick at" the merged contract, storage and server code to make sure it is strong. Plan 1 is merged to `main` (71c4362) and pushed to https://github.com/Trippical/viz-studio; suite is 169 passed, 1 Windows skip, warning-free.
+Build the paved path and get bake-off results, in parallel. The user (2026-09-22, second session) chose to skip the hardening pass for now and run two plans side by side in separate worktrees:
 
-Decisions already made, do not relitigate: spec `docs/superpowers/specs/2026-09-22-viz-site-design.md` with section 12 security requirements; data route is `/api/data/{id}`; SPA fallback is a 404 exception handler; SecurityHeaders middleware outermost; local ETag is size+mtime; Vega-Lite/ECharts column names are not validated against declared columns; commit trailers name the model that made the commit (see `CLAUDE.md`).
+- Plan 2, front end and bake-off: `docs/superpowers/plans/2026-09-22-plan-2-front-end-bake-off.md` (Vite + React + TS in `web/`, three sanitized renderer adapters, controls with URL state, DuckDB-WASM large lane, bake-off samples in `sample-bucket/`, Playwright smoke test, scorecard doc `docs/superpowers/specs/2026-09-22-bake-off-scorecard.md`).
+- Plan 3a, the `viz` CLI: `docs/superpowers/plans/2026-09-22-plan-3a-cli.md` (`viz/publish/`: query, stage, validate, publish, move, preview; argparse only; adds `pyarrow`, `duckdb`, optional `databricks` extra). The `publish-viz` skill (spec 6.3) is Plan 3b and waits for the bake-off winner.
 
-Starting points for hardening sessions: the deferred minors in the latest log's "Open threads"; a fresh adversarial pass over `viz/server/routes.py`, `viz/server/static.py`, `viz/storage/local.py` and `viz/schemas.py`; running the server against a real S3 bucket on the user's personal AWS account (only synthetic data). After hardening: write Plan 2 (front end, three renderer adapters with the section 12.3 deny-lists, controls with URL state, DuckDB-WASM large lane) with `superpowers:writing-plans`.
+State: both plans are being written (forked plan writers), then self-reviewed against spec sections 5.2/12.3 and 6.2/12.4, then committed on `main`. Node.js 24.19.0 was installed with winget at `C:\Program Files\nodejs` (new shells need it on PATH; in Git Bash `export PATH="/c/Program Files/nodejs:$PATH"`).
+
+Decisions already made, do not relitigate: everything in the previous objective (spec, `/api/data/{id}`, 404-handler SPA fallback, SecurityHeaders outermost, size+mtime local ETag, commit trailers); staging root `.viz-staging/` mirrors the bucket with an empty root prefix (`.viz-staging/charts/<id>/`), so `viz preview` serves it with `root_prefix=""`; author resolution order is Databricks current user, then `VIZ_AUTHOR`, then AWS STS caller identity when storage is s3, then `<user>@local`; CLI exit codes 0/1/2; Plan 2 adds `pyarrow` to the dev extra for the parquet sample and Plan 3a adds it to main deps, so `pyproject.toml` conflicts at merge and is resolved by hand.
+
+Next concrete step: when both plan files exist, review them, commit them, create worktrees with `superpowers:using-git-worktrees` (branches `plan-2-front-end` and `plan-3a-cli`), and execute both with `superpowers:subagent-driven-development`. After Plan 2 lands, the user reviews the three bake-off dashboards and picks a winner; then Plan 3b (skill) and the loser removal.
 
 ## Last session summary
 
-Designed viz-site with the user from an empty folder and wrote the spec, a three-lens security review, and Plan 1. Executed Plan 1's twelve TDD tasks with subagent-driven development (small models for transcription, mid-tier for integration, most capable for the final review), fixing findings per task and in one final wave. Set up `CLAUDE.md`, the 3.11 venv, and the commit conventions so smaller models can work in the repo. Added the GitHub remote, pushed, and merged Plan 1 into `main` at the user's request. Nothing is broken. `gh` CLI is not installed; PRs go through the web UI.
+Designed viz-site with the user from an empty folder and wrote the spec, a three-lens security review, and Plan 1. Executed Plan 1's twelve TDD tasks with subagent-driven development, fixing findings per task and in one final wave. Set up `CLAUDE.md`, the 3.11 venv, and the commit conventions so smaller models can work in the repo. Added the GitHub remote, pushed, and merged Plan 1 into `main` at the user's request. Nothing is broken; suite is 169 passed, 1 Windows skip. `gh` CLI is not installed; PRs go through the web UI.
 
 ## Recent sessions
 
