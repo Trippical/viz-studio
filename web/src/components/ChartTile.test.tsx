@@ -189,6 +189,58 @@ describe('ChartTile', () => {
     expect(first.update).not.toHaveBeenCalled();
     await waitFor(() => expect(tile('b').dataset.state).toBe('ready'));
   });
+
+  it('mounts only the document that matches its chart id when the chart switches while idle', async () => {
+    const chartY = { ...chart, id: 'sales/y', spec: { data: { name: 'data' }, mark: 'bar' } };
+    mocks.fetchChart.mockImplementation(async (id: string) => (id === 'sales/y' ? chartY : chart));
+    mocks.fetchRows.mockResolvedValue(rows);
+
+    const first = mockAdapter();
+    const second = mockAdapter();
+    mocks.getAdapter.mockReset();
+    mocks.getAdapter.mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+    // Chart "sales/x" fully mounts and goes idle before the switch, so the
+    // effect that mounts it is not in flight when chartId changes below.
+    const { rerender } = render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile('sales/x').dataset.state).toBe('ready'));
+    expect(first.mount).toHaveBeenCalledTimes(1);
+    expect(first.mount).toHaveBeenCalledWith(expect.anything(), chart.spec, rows, chart.data.columns);
+
+    rerender(<ChartTile chartId="sales/y" filters={[]} />);
+    await waitFor(() => expect(tile('sales/y').dataset.state).toBe('ready'));
+
+    expect(first.destroy).toHaveBeenCalledTimes(1);
+    expect(mocks.getAdapter).toHaveBeenCalledTimes(2);
+    expect(second.mount).toHaveBeenCalledTimes(1);
+    expect(second.mount).toHaveBeenCalledWith(expect.anything(), chartY.spec, rows, chartY.data.columns);
+    expect(first.update).not.toHaveBeenCalled();
+  });
+
+  it('does not flash ready with a stale stat spec when the chart switches while idle', async () => {
+    // The stat branch's setRendered(true) runs synchronously inside the
+    // mount/update effect (no adapter promise involved), so unlike the
+    // adapter-mount branch above, a stale pass here is directly observable
+    // in the very next commit rather than being corrected before any
+    // microtask can see it. This exercises the same `chart.id !== chartId`
+    // guard from a different, more directly observable angle.
+    const statX = { ...chart, renderer: 'stat' as const, spec: { value: 'revenue', agg: 'sum' as const } };
+    const statY = { ...chart, id: 'sales/y', renderer: 'stat' as const, spec: { value: 'revenue', agg: 'sum' as const } };
+    mocks.fetchChart.mockImplementation(async (id: string) => (id === 'sales/y' ? statY : statX));
+    mocks.fetchRows.mockResolvedValue(rows);
+
+    const { rerender } = render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile('sales/x').dataset.state).toBe('ready'));
+
+    rerender(<ChartTile chartId="sales/y" filters={[]} />);
+    // Assert immediately (no await): a stale-spec flash would show up in
+    // this very first commit after the prop change, showing data-state
+    // "ready" with no stat value actually rendered yet.
+    expect(tile('sales/y').dataset.state).toBe('loading');
+
+    await waitFor(() => expect(tile('sales/y').dataset.state).toBe('ready'));
+    expect(screen.getByTestId('stat-value')).toHaveTextContent('3');
+  });
 });
 
 describe('describeError', () => {

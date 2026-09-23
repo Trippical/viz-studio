@@ -96,8 +96,19 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
   // stale once its promise resolves: the adapter it just built is destroyed
   // instead of being written into adapterRef, so it never receives a later
   // update() call meant for the new chart.
+  //
+  // The chart.id !== chartId check below covers the case where chartId
+  // switches while the *previous* chart's document is still the current
+  // `chart` state: chartId being in the deps re-runs this effect on the
+  // stale `chart`/`filtered` closures before the new chart's document has
+  // loaded. Without the id check that stale run would queue a fresh mount
+  // of the old chart's spec, which could resolve after adapterRef has been
+  // nulled by the chartId-keyed destroy effect and get written back in,
+  // orphaning the adapter the next chart's update() should have used. It
+  // also stops the stat branch below from synchronously reporting "ready"
+  // for the old chart's stale spec in that same stale pass.
   useEffect(() => {
-    if (!chart || !filtered || error) return;
+    if (!chart || chart.id !== chartId || !filtered || error) return;
     if (chart.renderer === 'stat') {
       setRendered(true);
       return;
