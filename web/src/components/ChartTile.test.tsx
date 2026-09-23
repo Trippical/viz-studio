@@ -1,7 +1,8 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError } from '../api/client';
+import { ApiError, DataTooLarge } from '../api/client';
 import type { Chart } from '../api/types';
+import type { Adapter } from '../renderers/adapter';
 import { SanitizeError } from '../renderers/common';
 import { ChartTile, describeError } from './ChartTile';
 
@@ -67,6 +68,20 @@ function tile(id = 'sales/x') {
   return document.querySelector(`[data-tile="${id}"]`) as HTMLElement;
 }
 
+/** A fresh mock Adapter instance, so a test can tell one chart's adapter apart from another's. */
+function mockAdapter(): Adapter {
+  return { mount: vi.fn(async () => undefined), update: vi.fn(async () => undefined), destroy: vi.fn() };
+}
+
+/** A promise this test can resolve on its own schedule, to control when an in-flight mount settles. */
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 describe('ChartTile', () => {
   it('loads, mounts with filtered rows, reports rows, and updates on filter change', async () => {
     mocks.fetchChart.mockResolvedValue(chart);
@@ -126,6 +141,7 @@ describe('ChartTile', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('sales/bad');
     expect(alert).toHaveTextContent('spec rejected');
+    await waitFor(() => expect(tile('sales/bad').dataset.state).toBe('error'));
   });
 
   it('shows an error card for the large lane until Task 14', async () => {
@@ -142,6 +158,37 @@ describe('ChartTile', () => {
     unmount();
     expect(mocks.adapter.destroy).toHaveBeenCalled();
   });
+
+  it('drops a mount that finishes after the chart has already switched', async () => {
+    const chartA = { ...chart, id: 'a' };
+    const chartB = { ...chart, id: 'b' };
+    mocks.fetchChart.mockImplementation(async (id: string) => (id === 'b' ? chartB : chartA));
+    mocks.fetchRows.mockResolvedValue(rows);
+
+    const first = mockAdapter();
+    const second = mockAdapter();
+    const firstMount = deferred<void>();
+    (first.mount as ReturnType<typeof vi.fn>).mockReturnValue(firstMount.promise);
+    mocks.getAdapter.mockReset();
+    mocks.getAdapter.mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+    const { rerender } = render(<ChartTile chartId="a" filters={[]} />);
+    await waitFor(() => expect(first.mount).toHaveBeenCalledTimes(1));
+
+    // Switch charts while the first mount is still in flight. The chart doc
+    // and rows for "b" load and commit (data-rows reflects them) well before
+    // the stale first mount is allowed to resolve below.
+    rerender(<ChartTile chartId="b" filters={[]} />);
+    await waitFor(() => expect(tile('b').dataset.rows).toBe('2'));
+    expect(second.mount).not.toHaveBeenCalled();
+
+    firstMount.resolve();
+    await waitFor(() => expect(first.destroy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(second.mount).toHaveBeenCalledTimes(1));
+    expect(second.mount).toHaveBeenCalledWith(expect.anything(), chartB.spec, rows, chartB.data.columns);
+    expect(first.update).not.toHaveBeenCalled();
+    await waitFor(() => expect(tile('b').dataset.state).toBe('ready'));
+  });
 });
 
 describe('describeError', () => {
@@ -150,6 +197,9 @@ describe('describeError', () => {
     expect(describeError(new ApiError(413, 'x'))).toBe('document too large');
     expect(describeError(new ApiError(500, 'x'))).toBe('request failed (500)');
     expect(describeError(new SanitizeError('k'))).toBe('spec rejected: k');
+    const tooLarge = new DataTooLarge(20971521);
+    expect(describeError(tooLarge)).toBe(tooLarge.message);
+    expect(describeError(tooLarge)).toContain('20971521 bytes');
     const duck = new Error('boom');
     duck.name = 'DuckDbError';
     expect(describeError(duck)).toBe('query failed: boom');

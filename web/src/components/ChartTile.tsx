@@ -33,11 +33,15 @@ export function describeError(err: unknown): string {
   return `render failed: ${String(err)}`;
 }
 
-class TileErrorBoundary extends Component<{ id: string; children: ReactNode }, { error: string | null }> {
+class TileErrorBoundary extends Component<{ id: string; onError?: (err: unknown) => void; children: ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
 
   static getDerivedStateFromError(err: unknown) {
     return { error: describeError(err) };
+  }
+
+  componentDidCatch(err: unknown) {
+    this.props.onError?.(err);
   }
 
   render() {
@@ -87,6 +91,11 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
   const filtered = useMemo(() => (chart && rows ? applyFilters(rows, chart.data.columns, filters) : null), [chart, rows, key]);
 
   // Mount once, then update on every filter change. Operations are serialized.
+  // The cleanup below also fires on a chartId change (it is in the deps), so
+  // a mount that is still in flight when the chart switches is detected as
+  // stale once its promise resolves: the adapter it just built is destroyed
+  // instead of being written into adapterRef, so it never receives a later
+  // update() call meant for the new chart.
   useEffect(() => {
     if (!chart || !filtered || error) return;
     if (chart.renderer === 'stat') {
@@ -102,11 +111,16 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
         if (!adapterRef.current) {
           const adapter = getAdapter(chart.renderer);
           await adapter.mount(el, chart.spec, filtered, chart.data.columns);
+          if (cancelled) {
+            adapter.destroy();
+            return;
+          }
           adapterRef.current = adapter;
         } else {
           await adapterRef.current.update(filtered);
+          if (cancelled) return;
         }
-        if (!cancelled) setRendered(true);
+        setRendered(true);
       })
       .catch((err) => {
         if (!cancelled) setError(describeError(err));
@@ -114,7 +128,7 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
     return () => {
       cancelled = true;
     };
-  }, [chart, filtered, error]);
+  }, [chart, filtered, error, chartId]);
 
   // Tear the adapter down when the tile goes away or changes chart.
   useEffect(
@@ -135,7 +149,13 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
         {error ? (
           <ErrorCard id={chartId} reason={error} />
         ) : chart && filtered && chart.renderer === 'stat' ? (
-          <TileErrorBoundary id={chartId}>
+          <TileErrorBoundary
+            id={chartId}
+            onError={(err) => {
+              setRendered(false);
+              setError(describeError(err));
+            }}
+          >
             <StatTile spec={chart.spec} rows={filtered} columns={columnNames} />
           </TileErrorBoundary>
         ) : (
