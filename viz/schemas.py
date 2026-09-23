@@ -70,6 +70,8 @@ def _check_vegalite(spec: dict, columns: set[str]) -> list[str]:
             errors.append(f"{path}: vega-lite data must be exactly {{\"name\": \"data\"}}")
         if key == "values":
             errors.append(f"{path}: inline values are not allowed")
+        if key == "datasets":
+            errors.append(f"{path}: inline datasets are not allowed")
         if key == "mark" and (value == "image" or (isinstance(value, dict) and value.get("type") == "image")):
             errors.append(f"{path}: image marks are not allowed")
     return errors

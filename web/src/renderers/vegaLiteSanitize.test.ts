@@ -30,6 +30,23 @@ describe('vega-lite sanitize', () => {
     expect(() => sanitize({ ...base, usermeta: { x: 1 } })).toThrow(/usermeta/);
   });
 
+  it('rejects inline datasets at any depth', () => {
+    expect(() =>
+      sanitize({
+        ...base,
+        mark: 'bar',
+        datasets: { mal: [{ x: 1 }] },
+        layer: [{ data: { name: 'mal' }, mark: 'point' }],
+      }),
+    ).toThrow(SanitizeError);
+    expect(() =>
+      sanitize({
+        ...base,
+        layer: [{ data: { name: 'data' }, mark: 'point', datasets: { mal: [{ x: 1 }] } }],
+      }),
+    ).toThrow(/datasets/);
+  });
+
   it('rejects image marks in both forms', () => {
     expect(() => sanitize({ ...base, mark: 'image' })).toThrow(/image/);
     expect(() => sanitize({ ...base, layer: [{ mark: { type: 'image' } }] })).toThrow(/image/);

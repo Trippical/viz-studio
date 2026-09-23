@@ -83,6 +83,7 @@ CHART_CASES = [
     ("forbidden key href", "chart-vegalite.json", _set("spec.encoding.href", {"field": "region"}), "href"),
     ("forbidden key url", "chart-vegalite.json", _set("spec.data", {"url": "https://x"}), "url"),
     ("vega-lite inline values", "chart-vegalite.json", _set("spec.data", {"values": [{"a": 1}]}), "values"),
+    ("vega-lite inline datasets", "chart-vegalite.json", _set("spec.datasets", {"mal": [{"x": 1}]}), "datasets"),
     ("vega-lite wrong data name", "chart-vegalite.json", _set("spec.data", {"name": "other"}), "data"),
     ("vega-lite image mark", "chart-vegalite.json", _set("spec.mark", "image"), "image"),
     ("vega-lite image mark object", "chart-vegalite.json", _set("spec.mark", {"type": "image"}), "image"),

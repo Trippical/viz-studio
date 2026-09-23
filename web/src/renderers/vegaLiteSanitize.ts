@@ -1,6 +1,6 @@
 // Spec 12.3, Vega-Lite: null loader, actions off, canvas renderer, interpreter
-// instead of eval, and reject url / values / href / image marks / usermeta at
-// any depth. Pure: no DOM, no vega import.
+// instead of eval, and reject url / values / href / image marks / usermeta /
+// datasets at any depth. Pure: no DOM, no vega import.
 import { SanitizeError, assertPlain, deepClone, isPlainObject, walk } from './common';
 
 export const RULES: readonly string[] = [
@@ -10,12 +10,13 @@ export const RULES: readonly string[] = [
   'key "values" rejected at any depth',
   'key "href" rejected at any depth',
   'key "usermeta" rejected at any depth',
+  'key "datasets" rejected at any depth',
   'image marks rejected',
   'loader refuses load, sanitize, http and file',
   'actions menu off, canvas renderer, ast interpreter (no eval)',
 ];
 
-const FORBIDDEN_KEYS = new Set(['url', 'values', 'href', 'usermeta']);
+const FORBIDDEN_KEYS = new Set(['url', 'values', 'href', 'usermeta', 'datasets']);
 
 export function sanitize(spec: unknown): Record<string, unknown> {
   assertPlain(spec);
