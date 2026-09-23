@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, DataTooLarge, SMALL_LANE_MAX_BYTES, dataUrl, fetchChart, fetchRows, fetchTree } from './client';
+import { ApiError, DataTooLarge, SMALL_LANE_MAX_BYTES, assertSmallLaneBytes, dataUrl, fetchChart, fetchRows, fetchTree } from './client';
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
   const text = JSON.stringify(body);
@@ -55,5 +55,16 @@ describe('client', () => {
     await expect(fetchRows('sales/x')).rejects.toMatchObject({ status: 422 });
     vi.stubGlobal('fetch', vi.fn(async () => new Response('not json', { status: 200 })));
     await expect(fetchRows('sales/x')).rejects.toMatchObject({ status: 422 });
+  });
+
+  it('fetchChart with invalid JSON body rejects with ApiError status 422', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('not json', { status: 200 })));
+    await expect(fetchChart('sales/x')).rejects.toMatchObject({ status: 422, detail: 'invalid JSON body' });
+    await expect(fetchChart('sales/x')).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('assertSmallLaneBytes rejects oversized byte lengths', () => {
+    expect(() => assertSmallLaneBytes(SMALL_LANE_MAX_BYTES)).not.toThrow();
+    expect(() => assertSmallLaneBytes(SMALL_LANE_MAX_BYTES + 1)).toThrow(DataTooLarge);
   });
 });

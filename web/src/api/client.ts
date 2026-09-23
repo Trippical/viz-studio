@@ -26,6 +26,10 @@ export function dataUrl(id: string): string {
   return `/api/data/${id}`;
 }
 
+export function assertSmallLaneBytes(byteLength: number): void {
+  if (byteLength > SMALL_LANE_MAX_BYTES) throw new DataTooLarge(byteLength);
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -44,7 +48,14 @@ async function readError(res: Response): Promise<unknown> {
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new ApiError(res.status, await readError(res));
-  return (await res.json()) as T;
+  const text = await res.text();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new ApiError(422, 'invalid JSON body');
+  }
+  return parsed as T;
 }
 
 export function fetchTree(): Promise<Tree> {
@@ -64,8 +75,9 @@ export async function fetchRows(id: string): Promise<Row[]> {
   if (!res.ok) throw new ApiError(res.status, await readError(res));
   const declared = Number(res.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > SMALL_LANE_MAX_BYTES) throw new DataTooLarge(declared);
-  const text = await res.text();
-  if (text.length > SMALL_LANE_MAX_BYTES) throw new DataTooLarge(text.length);
+  const buffer = await res.arrayBuffer();
+  assertSmallLaneBytes(buffer.byteLength);
+  const text = new TextDecoder().decode(buffer);
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);

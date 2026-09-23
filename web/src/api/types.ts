@@ -105,8 +105,8 @@ export interface TreeChartItem {
   title?: string;
   description?: string | null;
   tags?: string[];
-  renderer?: string;
-  lane?: string;
+  renderer?: Renderer;
+  lane?: 'small' | 'large';
   static?: boolean;
   updated_at?: string | null;
   error?: string;
