@@ -12,7 +12,7 @@ LOOPBACK = ("127.0.0.1", "localhost", "::1")
 
 
 def preview_settings(staging_root: Path, host: str = "127.0.0.1", port: int = 8000) -> Settings:
-    allowed = "localhost,127.0.0.1,testserver" if host in LOOPBACK else "*"
+    allowed = "localhost,127.0.0.1" if host in LOOPBACK else "*"
     return Settings(storage="local", local_dir=Path(staging_root), root_prefix="", allowed_hosts=allowed,
                     host=host, port=port)
 

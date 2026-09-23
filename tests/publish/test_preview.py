@@ -25,18 +25,24 @@ def test_preview_settings_ignore_storage_env(monkeypatch, staging_root):
     assert s.storage == "local"
     assert s.local_dir == staging_root
     assert s.root_prefix == ""
-    assert s.allowed_hosts_list == ["localhost", "127.0.0.1", "testserver"]
+    assert s.allowed_hosts_list == ["localhost", "127.0.0.1"]
     assert preview_settings(staging_root, host="0.0.0.0").allowed_hosts_list == ["*"]
 
 
 def test_preview_app_serves_the_staging_directory(env, staging_root):
     _stage_one(staging_root)
-    client = TestClient(build_preview_app(staging_root))
+    client = TestClient(build_preview_app(staging_root), base_url="http://127.0.0.1")
     assert client.get("/api/charts/sales/preview-me").status_code == 200
     r = client.get("/api/data/sales/preview-me")
     assert r.status_code == 200 and r.json()[0]["revenue"] == 1.5
     tree = client.get("/api/tree").json()
     assert tree["charts"]["folders"][0]["name"] == "sales"
+
+
+def test_preview_app_rejects_foreign_host(env, staging_root):
+    app = build_preview_app(staging_root)
+    client = TestClient(app, base_url="http://evil.example")
+    assert client.get("/api/health").status_code == 400
 
 
 def test_preview_command_defaults_to_loopback(env, staging_root, monkeypatch):
