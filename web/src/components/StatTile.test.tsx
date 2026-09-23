@@ -20,6 +20,12 @@ describe('aggregate', () => {
     expect(aggregate([{ revenue: 'x' }, { revenue: 5 }], 'revenue', 'sum')).toBe(5);
     expect(aggregate([], 'revenue', 'sum')).toBeNull();
   });
+
+  it('handles large row sets without argument overflow', () => {
+    const largeRows = Array.from({ length: 200000 }, (_, i) => ({ v: i }));
+    expect(aggregate(largeRows, 'v', 'min')).toBe(0);
+    expect(aggregate(largeRows, 'v', 'max')).toBe(199999);
+  });
 });
 
 describe('formatValue', () => {

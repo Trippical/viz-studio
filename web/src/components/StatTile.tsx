@@ -44,9 +44,9 @@ export function aggregate(rows: Row[], column: string, agg: Agg): number | null 
     case 'avg':
       return values.reduce((a, b) => a + b, 0) / values.length;
     case 'min':
-      return Math.min(...values);
+      return values.reduce((a, b) => (a < b ? a : b));
     case 'max':
-      return Math.max(...values);
+      return values.reduce((a, b) => (a > b ? a : b));
     case 'last':
       return values[values.length - 1];
   }

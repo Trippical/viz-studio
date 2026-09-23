@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SanitizeError, assertPlain, deepClone, walk } from './common';
+import { SanitizeError, assertPlain, deepClone, walk, MAX_DEPTH } from './common';
 
 describe('assertPlain', () => {
   it('accepts JSON-shaped values', () => {
@@ -36,5 +36,59 @@ describe('walk', () => {
     });
     expect(seen).toEqual(['spec/a', 'spec/b', 'spec/b/c', 'spec/b/c/0/d', 'spec/b/e']);
     expect(spec.b).toEqual({ c: [{ d: 2 }] });
+  });
+});
+
+describe('depth guards', () => {
+  it('rejects nesting deeper than MAX_DEPTH', () => {
+    let v: unknown = 1;
+    for (let i = 0; i < MAX_DEPTH + 5; i++) v = { a: v };
+    expect(() => assertPlain(v)).toThrow(SanitizeError);
+    expect(() => deepClone(v)).toThrow(SanitizeError);
+    expect(() => walk(v, () => {})).toThrow(SanitizeError);
+  });
+
+  it('allows nesting exactly at MAX_DEPTH', () => {
+    let v: unknown = 1;
+    for (let i = 0; i < MAX_DEPTH; i++) v = { a: v };
+    expect(() => assertPlain(v)).not.toThrow();
+    expect(() => deepClone(v)).not.toThrow();
+    expect(() => walk(v, () => {})).not.toThrow();
+  });
+
+  it('rejects cyclic objects', () => {
+    const c: Record<string, unknown> = {};
+    c.self = c;
+    expect(() => assertPlain(c)).toThrow(SanitizeError);
+    expect(() => deepClone(c)).toThrow(SanitizeError);
+  });
+});
+
+describe('deepClone throws on non-plain values', () => {
+  it('rejects functions', () => {
+    expect(() => deepClone([() => 1])).toThrow(SanitizeError);
+  });
+
+  it('rejects Dates', () => {
+    expect(() => deepClone({ a: new Date() })).toThrow(SanitizeError);
+  });
+
+  it('rejects class instances', () => {
+    class X {}
+    expect(() => deepClone({ a: new X() })).toThrow(SanitizeError);
+  });
+});
+
+describe('property access errors', () => {
+  it('wraps throwing getters in assertPlain', () => {
+    const g = {};
+    Object.defineProperty(g, 'x', { enumerable: true, get() { throw new Error('boom'); } });
+    expect(() => assertPlain(g)).toThrow(SanitizeError);
+  });
+
+  it('wraps throwing getters in deepClone', () => {
+    const g = {};
+    Object.defineProperty(g, 'x', { enumerable: true, get() { throw new Error('boom'); } });
+    expect(() => deepClone(g)).toThrow(SanitizeError);
   });
 });
