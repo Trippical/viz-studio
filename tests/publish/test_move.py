@@ -92,3 +92,30 @@ def test_move_command_requires_yes(env, storage, capsys, monkeypatch):
     assert "error: no chart or dashboard" in capsys.readouterr().err
     assert main(["move", "Bad", "sales/x", "--yes"]) == 1
     assert "error: invalid id" in capsys.readouterr().err
+
+
+def test_move_refuses_a_non_object_chart_document(env, storage, capsys):
+    storage.put("viz/charts/sales/revenue-by-region/chart.json", b"[1, 2]", "application/json")
+    assert main(["move", "sales/revenue-by-region", "sales/emea/revenue", "--yes"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error: ")
+    assert "not a JSON object" in err
+    with pytest.raises(NotFound):
+        storage.head("viz/charts/sales/emea/revenue/chart.json")
+
+
+def test_move_reports_but_does_not_write_a_broken_referencing_dashboard(env, storage, capsys):
+    doc = json.loads(storage.get("viz/dashboards/sales/overview.json"))
+    del doc["title"]  # title is required by the dashboard schema
+    storage.put("viz/dashboards/sales/overview.json", json.dumps(doc).encode("utf-8"), "application/json")
+
+    assert main(["move", "sales/revenue-by-region", "sales/emea/revenue", "--yes"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error: ")
+    assert "sales/overview" in err
+
+    # the move was refused before any write: neither the chart nor the dashboard moved or changed
+    storage.head("viz/charts/sales/revenue-by-region/chart.json")
+    with pytest.raises(NotFound):
+        storage.head("viz/charts/sales/emea/revenue/chart.json")
+    assert json.loads(storage.get("viz/dashboards/sales/overview.json")) == doc

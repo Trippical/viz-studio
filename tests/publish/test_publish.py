@@ -10,6 +10,7 @@ from viz.publish.cli import main
 from viz.publish.publish import PublishRefused, publish_chart, publish_dashboard
 from viz.publish.staging import write_staged_chart
 from viz.server.app import create_app
+from viz.storage import NotFound
 from viz.storage.local import LocalStorage
 
 NOW = datetime(2026, 9, 22, 10, 0, 0, tzinfo=timezone.utc)
@@ -58,7 +59,7 @@ def test_publish_refuses_invalid(settings, storage, staging_root):
     with pytest.raises(PublishRefused) as exc:
         publish_chart(staged.dir, settings, storage)
     assert exc.value.errors == ["author 'someone@else' does not match the resolved identity 'tester@example.com'"]
-    with pytest.raises(Exception):
+    with pytest.raises(NotFound):
         storage.head("viz/charts/sales/new-chart/chart.json")
 
 
@@ -82,7 +83,7 @@ def test_publish_removes_stale_data_of_the_other_format(settings, storage, stagi
     small = _staged(staging_root)
     publish_chart(small.dir, settings, storage, force=True)
     storage.head("viz/charts/sales/new-chart/data.json")
-    with pytest.raises(Exception):
+    with pytest.raises(NotFound):
         storage.head("viz/charts/sales/new-chart/data.parquet")
 
 

@@ -1,6 +1,5 @@
 import getpass
 
-import pytest
 from moto import mock_aws
 
 from viz.config import Settings

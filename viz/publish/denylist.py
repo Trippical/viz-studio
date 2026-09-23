@@ -14,6 +14,8 @@ def denied_references(sql: str, deny: str) -> list[str]:
     entries = parse_deny(deny)
     if not entries:
         return []
+    sql = sql.replace("`", "").replace('"', "")
+    sql = re.sub(r"\s*\.\s*", ".", sql)
     catalogs = {e for e in entries if "." not in e}
     schemas = {e for e in entries if "." in e}
     schema_names = {e.split(".", 1)[1] for e in schemas}

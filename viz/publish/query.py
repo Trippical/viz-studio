@@ -68,16 +68,21 @@ def run_query(sql: str, settings: Settings, warehouse_id: str | None = None) -> 
     host = _env("DATABRICKS_HOST").removeprefix("https://").removeprefix("http://").rstrip("/")
     token = _env("DATABRICKS_TOKEN")
     connect = _get_connect()
-    connection = connect(server_hostname=host, http_path=f"/sql/1.0/warehouses/{warehouse}", access_token=token)
     try:
-        cursor = connection.cursor()
+        connection = connect(server_hostname=host, http_path=f"/sql/1.0/warehouses/{warehouse}", access_token=token)
         try:
-            cursor.execute("SELECT current_user()")
-            user = cursor.fetchone()[0]
-            cursor.execute(sql)
-            table = cursor.fetchall_arrow()
+            cursor = connection.cursor()
+            try:
+                cursor.execute("SELECT current_user()")
+                user = cursor.fetchone()[0]
+                cursor.execute(sql)
+                table = cursor.fetchall_arrow()
+            finally:
+                cursor.close()
         finally:
-            cursor.close()
-    finally:
-        connection.close()
+            connection.close()
+    except QueryError:
+        raise
+    except Exception as err:
+        raise QueryError(f"query failed: {err}", code=2) from err
     return table, user

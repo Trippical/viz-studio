@@ -1,5 +1,6 @@
 # viz/publish/__init__.py
 """The publisher: staging, validation and publishing. The command line is viz.publish.cli."""
+import sys
 from pathlib import Path
 
 
@@ -12,6 +13,7 @@ def stage(df, chart_id: str, staging_root: Path | str | None = None) -> Path:
 
     from ..config import Settings
     from .identity import resolve_author
+    from .pii import pii_warning
     from .staging import write_staged_chart
 
     if isinstance(df, pa.Table):
@@ -22,6 +24,12 @@ def stage(df, chart_id: str, staging_root: Path | str | None = None) -> Path:
         raise TypeError("stage() takes a pandas DataFrame or a pyarrow Table")
     settings = Settings()
     root = Path(staging_root) if staging_root is not None else settings.staging_dir
-    staged = write_staged_chart(table, chart_id, root, author=resolve_author(settings),
-                                now=datetime.now(timezone.utc))
+    try:
+        author = resolve_author(settings)
+    except Exception as err:
+        raise RuntimeError(f"could not resolve the author identity: {err}") from err
+    warning = pii_warning(table.column_names, settings.pii_pattern)
+    if warning:
+        print(warning, file=sys.stderr)
+    staged = write_staged_chart(table, chart_id, root, author=author, now=datetime.now(timezone.utc))
     return staged.dir

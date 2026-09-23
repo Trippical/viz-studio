@@ -1,3 +1,5 @@
+import pytest
+
 from viz.publish.denylist import denied_references, parse_deny
 
 
@@ -27,3 +29,13 @@ def test_no_double_counting_and_sorted_unique():
 
 def test_empty_deny_list_never_matches():
     assert denied_references("SELECT * FROM hr.people.salaries", "") == []
+
+
+@pytest.mark.parametrize("sql", [
+    "SELECT * FROM `hr`.`people`.`salaries`",
+    "SELECT * FROM hr . people . salaries",
+    "SELECT * FROM hr.\n people.salaries",
+    'SELECT * FROM "hr"."people"."salaries"',
+])
+def test_quoted_and_spaced_names_are_not_fail_open(sql):
+    assert denied_references(sql, "hr") == ["hr.people.salaries"]

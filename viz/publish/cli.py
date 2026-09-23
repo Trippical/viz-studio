@@ -4,6 +4,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pyarrow as pa
+
 from .. import __version__
 from ..config import Settings
 from ..ids import InvalidId
@@ -13,11 +15,20 @@ from .identity import resolve_author
 from .infer import UnsupportedColumn, table_from_file
 from .move import MoveError, apply_move, describe, plan_move
 from .pii import drop_columns, parse_drop_list, pii_warning
-from .publish import PublishRefused, publish_chart, publish_dashboard
 from .preview import run_preview
+from .publish import PublishRefused, publish_chart, publish_dashboard
 from .query import QueryError, read_sql_argument, resolve_warehouse, run_query
 from .staging import LaneError, column_summary, write_staged_chart
 from .validate import validate_dashboard_file, validate_staged_chart
+
+
+def _resolve_author(settings: Settings) -> str:
+    """resolve_author() can reach out to AWS (VIZ_STORAGE=s3) or the local user
+    database; any failure there is an environment problem, not a crash."""
+    try:
+        return resolve_author(settings)
+    except Exception as err:
+        raise CliError(f"could not resolve the author identity: {err}", code=2) from err
 
 
 def _debug_raise(args) -> int:
@@ -37,7 +48,11 @@ def _staging_root(args, settings: Settings) -> Path:
 
 
 def _stage_table(table, chart_id: str, settings: Settings, args, *, author: str, source: dict | None = None) -> int:
-    """Shared tail of `stage` and `query`: PII warning, --drop-columns, write, summary."""
+    """Shared tail of `stage` and `query`: --drop-columns, PII warning, write, summary."""
+    try:
+        table = drop_columns(table, parse_drop_list(getattr(args, "drop_columns", None)))
+    except ValueError as err:
+        raise CliError(str(err), code=1) from err
     try:
         warning = pii_warning(table.column_names, settings.pii_pattern)
     except ValueError as err:
@@ -45,7 +60,6 @@ def _stage_table(table, chart_id: str, settings: Settings, args, *, author: str,
     if warning:
         print(warning, file=sys.stderr)
     try:
-        table = drop_columns(table, parse_drop_list(getattr(args, "drop_columns", None)))
         staged = write_staged_chart(table, chart_id, _staging_root(args, settings), author=author,
                                     now=datetime.now(timezone.utc), source=source)
     except (UnsupportedColumn, LaneError, ValueError) as err:
@@ -62,9 +76,9 @@ def _cmd_stage(args) -> int:
         raise CliError(f"input file not found: {path}", code=2)
     try:
         table = table_from_file(path)
-    except UnsupportedColumn as err:
-        raise CliError(str(err), code=2) from err
-    return _stage_table(table, args.id, settings, args, author=resolve_author(settings))
+    except (UnsupportedColumn, ValueError, OSError, pa.ArrowException) as err:
+        raise CliError(f"could not read {path}: {err}", code=2) from err
+    return _stage_table(table, args.id, settings, args, author=_resolve_author(settings))
 
 
 def _validate_path(path: Path, settings: Settings, allow_row_level: bool) -> list[str]:
@@ -113,7 +127,10 @@ def _cmd_move(args) -> int:
     if not args.yes:
         print("dry run: pass --yes to apply", file=sys.stderr)
         return 1
-    apply_move(plan, settings, storage)
+    try:
+        apply_move(plan, settings, storage)
+    except MoveError as err:
+        raise CliError(str(err), code=1) from err
     print(f"moved: {plan.old_id} -> {plan.new_id}")
     return 0
 

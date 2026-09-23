@@ -155,5 +155,6 @@ def test_query_command_deny_list_exit_code(env, dbx_env, fake, monkeypatch, caps
 def test_query_command_drops_pii(env, dbx_env, fake, staging_root, capsys):
     fake.table = pa.table({"month": [date(2024, 1, 1)], "customer_email": ["a@b.c"], "revenue": [1.5]})
     assert main(["query", "--sql", SQL, "--id", "sales/pii", "--drop-columns", "customer_email"]) == 0
+    assert "warning" not in capsys.readouterr().err, "the only PII column was dropped before the warning was computed"
     doc = json.loads((staging_root / "charts" / "sales" / "pii" / "chart.json").read_text(encoding="utf-8"))
     assert [c["name"] for c in doc["data"]["columns"]] == ["month", "revenue"]

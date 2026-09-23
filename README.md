@@ -23,19 +23,23 @@ charts and dashboards into that folder through a paved path; the site only reads
 ## Publishing (the paved path)
 
     viz stage --from rows.csv --id sales/emea/revenue   # stage a csv, json or parquet file
+    viz stage --from rows.csv --id sales/emea/revenue --drop-columns a,b --staging DIR
     viz query --sql @q.sql --id sales/emea/revenue      # run SQL on Databricks and stage the result
+    viz query --sql @q.sql --id sales/emea/revenue --drop-columns a,b --staging DIR
     viz validate .viz-staging/charts/sales/emea/revenue # schema, data file, columns, author, id conflicts
     viz preview                                         # serve ./.viz-staging on 127.0.0.1:8000
     viz publish .viz-staging/charts/sales/emea/revenue  # validate, then upload (data first, then chart.json)
+    viz publish .viz-staging/charts/sales/emea/revenue --allow-row-level  # large-lane (row-level) charts
     viz publish .viz-staging/dashboards/sales/board.json
     viz move sales/emea/revenue sales/emea/revenue-monthly --yes
 
 The staging directory `./.viz-staging` mirrors the bucket, so `viz preview` is
 the real server pointed at it. `viz query` needs `pip install "viz-site[databricks]"`
 and `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_WAREHOUSE_ID`; nothing
-else in the package reads them. Publisher settings: `VIZ_AUTHOR` (the stamped
-author when no Databricks user or AWS identity applies), `VIZ_QUERY_DENY`
-(comma-separated catalogs or `catalog.schema` that `viz query` refuses),
-`VIZ_PII_PATTERN`, `VIZ_STAGING_DIR`. `--force` and `--yes` are flags only.
+else in the package reads them. Publisher settings: `VIZ_AUTHOR` (overrides the
+AWS caller identity when set; the Databricks user from `viz query` always wins;
+author is attribution, not authentication), `VIZ_QUERY_DENY` (comma-separated
+catalogs or `catalog.schema` that `viz query` refuses), `VIZ_PII_PATTERN`,
+`VIZ_STAGING_DIR`. `--force` and `--yes` are flags only.
 
 Design: `docs/superpowers/specs/2026-09-22-viz-site-design.md`.

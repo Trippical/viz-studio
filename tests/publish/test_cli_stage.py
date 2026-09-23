@@ -42,6 +42,7 @@ def test_stage_warns_on_pii_and_can_drop(env, staging_root, tmp_path, capsys):
     assert "warning: possible PII columns: customer_email (use --drop-columns customer_email)" in err
 
     assert main(["stage", "--from", str(path), "--id", "sales/pii", "--drop-columns", "customer_email"]) == 0
+    assert "warning" not in capsys.readouterr().err, "the only PII column was dropped before the warning was computed"
     doc = json.loads((staging_root / "charts" / "sales" / "pii" / "chart.json").read_text(encoding="utf-8"))
     assert [c["name"] for c in doc["data"]["columns"]] == ["month", "revenue"]
 
@@ -77,3 +78,10 @@ def test_python_stage_api_explicit_root_and_type_error(env, tmp_path):
     assert out == tmp_path / "root" / "charts" / "sales" / "explicit"
     with pytest.raises(TypeError):
         stage([{"a": 1}], "sales/list")
+
+
+def test_python_stage_api_warns_on_pii(env, staging_root, capsys):
+    table = pa.table({"customer_email": ["a@b.c"], "revenue": [1.5]})
+    stage(table, "sales/api-pii")
+    err = capsys.readouterr().err
+    assert "warning: possible PII columns: customer_email (use --drop-columns customer_email)" in err

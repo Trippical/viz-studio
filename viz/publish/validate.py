@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import duckdb
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ..config import Settings
@@ -130,8 +131,11 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
             return errors + [f"data.json: {err}"]
         rows = len(table)
     else:
-        rows = pq.read_metadata(data_path).num_rows
-        table = pq.read_table(data_path)
+        try:
+            rows = pq.read_metadata(data_path).num_rows
+            table = pq.read_table(data_path)
+        except (pa.ArrowException, OSError, ValueError) as err:
+            return errors + [f"data.parquet: {err}"]
     if rows != data["rows"]:
         errors.append(f"data.rows: declared {data['rows']}, file has {rows}")
     try:
