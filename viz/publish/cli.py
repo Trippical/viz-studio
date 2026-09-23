@@ -14,6 +14,7 @@ from .infer import UnsupportedColumn, table_from_file
 from .move import MoveError, apply_move, describe, plan_move
 from .pii import drop_columns, parse_drop_list, pii_warning
 from .publish import PublishRefused, publish_chart, publish_dashboard
+from .preview import run_preview
 from .staging import LaneError, column_summary, write_staged_chart
 from .validate import validate_dashboard_file, validate_staged_chart
 
@@ -116,6 +117,12 @@ def _cmd_move(args) -> int:
     return 0
 
 
+def _cmd_preview(args) -> int:
+    settings = Settings()
+    run_preview(_staging_root(args, settings), args.host, args.port)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="viz", description="Stage, validate and publish charts and dashboards.")
     parser.add_argument("--version", action="version", version=f"viz {__version__}")
@@ -147,6 +154,12 @@ def build_parser() -> argparse.ArgumentParser:
     move_p.add_argument("new_id", metavar="NEW_ID")
     move_p.add_argument("--yes", action="store_true", help="apply the move (without it, only the plan is printed)")
     move_p.set_defaults(func=_cmd_move)
+
+    preview_p = sub.add_parser("preview", help="serve the staging directory locally so charts can be opened before publishing")
+    preview_p.add_argument("--staging", default=None, metavar="DIR", help="staging directory (default ./.viz-staging)")
+    preview_p.add_argument("--host", default="127.0.0.1")
+    preview_p.add_argument("--port", type=int, default=8000)
+    preview_p.set_defaults(func=_cmd_preview)
 
     # Later tasks add their subcommands below this line.
 
