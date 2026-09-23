@@ -6,11 +6,13 @@ from pathlib import Path
 
 from .. import __version__
 from ..config import Settings
+from ..storage import get_storage
 from .errors import CliError
 from .identity import resolve_author
 from .infer import UnsupportedColumn, table_from_file
 from .pii import drop_columns, parse_drop_list, pii_warning
 from .staging import LaneError, column_summary, write_staged_chart
+from .validate import validate_dashboard_file, validate_staged_chart
 
 
 def _debug_raise(args) -> int:
@@ -60,6 +62,25 @@ def _cmd_stage(args) -> int:
     return _stage_table(table, args.id, settings, args, author=resolve_author(settings))
 
 
+def _validate_path(path: Path, settings: Settings, allow_row_level: bool) -> list[str]:
+    storage = get_storage(settings)
+    if path.is_dir():
+        return validate_staged_chart(path, settings, storage, allow_row_level=allow_row_level)
+    if path.is_file():
+        return validate_dashboard_file(path, settings, storage)
+    raise CliError(f"path not found: {path}", code=2)
+
+
+def _cmd_validate(args) -> int:
+    settings = Settings()
+    path = Path(args.path)
+    errors = _validate_path(path, settings, args.allow_row_level)
+    if errors:
+        raise CliError(errors, code=1)
+    print(f"ok: {path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="viz", description="Stage, validate and publish charts and dashboards.")
     parser.add_argument("--version", action="version", version=f"viz {__version__}")
@@ -74,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
     stage_p.add_argument("--drop-columns", default=None, metavar="a,b")
     stage_p.add_argument("--staging", default=None, metavar="DIR", help="staging directory (default ./.viz-staging)")
     stage_p.set_defaults(func=_cmd_stage)
+
+    validate_p = sub.add_parser("validate", help="validate a staged chart directory or a dashboard file")
+    validate_p.add_argument("path", metavar="PATH")
+    validate_p.add_argument("--allow-row-level", action="store_true", help="confirm publishing a large-lane (row-level) chart")
+    validate_p.set_defaults(func=_cmd_validate)
 
     # Later tasks add their subcommands below this line.
 
