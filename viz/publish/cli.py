@@ -6,10 +6,12 @@ from pathlib import Path
 
 from .. import __version__
 from ..config import Settings
+from ..ids import InvalidId
 from ..storage import get_storage
 from .errors import CliError
 from .identity import resolve_author
 from .infer import UnsupportedColumn, table_from_file
+from .move import MoveError, apply_move, describe, plan_move
 from .pii import drop_columns, parse_drop_list, pii_warning
 from .publish import PublishRefused, publish_chart, publish_dashboard
 from .staging import LaneError, column_summary, write_staged_chart
@@ -98,6 +100,22 @@ def _cmd_publish(args) -> int:
     return 0
 
 
+def _cmd_move(args) -> int:
+    settings = Settings()
+    storage = get_storage(settings)
+    try:
+        plan = plan_move(args.old_id, args.new_id, settings, storage)
+    except (MoveError, InvalidId) as err:
+        raise CliError(str(err), code=1) from err
+    print(describe(plan))
+    if not args.yes:
+        print("dry run: pass --yes to apply", file=sys.stderr)
+        return 1
+    apply_move(plan, settings, storage)
+    print(f"moved: {plan.old_id} -> {plan.new_id}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="viz", description="Stage, validate and publish charts and dashboards.")
     parser.add_argument("--version", action="version", version=f"viz {__version__}")
@@ -123,6 +141,12 @@ def build_parser() -> argparse.ArgumentParser:
     publish_p.add_argument("--force", action="store_true", help="overwrite an existing id")
     publish_p.add_argument("--allow-row-level", action="store_true", help="confirm publishing a large-lane (row-level) chart")
     publish_p.set_defaults(func=_cmd_publish)
+
+    move_p = sub.add_parser("move", help="rename a chart or dashboard id and rewrite dashboards that reference it")
+    move_p.add_argument("old_id", metavar="OLD_ID")
+    move_p.add_argument("new_id", metavar="NEW_ID")
+    move_p.add_argument("--yes", action="store_true", help="apply the move (without it, only the plan is printed)")
+    move_p.set_defaults(func=_cmd_move)
 
     # Later tasks add their subcommands below this line.
 
