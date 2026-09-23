@@ -91,4 +91,21 @@ describe('property access errors', () => {
     Object.defineProperty(g, 'x', { enumerable: true, get() { throw new Error('boom'); } });
     expect(() => deepClone(g)).toThrow(SanitizeError);
   });
+
+  it('wraps throwing getters in walk', () => {
+    const g = {};
+    Object.defineProperty(g, 'x', { enumerable: true, get() { throw new Error('boom'); } });
+    expect(() => walk(g, () => {})).toThrow(SanitizeError);
+  });
+});
+
+describe('walk reassignment', () => {
+  it('descends into the value visit assigned, not the stale one', () => {
+    const seen: string[] = [];
+    walk({ a: { x: 1 } }, (obj, key) => {
+      seen.push(key);
+      if (key === 'a') obj.a = { y: 2 };
+    });
+    expect(seen).toEqual(['a', 'y']);
+  });
 });

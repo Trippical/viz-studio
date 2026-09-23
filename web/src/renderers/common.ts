@@ -103,7 +103,15 @@ export function walk(
         throw new SanitizeError(`${here}: property could not be read`);
       }
       visit(node, key, v, here);
-      if (key in node) walkInner(v, visit, here, depth + 1);
+      if (key in node) {
+        let current: unknown;
+        try {
+          current = node[key];
+        } catch {
+          throw new SanitizeError(`${here}: property could not be read`);
+        }
+        walkInner(current, visit, here, depth + 1);
+      }
     }
   }
   walkInner(node, visit, path, 0);
