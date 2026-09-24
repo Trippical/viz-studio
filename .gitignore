@@ -8,3 +8,5 @@ web/dist/
 .superpowers/
 viz/_schemas/
 .worktrees/
+web/test-results/
+web/playwright-report/
