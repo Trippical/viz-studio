@@ -16,6 +16,25 @@ export const INIT_STATEMENTS: readonly string[] = [
   'SET lock_configuration=true',
 ];
 
+/**
+ * The parquet extension isn't statically linked into the bundled wasm build:
+ * an explicit `LOAD parquet` is required before the lockdown, and DuckDB's
+ * `LOAD` command fetches the extension binary from a repository regardless
+ * of the autoinstall/autoload settings (those only govern *implicit*
+ * loading triggered by calling an unknown function). The default repository
+ * is `extensions.duckdb.org`, which the site's CSP (`connect-src 'self'`)
+ * blocks, so this points DuckDB at a same-origin copy instead. The matching
+ * `parquet.duckdb_extension.wasm` for DuckDB v1.4.3 (the version this
+ * duckdb-wasm build reports) is committed at
+ * `web/public/duckdb/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`
+ * (3,045,039 bytes, sha256 22765c8f7dc741cda2b571a66ac7bb355295d7d69a6c37e5315b265672984f55),
+ * served verbatim by Vite under `/duckdb/...`, matching the
+ * `<repo>/<version>/wasm_eh/<name>` layout DuckDB requests.
+ */
+export function buildPreloadStatements(origin: string): readonly string[] {
+  return [`SET custom_extension_repository='${origin}/duckdb'`, 'LOAD parquet'];
+}
+
 const COLUMN_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export class DuckDbError extends Error {
@@ -168,6 +187,7 @@ async function createRuntime(): Promise<Runtime> {
   await db.instantiate(wasmUrl);
   await db.open({ path: ':memory:', query: { castBigIntToDouble: true, castDecimalToDouble: true, castTimestampToDate: true } });
   const conn = await db.connect();
+  for (const statement of buildPreloadStatements(location.origin)) await conn.query(statement);
   for (const statement of INIT_STATEMENTS) await conn.query(statement);
   let jsonCheck = true;
   try {

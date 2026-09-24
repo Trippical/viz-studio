@@ -7,6 +7,7 @@ import {
   ROW_LIMIT,
   arrowRowsToRows,
   buildFilteredQuery,
+  buildPreloadStatements,
   checkSingleSelectSyntax,
   parseSerializedSql,
   tableName,
@@ -26,6 +27,15 @@ describe('init statements', () => {
       'SET autoload_known_extensions=false',
       "SET memory_limit='512MB'",
       'SET lock_configuration=true',
+    ]);
+  });
+});
+
+describe('buildPreloadStatements', () => {
+  it('points the extension repository at the given origin, same-origin only, before loading parquet', () => {
+    expect(buildPreloadStatements('http://127.0.0.1:8000')).toEqual([
+      "SET custom_extension_repository='http://127.0.0.1:8000/duckdb'",
+      'LOAD parquet',
     ]);
   });
 });
