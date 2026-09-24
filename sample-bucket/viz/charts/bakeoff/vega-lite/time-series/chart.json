@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "id": "bakeoff/vega-lite/time-series",
+  "title": "Revenue by region, monthly (Vega-Lite)",
+  "description": "Monthly revenue per region. Filter with the Period and Region controls.",
+  "tags": [
+    "bakeoff",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "data": {
+      "name": "data"
+    },
+    "width": "container",
+    "height": "container",
+    "mark": {
+      "type": "line",
+      "point": true
+    },
+    "encoding": {
+      "x": {
+        "field": "month",
+        "type": "temporal",
+        "title": "Month"
+      },
+      "y": {
+        "field": "revenue",
+        "type": "quantitative",
+        "title": "Revenue"
+      },
+      "color": {
+        "field": "region",
+        "type": "nominal",
+        "title": "Region"
+      },
+      "tooltip": [
+        {
+          "field": "month",
+          "type": "temporal",
+          "title": "Month"
+        },
+        {
+          "field": "region",
+          "type": "nominal",
+          "title": "Region"
+        },
+        {
+          "field": "revenue",
+          "type": "quantitative",
+          "title": "Revenue",
+          "format": ",.0f"
+        }
+      ]
+    }
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}

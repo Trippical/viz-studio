@@ -15,7 +15,7 @@ def test_tree(client):
     assert r.status_code == 200
     body = r.json()
     assert body["charts"]["type"] == "folder"
-    assert [f["name"] for f in body["dashboards"]["folders"]] == ["sales"]
+    assert [f["name"] for f in body["dashboards"]["folders"]] == ["sales", "bakeoff"]
 
 
 def test_dashboard(client):

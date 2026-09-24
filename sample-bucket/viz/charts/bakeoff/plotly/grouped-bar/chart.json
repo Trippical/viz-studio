@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "id": "bakeoff/plotly/grouped-bar",
+  "title": "Orders by region, quarterly (Plotly)",
+  "description": "Quarterly orders per region. Filter with the Region control.",
+  "tags": [
+    "bakeoff",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "plotly",
+  "spec": {
+    "traces": [
+      {
+        "type": "bar",
+        "split": "region",
+        "x": {
+          "column": "quarter"
+        },
+        "y": {
+          "column": "orders"
+        }
+      }
+    ],
+    "layout": {
+      "barmode": "group",
+      "xaxis": {
+        "title": {
+          "text": "Quarter"
+        }
+      },
+      "yaxis": {
+        "title": {
+          "text": "Orders"
+        }
+      }
+    }
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 48,
+    "bytes": 3645,
+    "columns": [
+      {
+        "name": "quarter",
+        "type": "string"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}
