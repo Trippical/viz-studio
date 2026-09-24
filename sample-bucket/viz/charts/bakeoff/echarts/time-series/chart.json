@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "id": "bakeoff/echarts/time-series",
+  "title": "Revenue by region, monthly (ECharts)",
+  "description": "Monthly revenue per region. Filter with the Period and Region controls.",
+  "tags": [
+    "bakeoff",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "echarts",
+  "spec": {
+    "xAxis": {
+      "type": "time",
+      "name": "Month"
+    },
+    "yAxis": {
+      "type": "value",
+      "name": "Revenue"
+    },
+    "legend": {},
+    "tooltip": {
+      "trigger": "axis",
+      "renderMode": "richText"
+    },
+    "series": [
+      {
+        "type": "line",
+        "split": "region",
+        "showSymbol": true,
+        "encode": {
+          "x": "month",
+          "y": "revenue"
+        }
+      }
+    ]
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}

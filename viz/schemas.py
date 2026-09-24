@@ -1,6 +1,7 @@
 # viz/schemas.py
 """Document validation: JSON Schema plus renderer-specific spec rules."""
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterator
@@ -12,6 +13,7 @@ PLOTLY_FORBIDDEN_TRACE_TYPES = frozenset(
     ["scattergeo", "choropleth", "scattermapbox", "choroplethmapbox", "densitymapbox",
      "scattermap", "choroplethmap", "densitymap"]
 )
+PLOTLY_ANCHOR_RE = re.compile(r"<\s*a[\s>]", re.IGNORECASE)
 
 _CANDIDATE_DIRS = (
     Path(__file__).parent / "_schemas",
@@ -65,11 +67,15 @@ def _walk(node: Any, path: str = "spec") -> Iterator[tuple[str, str, Any]]:
 # which are not in the declared column set.
 def _check_vegalite(spec: dict, columns: set[str]) -> list[str]:
     errors = []
+    if spec.get("data") != {"name": "data"}:
+        errors.append("spec/data: top-level data must be exactly {\"name\": \"data\"}")
     for path, key, value in _walk(spec):
         if key == "data" and value != {"name": "data"}:
             errors.append(f"{path}: vega-lite data must be exactly {{\"name\": \"data\"}}")
         if key == "values":
             errors.append(f"{path}: inline values are not allowed")
+        if key == "datasets":
+            errors.append(f"{path}: inline datasets are not allowed")
         if key == "mark" and (value == "image" or (isinstance(value, dict) and value.get("type") == "image")):
             errors.append(f"{path}: image marks are not allowed")
     return errors
@@ -86,6 +92,10 @@ def _check_echarts(spec: dict, columns: set[str]) -> list[str]:
             errors.append(f"{path}: dataset is injected by the viewer and must not be set")
         if key == "data":
             errors.append(f"{path}: inline data is not allowed")
+        if key == "image":
+            errors.append(f"{path}: image keys are not allowed")
+        if isinstance(value, str) and value.startswith("image://"):
+            errors.append(f"{path}: image URLs are not allowed")
         if key == "formatter" and isinstance(value, str) and "<" in value:
             errors.append(f"{path}: formatter must not contain HTML")
         if key == "renderMode" and value != "richText":
@@ -116,6 +126,9 @@ def _check_plotly(spec: dict, columns: set[str]) -> list[str]:
                 errors.append(f"spec/traces/{i}/{key}: must be a column binding {{\"column\": name}}")
             elif binding["column"] not in columns:
                 errors.append(f"spec/traces/{i}/{key}: unknown column {binding['column']!r}")
+    for path, key, value in _walk(spec):
+        if isinstance(value, str) and PLOTLY_ANCHOR_RE.search(value):
+            errors.append(f"{path}: anchor tags are not allowed")
     return errors
 
 

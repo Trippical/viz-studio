@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "id": "bakeoff/plotly",
+  "title": "Bake-off: Plotly",
+  "description": "The four bake-off charts rendered with Plotly. Synthetic data.",
+  "tags": [
+    "bakeoff",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "controls": [
+    {
+      "id": "period",
+      "type": "date-range",
+      "label": "Period",
+      "column": "month",
+      "default": {
+        "last": "12m"
+      }
+    },
+    {
+      "id": "days",
+      "type": "date-range",
+      "label": "Days",
+      "column": "day",
+      "default": null
+    },
+    {
+      "id": "region",
+      "type": "select",
+      "label": "Region",
+      "column": "region",
+      "multi": true,
+      "default": null
+    }
+  ],
+  "layout": [
+    {
+      "chart": "bakeoff/plotly/time-series",
+      "w": 8,
+      "h": 4
+    },
+    {
+      "chart": "bakeoff/total-revenue",
+      "w": 4,
+      "h": 2
+    },
+    {
+      "chart": "bakeoff/plotly/grouped-bar",
+      "w": 6,
+      "h": 4
+    },
+    {
+      "chart": "bakeoff/plotly/order-lines",
+      "w": 6,
+      "h": 4
+    },
+    {
+      "markdown": "Rendered with **Plotly**. Same data and controls on every bake-off dashboard.",
+      "w": 12,
+      "h": 1
+    }
+  ]
+}

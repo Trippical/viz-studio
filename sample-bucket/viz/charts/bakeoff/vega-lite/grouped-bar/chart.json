@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "id": "bakeoff/vega-lite/grouped-bar",
+  "title": "Orders by region, quarterly (Vega-Lite)",
+  "description": "Quarterly orders per region. Filter with the Region control.",
+  "tags": [
+    "bakeoff",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {
+      "name": "data"
+    },
+    "width": "container",
+    "height": "container",
+    "mark": "bar",
+    "encoding": {
+      "x": {
+        "field": "quarter",
+        "type": "ordinal",
+        "title": "Quarter"
+      },
+      "xOffset": {
+        "field": "region"
+      },
+      "y": {
+        "field": "orders",
+        "type": "quantitative",
+        "title": "Orders"
+      },
+      "color": {
+        "field": "region",
+        "type": "nominal",
+        "title": "Region"
+      },
+      "tooltip": [
+        {
+          "field": "quarter",
+          "type": "ordinal"
+        },
+        {
+          "field": "region",
+          "type": "nominal"
+        },
+        {
+          "field": "orders",
+          "type": "quantitative",
+          "format": ","
+        }
+      ]
+    }
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 48,
+    "bytes": 3645,
+    "columns": [
+      {
+        "name": "quarter",
+        "type": "string"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}

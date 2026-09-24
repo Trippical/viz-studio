@@ -49,3 +49,15 @@ def test_security_headers_on_static(settings, tmp_path):
     client = TestClient(create_app(settings))
     r = client.get("/anything")
     assert r.headers["x-frame-options"] == "DENY"
+
+
+def test_wasm_asset_has_wasm_content_type(settings, tmp_path):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+    (dist / "assets" / "duckdb-eh.wasm").write_bytes(b"\x00asm\x01\x00\x00\x00")
+    settings.web_dist = dist
+    client = TestClient(create_app(settings))
+    r = client.get("/assets/duckdb-eh.wasm")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/wasm"

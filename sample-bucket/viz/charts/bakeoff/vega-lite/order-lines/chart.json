@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "id": "bakeoff/vega-lite/order-lines",
+  "title": "Order amount per day (Vega-Lite)",
+  "description": "200,000 synthetic order lines aggregated per day in the browser with DuckDB. Filter with the Days and Region controls.",
+  "tags": [
+    "bakeoff",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {
+      "name": "data"
+    },
+    "width": "container",
+    "height": "container",
+    "mark": "bar",
+    "encoding": {
+      "x": {
+        "field": "day",
+        "type": "temporal",
+        "title": "Day"
+      },
+      "y": {
+        "field": "amount",
+        "type": "quantitative",
+        "title": "Amount"
+      },
+      "tooltip": [
+        {
+          "field": "day",
+          "type": "temporal"
+        },
+        {
+          "field": "amount",
+          "type": "quantitative",
+          "format": ",.0f"
+        }
+      ]
+    }
+  },
+  "data": {
+    "format": "parquet",
+    "lane": "large",
+    "rows": 200000,
+    "bytes": 558311,
+    "columns": [
+      {
+        "name": "day",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "product",
+        "type": "string"
+      },
+      {
+        "name": "amount",
+        "type": "number"
+      }
+    ]
+  },
+  "aggregate": "SELECT day, sum(amount) AS amount FROM data GROUP BY day ORDER BY day"
+}

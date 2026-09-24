@@ -59,7 +59,7 @@ def test_folder_sorting_order_then_name(storage, settings):
     storage.put("viz/charts/alpha/x/chart.json", b"{}", "application/json")
     tree = build_tree(storage, settings)
     names = [f["name"] for f in tree["charts"]["folders"]]
-    assert names == ["zeta", "sales", "alpha"]  # order 1, order 10, then unordered by name
+    assert names == ["zeta", "sales", "bakeoff", "alpha"]  # order 1, order 10, order 20, then unordered by name
 
 
 def test_invalid_chart_becomes_error_node(storage, settings):
@@ -116,7 +116,7 @@ def test_document_deleted_between_list_and_load_becomes_error_node(storage, sett
 def test_stray_underscore_folder_key_is_not_a_folder(storage, settings):
     storage.put("viz/charts/weird_folder.json", b"{}", "application/json")
     tree = build_tree(storage, settings)
-    assert [f["name"] for f in tree["charts"]["folders"]] == ["sales"]
+    assert [f["name"] for f in tree["charts"]["folders"]] == ["sales", "bakeoff"]
 
 
 def test_bad_folder_metadata_does_not_break_tree(storage, settings):
@@ -135,9 +135,13 @@ async def test_cache_builds_once_and_refreshes_in_background(storage, settings):
     assert cache.builds == 1
     second = await cache.get()          # stale: returns old value, kicks off one refresh
     assert second is first
-    await asyncio.sleep(0.2)
+    third = first
+    for _ in range(50):                 # poll instead of a fixed sleep: the bake-off sample
+        third = await cache.get()       # bucket makes a build slower, and `builds` increments
+        if third is not first:          # when the background build *starts*, not when the
+            break                       # swap lands, so a flat 0.2s sleep raced the swap
+        await asyncio.sleep(0.1)
     assert cache.builds == 2
-    third = await cache.get()
     assert third is not first
 
 

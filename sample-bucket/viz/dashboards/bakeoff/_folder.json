@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "title": "Bake-off",
+  "description": "One dashboard per renderer. Pick a winner.",
+  "order": 20
+}
