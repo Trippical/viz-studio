@@ -138,63 +138,82 @@ describe('arrowRowsToRows', () => {
 });
 
 describe('withTempTables', () => {
-  function fakeConn() {
+  function fakeConn(opts: { failCreateFor?: string } = {}) {
+    const queries: string[] = [];
+    const created: string[] = [];
     const dropped: string[] = [];
+    const inserts: { sql: string; params: unknown[] }[] = [];
+    const closed: string[] = [];
     const conn = {
-      insertArrowTable: vi.fn(async (_table: unknown, options: { name: string }) => {
-        if (options.name === 'b') throw new Error('insert failed');
-      }),
       query: vi.fn(async (sql: string) => {
-        const m = /DROP TABLE IF EXISTS "([^"]+)"/.exec(sql);
-        if (m) dropped.push(m[1]);
+        queries.push(sql);
+        const createM = /^CREATE TEMP TABLE "([^"]+)" \(v VARCHAR\)$/.exec(sql);
+        if (createM) {
+          if (opts.failCreateFor === createM[1]) throw new Error(`create failed: ${createM[1]}`);
+          created.push(createM[1]);
+        }
+        const dropM = /DROP TABLE IF EXISTS "([^"]+)"/.exec(sql);
+        if (dropM) dropped.push(dropM[1]);
         return undefined;
       }),
+      prepare: vi.fn(async (sql: string) => ({
+        query: vi.fn(async (...params: unknown[]) => {
+          inserts.push({ sql, params });
+          return undefined;
+        }),
+        close: vi.fn(async () => {
+          closed.push(sql);
+        }),
+      })),
     };
-    return { conn, dropped };
+    return { conn, queries, created, dropped, inserts, closed };
   }
 
-  it('drops every temp table even when inserting one of them fails, and lets the error propagate', async () => {
-    const { conn, dropped } = fakeConn();
+  it('creates each temp table and inserts its values through a prepared statement, never in the SQL text, then closes it and drops the tables on success', async () => {
+    const { conn, queries, created, dropped, inserts, closed } = fakeConn();
+    const tables = [{ name: 'a', values: ['x', "y'; DROP TABLE t; --"] }];
+    const result = await withTempTables(conn, tables, async () => 'ok');
+    expect(result).toBe('ok');
+    expect(created).toEqual(['a']);
+    expect(dropped).toEqual(['a']);
+    expect(inserts).toEqual([{ sql: 'INSERT INTO "a" VALUES (?), (?)', params: ['x', "y'; DROP TABLE t; --"] }]);
+    expect(closed).toEqual(['INSERT INTO "a" VALUES (?), (?)']);
+    for (const sql of queries) {
+      expect(sql).not.toContain('x');
+      expect(sql).not.toContain("y'; DROP TABLE t; --");
+    }
+  });
+
+  it('batches values into groups of up to 100 placeholders per INSERT', async () => {
+    const { conn, inserts } = fakeConn();
+    const values = Array.from({ length: 150 }, (_, i) => `v${i}`);
+    await withTempTables(conn, [{ name: 'a', values }], async () => 'ok');
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0].params).toHaveLength(100);
+    expect(inserts[1].params).toHaveLength(50);
+    expect(inserts[0].sql).toBe(`INSERT INTO "a" VALUES ${Array(100).fill('(?)').join(', ')}`);
+  });
+
+  it('drops every temp table even when the second CREATE fails, and lets the error propagate', async () => {
+    const { conn, created, dropped } = fakeConn({ failCreateFor: 'b' });
     const tables = [
       { name: 'a', values: ['x'] },
       { name: 'b', values: ['y'] },
     ];
     const body = vi.fn(async () => 'unreachable');
-    await expect(withTempTables(conn, tables, body)).rejects.toThrow('insert failed');
+    await expect(withTempTables(conn, tables, body)).rejects.toThrow('create failed: b');
+    expect(created).toEqual(['a']);
     expect(dropped).toEqual(['a', 'b']);
     expect(body).not.toHaveBeenCalled();
   });
 
-  it('runs body after inserting, and still drops the temp tables on success', async () => {
-    const dropped: string[] = [];
-    const conn = {
-      insertArrowTable: vi.fn(async () => undefined),
-      query: vi.fn(async (sql: string) => {
-        const m = /DROP TABLE IF EXISTS "([^"]+)"/.exec(sql);
-        if (m) dropped.push(m[1]);
-        return undefined;
-      }),
-    };
-    const tables = [{ name: 'a', values: ['x'] }];
-    const result = await withTempTables(conn, tables, async () => 'ok');
-    expect(result).toBe('ok');
-    expect(dropped).toEqual(['a']);
-  });
-
-  it('skips the drop loop entirely when canDrop returns false, even on the success path', async () => {
-    const dropped: string[] = [];
-    const conn = {
-      insertArrowTable: vi.fn(async () => undefined),
-      query: vi.fn(async (sql: string) => {
-        const m = /DROP TABLE IF EXISTS "([^"]+)"/.exec(sql);
-        if (m) dropped.push(m[1]);
-        return undefined;
-      }),
-    };
+  it('skips the drop loop and skips closing the insert statement when canDrop returns false, even on the success path', async () => {
+    const { conn, created, dropped, closed } = fakeConn();
     const tables = [{ name: 'a', values: ['x'] }];
     const result = await withTempTables(conn, tables, async () => 'ok', () => false);
     expect(result).toBe('ok');
+    expect(created).toEqual(['a']);
     expect(dropped).toEqual([]);
-    expect(conn.query).not.toHaveBeenCalled();
+    expect(closed).toEqual([]);
   });
 });

@@ -250,21 +250,42 @@ async function assertSingleSelect(conn: Connection, aggregate: string): Promise<
   }
 }
 
+interface PreparedInsert {
+  query(...params: unknown[]): Promise<unknown>;
+  close(): Promise<void>;
+}
+
 interface TempTableConn {
-  insertArrowTable(table: unknown, options: { name: string; create?: boolean }): Promise<void>;
   query(sql: string): Promise<unknown>;
+  prepare(sql: string): Promise<PreparedInsert>;
 }
 
 /**
- * Inserts each temp table, runs `body`, and drops every table in `tables` in a
- * `finally` — including ones that were never (successfully) created, since the
- * drop is `DROP TABLE IF EXISTS` and therefore harmless. This way a failure
- * partway through inserting the temp tables still leaves none of them behind.
+ * `apache-arrow`'s `tableFromArrays` (formerly used here via
+ * `insertArrowTable`) builds its null-bitmap validity checker with
+ * `new Function(...)`, which the site's CSP (`script-src 'self'
+ * 'wasm-unsafe-eval'`, no `unsafe-eval`) blocks in a real browser. Temp
+ * tables are populated instead with plain DDL/DML: `CREATE TEMP TABLE`, then
+ * `INSERT ... VALUES` through a prepared statement, so a filter value is
+ * never part of any SQL string, only ever bound as a parameter. Values are
+ * batched up to this many `(?)` placeholders per INSERT to keep statement
+ * count down for large select-filters.
+ */
+const TEMP_TABLE_INSERT_BATCH = 100;
+
+/**
+ * Creates each temp table (`CREATE TEMP TABLE "<name>" (v VARCHAR)`) and
+ * inserts its values through a prepared statement, runs `body`, and drops
+ * every table in `tables` in a `finally` — including ones that were never
+ * (successfully) created, since the drop is `DROP TABLE IF EXISTS` and
+ * therefore harmless. This way a failure partway through creating the temp
+ * tables still leaves none of them behind.
  *
- * `canDrop` guards the drop loop itself: when it returns false (the connection
- * may be talking to a hung worker after a timeout) the loop is skipped
- * entirely rather than awaited-and-caught, since a `.catch` only guards a
- * rejection, not a promise that never settles.
+ * `canDrop` guards both the drop loop and each insert statement's `close()`:
+ * when it returns false (the connection may be talking to a hung worker
+ * after a timeout) those calls are skipped entirely rather than
+ * awaited-and-caught, since a `.catch` only guards a rejection, not a
+ * promise that never settles.
  */
 export async function withTempTables<T>(
   conn: TempTableConn,
@@ -273,9 +294,18 @@ export async function withTempTables<T>(
   canDrop: () => boolean = () => true,
 ): Promise<T> {
   try {
-    const arrow = await import('apache-arrow');
     for (const t of tables) {
-      await conn.insertArrowTable(arrow.tableFromArrays({ v: t.values }), { name: t.name, create: true });
+      await conn.query(`CREATE TEMP TABLE "${t.name}" (v VARCHAR)`);
+      for (let i = 0; i < t.values.length; i += TEMP_TABLE_INSERT_BATCH) {
+        const batch = t.values.slice(i, i + TEMP_TABLE_INSERT_BATCH);
+        const placeholders = batch.map(() => '(?)').join(', ');
+        const stmt = await conn.prepare(`INSERT INTO "${t.name}" VALUES ${placeholders}`);
+        try {
+          await stmt.query(...batch);
+        } finally {
+          if (canDrop()) await stmt.close().catch(() => undefined);
+        }
+      }
     }
     return await body();
   } finally {
