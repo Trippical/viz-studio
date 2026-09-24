@@ -57,6 +57,8 @@ export interface BuiltQuery {
   sql: string;
   params: unknown[];
   tempTables: { name: string; values: string[] }[];
+  /** The comment-stripped aggregate text, exactly what appears inside `SELECT * FROM (...)`. */
+  clean: string;
 }
 
 let tempCounter = 0;
@@ -112,7 +114,7 @@ export function buildFilteredQuery(aggregate: string, table: string, columns: Co
   }
   const where = conds.length > 0 ? ` WHERE ${conds.join(' AND ')}` : '';
   const sql = `WITH data AS (SELECT * FROM "${table}"${where}) SELECT * FROM (${clean}) LIMIT ${ROW_LIMIT}`;
-  return { sql, params, tempTables };
+  return { sql, params, tempTables, clean };
 }
 
 function normalize(v: unknown, type: Column['type'] | undefined): unknown {
@@ -221,6 +223,31 @@ async function assertSingleSelect(conn: Connection, aggregate: string): Promise<
   }
 }
 
+interface TempTableConn {
+  insertArrowTable(table: unknown, options: { name: string; create?: boolean }): Promise<void>;
+  query(sql: string): Promise<unknown>;
+}
+
+/**
+ * Inserts each temp table, runs `body`, and drops every table in `tables` in a
+ * `finally` — including ones that were never (successfully) created, since the
+ * drop is `DROP TABLE IF EXISTS` and therefore harmless. This way a failure
+ * partway through inserting the temp tables still leaves none of them behind.
+ */
+export async function withTempTables<T>(conn: TempTableConn, tables: BuiltQuery['tempTables'], body: () => Promise<T>): Promise<T> {
+  try {
+    const arrow = await import('apache-arrow');
+    for (const t of tables) {
+      await conn.insertArrowTable(arrow.tableFromArrays({ v: t.values }), { name: t.name, create: true });
+    }
+    return await body();
+  } finally {
+    for (const t of tables) {
+      await conn.query(`DROP TABLE IF EXISTS "${t.name}"`).catch(() => undefined);
+    }
+  }
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new DuckDbError(`query timed out after ${ms} ms`)), ms);
@@ -241,30 +268,24 @@ async function runQuery(chartId: string, aggregate: string, columns: Column[], f
   const built = buildFilteredQuery(aggregate, tableName(chartId), columns, filters);
   const rt = await getRuntime();
   await ensureLoaded(rt, chartId);
-  if (rt.jsonCheck) await assertSingleSelect(rt.conn, aggregate);
-  const arrow = await import('apache-arrow');
-  for (const t of built.tempTables) {
-    await rt.conn.insertArrowTable(arrow.tableFromArrays({ v: t.values }), { name: t.name, create: true });
-  }
+  if (rt.jsonCheck) await assertSingleSelect(rt.conn, built.clean);
   try {
-    const stmt = await rt.conn.prepare(built.sql);
-    try {
-      const table = await withTimeout(stmt.query(...built.params), timeoutMs);
-      const rows = table.toArray().map((r) => (r as { toJSON(): Record<string, unknown> }).toJSON());
-      return arrowRowsToRows(rows, columns);
-    } finally {
-      await stmt.close().catch(() => undefined);
-    }
+    return await withTempTables(rt.conn, built.tempTables, async () => {
+      const stmt = await rt.conn.prepare(built.sql);
+      try {
+        const table = await withTimeout(stmt.query(...built.params), timeoutMs);
+        const rows = table.toArray().map((r) => (r as { toJSON(): Record<string, unknown> }).toJSON());
+        return arrowRowsToRows(rows, columns);
+      } finally {
+        await stmt.close().catch(() => undefined);
+      }
+    });
   } catch (err) {
     if (err instanceof DuckDbError && /timed out/.test(err.message)) {
       await terminateRuntime();
       throw err;
     }
     throw err instanceof DuckDbError ? err : new DuckDbError(err instanceof Error ? err.message : String(err));
-  } finally {
-    if (runtime) {
-      for (const t of built.tempTables) await rt.conn.query(`DROP TABLE IF EXISTS "${t.name}"`).catch(() => undefined);
-    }
   }
 }
 

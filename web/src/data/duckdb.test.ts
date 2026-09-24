@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Column } from '../api/types';
 import type { Filter } from './filters';
 import {
@@ -10,6 +10,7 @@ import {
   checkSingleSelectSyntax,
   parseSerializedSql,
   tableName,
+  withTempTables,
 } from './duckdb';
 
 const columns: Column[] = [
@@ -67,6 +68,13 @@ describe('buildFilteredQuery', () => {
     expect(q.sql).toBe(`WITH data AS (SELECT * FROM "raw_x") SELECT * FROM (${aggregate}) LIMIT ${ROW_LIMIT}`);
     expect(q.params).toEqual([]);
     expect(q.tempTables).toEqual([]);
+    expect(q.clean).toBe(aggregate);
+  });
+
+  it('exposes the comment-stripped aggregate as clean, the exact text embedded in the subquery', () => {
+    const q = buildFilteredQuery('-- c\nSELECT 1', 'raw_x', columns, []);
+    expect(q.clean).toBe('SELECT 1');
+    expect(q.sql).toContain('SELECT * FROM (SELECT 1) LIMIT');
   });
 
   it('binds ranges as parameters and selects as temp tables, in filter order', () => {
@@ -116,5 +124,50 @@ describe('arrowRowsToRows', () => {
       { day: '2025-01-02', region: 'EMEA', amount: 10, total: 5 },
       { day: '2025-01-03', region: 'NA', amount: 2.5, total: 7 },
     ]);
+  });
+});
+
+describe('withTempTables', () => {
+  function fakeConn() {
+    const dropped: string[] = [];
+    const conn = {
+      insertArrowTable: vi.fn(async (_table: unknown, options: { name: string }) => {
+        if (options.name === 'b') throw new Error('insert failed');
+      }),
+      query: vi.fn(async (sql: string) => {
+        const m = /DROP TABLE IF EXISTS "([^"]+)"/.exec(sql);
+        if (m) dropped.push(m[1]);
+        return undefined;
+      }),
+    };
+    return { conn, dropped };
+  }
+
+  it('drops every temp table even when inserting one of them fails, and lets the error propagate', async () => {
+    const { conn, dropped } = fakeConn();
+    const tables = [
+      { name: 'a', values: ['x'] },
+      { name: 'b', values: ['y'] },
+    ];
+    const body = vi.fn(async () => 'unreachable');
+    await expect(withTempTables(conn, tables, body)).rejects.toThrow('insert failed');
+    expect(dropped).toEqual(['a', 'b']);
+    expect(body).not.toHaveBeenCalled();
+  });
+
+  it('runs body after inserting, and still drops the temp tables on success', async () => {
+    const dropped: string[] = [];
+    const conn = {
+      insertArrowTable: vi.fn(async () => undefined),
+      query: vi.fn(async (sql: string) => {
+        const m = /DROP TABLE IF EXISTS "([^"]+)"/.exec(sql);
+        if (m) dropped.push(m[1]);
+        return undefined;
+      }),
+    };
+    const tables = [{ name: 'a', values: ['x'] }];
+    const result = await withTempTables(conn, tables, async () => 'ok');
+    expect(result).toBe('ok');
+    expect(dropped).toEqual(['a']);
   });
 });
