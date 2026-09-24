@@ -25,6 +25,12 @@ describe('bindTraces', () => {
     expect(out).toEqual([{ type: 'scatter', customdata: ['&lt;b>x&lt;/b>', 'y', 'z'] }]);
   });
 
+  it('escapes every bound value, including labels and category axes like x/y', () => {
+    const withMarkup = [{ region: '<a href="x">Q3</a>', orders: 5 }];
+    const out = bindTraces([{ type: 'bar', x: { column: 'region' }, y: { column: 'orders' } }], withMarkup, columns);
+    expect(out).toEqual([{ type: 'bar', x: ['&lt;a href="x">Q3&lt;/a>'], y: [5] }]);
+  });
+
   it('expands split into one trace per value', () => {
     const out = bindTraces([{ type: 'scatter', split: 'region', x: { column: 'orders' }, y: { column: 'orders' } }], rows, columns);
     expect(out).toEqual([

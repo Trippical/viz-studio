@@ -262,9 +262,9 @@ interface TempTableConn {
 
 /**
  * `apache-arrow`'s `tableFromArrays` (formerly used here via
- * `insertArrowTable`) builds its null-bitmap validity checker with
- * `new Function(...)`, which the site's CSP (`script-src 'self'
- * 'wasm-unsafe-eval'`, no `unsafe-eval`) blocks in a real browser. Temp
+ * `insertArrowTable`) builds its null-bitmap validity checker by compiling
+ * code with the `Function` constructor, which the site's CSP (`script-src
+ * 'self' 'wasm-unsafe-eval'`, no `unsafe-eval`) blocks in a real browser. Temp
  * tables are populated instead with plain DDL/DML: `CREATE TEMP TABLE`, then
  * `INSERT ... VALUES` through a prepared statement, so a filter value is
  * never part of any SQL string, only ever bound as a parameter. Values are

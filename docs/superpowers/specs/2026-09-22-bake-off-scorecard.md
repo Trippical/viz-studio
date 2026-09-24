@@ -8,7 +8,8 @@ Blank columns are for the reviewer.
 ## How to review
 
 1. From the repo root: `cd web && npm run build && cd ..` then
-   `VIZ_WEB_DIST=web/dist .venv/Scripts/viz-server`.
+   `VIZ_WEB_DIST=web/dist .venv/Scripts/viz-server` (bash) or, in PowerShell,
+   `$env:VIZ_WEB_DIST = "web/dist"; .venv/Scripts/viz-server`.
 2. Open `http://127.0.0.1:8000/d/bakeoff/vega-lite`, `/d/bakeoff/plotly` and
    `/d/bakeoff/echarts`. Each has the same four tiles: a monthly time series,
    a stat tile, a quarterly grouped bar, and a 200,000-row parquet chart
@@ -76,6 +77,11 @@ Notes on the measurements:
   json_serialize_sql is unavailable in this build; relying on the syntax
   check and subquery wrapping") rather than an error, and this is expected
   and does not fail the smoke test or any dashboard.
+- Select-filter values reach DuckDB through prepared, parameterized `INSERT`
+  statements into a temp table, not through Arrow temp tables: `apache-arrow`'s
+  table builder compiles its null-bitmap validity checker with the `Function`
+  constructor, which the site's CSP (no `unsafe-eval`) forbids. See
+  `web/src/data/duckdb.ts`.
 
 ## Reviewer
 

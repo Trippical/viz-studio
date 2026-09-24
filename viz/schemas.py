@@ -67,6 +67,8 @@ def _walk(node: Any, path: str = "spec") -> Iterator[tuple[str, str, Any]]:
 # which are not in the declared column set.
 def _check_vegalite(spec: dict, columns: set[str]) -> list[str]:
     errors = []
+    if spec.get("data") != {"name": "data"}:
+        errors.append("spec/data: top-level data must be exactly {\"name\": \"data\"}")
     for path, key, value in _walk(spec):
         if key == "data" and value != {"name": "data"}:
             errors.append(f"{path}: vega-lite data must be exactly {{\"name\": \"data\"}}")
@@ -90,6 +92,10 @@ def _check_echarts(spec: dict, columns: set[str]) -> list[str]:
             errors.append(f"{path}: dataset is injected by the viewer and must not be set")
         if key == "data":
             errors.append(f"{path}: inline data is not allowed")
+        if key == "image":
+            errors.append(f"{path}: image keys are not allowed")
+        if isinstance(value, str) and value.startswith("image://"):
+            errors.append(f"{path}: image URLs are not allowed")
         if key == "formatter" and isinstance(value, str) and "<" in value:
             errors.append(f"{path}: formatter must not contain HTML")
         if key == "renderMode" and value != "richText":

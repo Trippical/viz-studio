@@ -129,7 +129,7 @@ def write_parquet(path: Path, table: pa.Table) -> int:
 def time_series_spec(renderer: str) -> dict:
     if renderer == "vega-lite":
         return {
-            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
             "data": {"name": "data"},
             "width": "container",
             "height": "container",
@@ -164,7 +164,7 @@ def time_series_spec(renderer: str) -> dict:
 def grouped_bar_spec(renderer: str) -> dict:
     if renderer == "vega-lite":
         return {
-            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
             "data": {"name": "data"},
             "width": "container",
             "height": "container",
@@ -198,7 +198,7 @@ def grouped_bar_spec(renderer: str) -> dict:
 def order_lines_spec(renderer: str) -> dict:
     if renderer == "vega-lite":
         return {
-            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
             "data": {"name": "data"},
             "width": "container",
             "height": "container",
@@ -310,7 +310,7 @@ def main() -> None:
         "Monthly revenue for each region over the last three years. Synthetic data.",
         "vega-lite",
         {
-            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
             "data": {"name": "data"},
             "mark": {"type": "line", "point": True},
             "encoding": {

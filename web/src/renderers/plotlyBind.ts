@@ -2,14 +2,16 @@ import type { Column, Row } from '../api/types';
 import { SanitizeError, UNSAFE_KEYS, isPlainObject } from './common';
 import { BOUND_KEYS } from './plotlySanitize';
 
-const ESCAPED_KEYS = new Set(['text', 'hovertext', 'customdata']);
-
 export function escapeLt(v: unknown): unknown {
   return typeof v === 'string' ? v.replace(/</g, '&lt;') : v;
 }
 
-function columnArray(rows: Row[], column: string, escape: boolean): unknown[] {
-  return rows.map((row) => (escape ? escapeLt(row[column]) : row[column]));
+// Plotly's pseudo-HTML parser renders `<` in more than just text/hovertext:
+// labels, legend entries and category axis values (bound x/y) go through it
+// too, so every bound column is escaped unconditionally. Non-strings (numbers,
+// dates, null) pass through escapeLt unchanged.
+function columnArray(rows: Row[], column: string): unknown[] {
+  return rows.map((row) => escapeLt(row[column]));
 }
 
 function bindOne(trace: Record<string, unknown>, rows: Row[], declared: Set<string>, index: number): Record<string, unknown> {
@@ -22,7 +24,7 @@ function bindOne(trace: Record<string, unknown>, rows: Row[], declared: Set<stri
         throw new SanitizeError(`spec/traces/${index}/${key}: must be a column binding`);
       }
       if (!declared.has(value.column)) throw new SanitizeError(`spec/traces/${index}/${key}: unknown column "${value.column}"`);
-      out[key] = columnArray(rows, value.column, ESCAPED_KEYS.has(key));
+      out[key] = columnArray(rows, value.column);
     } else {
       out[key] = value;
     }
