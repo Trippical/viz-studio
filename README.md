@@ -43,3 +43,21 @@ catalogs or `catalog.schema` that `viz query` refuses), `VIZ_PII_PATTERN`,
 `VIZ_STAGING_DIR`. `--force` and `--yes` are flags only.
 
 Design: `docs/superpowers/specs/2026-09-22-viz-site-design.md`.
+
+## Front end
+
+The viewer is a Vite + React + TypeScript app in `web/`. Node 24 and npm are
+required. From `web/`:
+
+    npm install
+    npm run dev          # Vite on http://127.0.0.1:5173, proxies /api to the server on :8000
+    npm run build        # writes web/dist; serve it with VIZ_WEB_DIST=web/dist viz-server
+    npm test             # vitest unit tests
+    npm run typecheck
+    npm run e2e          # Playwright smoke test: builds, starts viz-server, drives Chromium
+
+Every renderer library, the DuckDB-WASM worker and its wasm are bundled and
+served from the site. Nothing loads from a CDN. Chart specs from the bucket are
+sanitized before they are mounted; see `web/src/renderers/*Sanitize.ts` and
+spec section 12.3. The bake-off between Vega-Lite, Plotly and ECharts is scored
+in `docs/superpowers/specs/2026-09-22-bake-off-scorecard.md`.
