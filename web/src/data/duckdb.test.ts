@@ -170,4 +170,21 @@ describe('withTempTables', () => {
     expect(result).toBe('ok');
     expect(dropped).toEqual(['a']);
   });
+
+  it('skips the drop loop entirely when canDrop returns false, even on the success path', async () => {
+    const dropped: string[] = [];
+    const conn = {
+      insertArrowTable: vi.fn(async () => undefined),
+      query: vi.fn(async (sql: string) => {
+        const m = /DROP TABLE IF EXISTS "([^"]+)"/.exec(sql);
+        if (m) dropped.push(m[1]);
+        return undefined;
+      }),
+    };
+    const tables = [{ name: 'a', values: ['x'] }];
+    const result = await withTempTables(conn, tables, async () => 'ok', () => false);
+    expect(result).toBe('ok');
+    expect(dropped).toEqual([]);
+    expect(conn.query).not.toHaveBeenCalled();
+  });
 });

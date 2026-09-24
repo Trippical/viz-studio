@@ -145,6 +145,13 @@ interface Runtime {
   conn: Connection;
   loaded: Set<string>;
   jsonCheck: boolean;
+  /**
+   * Set synchronously, before any further `await`, the moment a query times
+   * out. Once true, nothing may `await` a call against `conn` or `db` again:
+   * the worker behind a timed-out query may be genuinely hung, and a `.catch`
+   * only guards a rejection, not a promise that never settles.
+   */
+  dead: boolean;
 }
 
 let runtime: Promise<Runtime> | null = null;
@@ -169,7 +176,7 @@ async function createRuntime(): Promise<Runtime> {
     jsonCheck = false;
     console.warn('duckdb: json_serialize_sql is unavailable in this build; relying on the syntax check and subquery wrapping');
   }
-  return { db, conn, loaded: new Set(), jsonCheck };
+  return { db, conn, loaded: new Set(), jsonCheck, dead: false };
 }
 
 function getRuntime(): Promise<Runtime> {
@@ -233,8 +240,18 @@ interface TempTableConn {
  * `finally` — including ones that were never (successfully) created, since the
  * drop is `DROP TABLE IF EXISTS` and therefore harmless. This way a failure
  * partway through inserting the temp tables still leaves none of them behind.
+ *
+ * `canDrop` guards the drop loop itself: when it returns false (the connection
+ * may be talking to a hung worker after a timeout) the loop is skipped
+ * entirely rather than awaited-and-caught, since a `.catch` only guards a
+ * rejection, not a promise that never settles.
  */
-export async function withTempTables<T>(conn: TempTableConn, tables: BuiltQuery['tempTables'], body: () => Promise<T>): Promise<T> {
+export async function withTempTables<T>(
+  conn: TempTableConn,
+  tables: BuiltQuery['tempTables'],
+  body: () => Promise<T>,
+  canDrop: () => boolean = () => true,
+): Promise<T> {
   try {
     const arrow = await import('apache-arrow');
     for (const t of tables) {
@@ -242,8 +259,10 @@ export async function withTempTables<T>(conn: TempTableConn, tables: BuiltQuery[
     }
     return await body();
   } finally {
-    for (const t of tables) {
-      await conn.query(`DROP TABLE IF EXISTS "${t.name}"`).catch(() => undefined);
+    if (canDrop()) {
+      for (const t of tables) {
+        await conn.query(`DROP TABLE IF EXISTS "${t.name}"`).catch(() => undefined);
+      }
     }
   }
 }
@@ -270,21 +289,33 @@ async function runQuery(chartId: string, aggregate: string, columns: Column[], f
   await ensureLoaded(rt, chartId);
   if (rt.jsonCheck) await assertSingleSelect(rt.conn, built.clean);
   try {
-    return await withTempTables(rt.conn, built.tempTables, async () => {
-      const stmt = await rt.conn.prepare(built.sql);
-      try {
-        const table = await withTimeout(stmt.query(...built.params), timeoutMs);
-        const rows = table.toArray().map((r) => (r as { toJSON(): Record<string, unknown> }).toJSON());
-        return arrowRowsToRows(rows, columns);
-      } finally {
-        await stmt.close().catch(() => undefined);
-      }
-    });
+    return await withTempTables(
+      rt.conn,
+      built.tempTables,
+      async () => {
+        const stmt = await rt.conn.prepare(built.sql);
+        try {
+          const table = await withTimeout(stmt.query(...built.params), timeoutMs);
+          const rows = table.toArray().map((r) => (r as { toJSON(): Record<string, unknown> }).toJSON());
+          return arrowRowsToRows(rows, columns);
+        } catch (err) {
+          if (err instanceof DuckDbError && /timed out/.test(err.message)) {
+            // The worker behind this query may be genuinely hung. Mark the
+            // runtime dead synchronously, before any further `await`, then
+            // terminate it — never await another call against `conn`.
+            rt.dead = true;
+            await terminateRuntime();
+          }
+          throw err;
+        } finally {
+          // Skip stmt.close() once the runtime is dead: it would await a
+          // call against the same connection the timed-out query is stuck on.
+          if (!rt.dead) await stmt.close().catch(() => undefined);
+        }
+      },
+      () => !rt.dead,
+    );
   } catch (err) {
-    if (err instanceof DuckDbError && /timed out/.test(err.message)) {
-      await terminateRuntime();
-      throw err;
-    }
     throw err instanceof DuckDbError ? err : new DuckDbError(err instanceof Error ? err.message : String(err));
   }
 }
