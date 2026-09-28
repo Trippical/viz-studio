@@ -66,3 +66,9 @@ def test_readme_covers_the_bucket_baseline():
     text = (AWS / "README.md").read_text(encoding="utf-8")
     for phrase in ("Block Public Access", "SSE-KMS", "Versioning", "NoncurrentVersionExpiration", "CloudTrail", "IRSA", "node role"):
         assert phrase in text, phrase
+
+
+def test_readme_warns_about_the_key_policy_and_break_glass():
+    text = (AWS / "README.md").read_text(encoding="utf-8")
+    assert "key policy" in text
+    assert "break-glass" in text

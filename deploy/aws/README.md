@@ -11,7 +11,7 @@ Create one bucket for viz-site, then set:
 
 - **Block Public Access**: all four settings on.
 - **Default encryption**: SSE-KMS with a customer-managed key, Bucket Key
-  enabled.
+  enabled. The key's own key policy must also allow the `viz-site-server` role `kms:Decrypt` and the `viz-site-publisher` role `kms:Decrypt` and `kms:GenerateDataKey`; IAM policies alone are not enough for a customer-managed key.
 - **Versioning**: enabled, with a lifecycle rule
   `NoncurrentVersionExpiration` of 30 days, so an overwritten or deleted
   chart can be recovered for a month.
@@ -20,7 +20,7 @@ Create one bucket for viz-site, then set:
 - **Bucket policy**: `bucket-policy.json`. It denies plain HTTP, and denies
   reads that do not come through the cluster's S3 VPC endpoint, except for
   the publisher role, because publishers run `viz publish` from their own
-  machines.
+  machines. Nobody else, including administrators, can read objects from outside the VPC endpoint; for break-glass access, edit the bucket policy first.
 
 ## 2. Roles
 
