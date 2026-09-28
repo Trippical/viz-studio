@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "id": "examples/line-with-target",
+  "title": "Total monthly revenue against target",
+  "description": "Line with a reference line. Use when a value should be read against a fixed target or threshold.",
+  "tags": [
+    "examples",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {
+      "name": "data"
+    },
+    "layer": [
+      {
+        "mark": {
+          "type": "line",
+          "point": true
+        },
+        "encoding": {
+          "x": {
+            "field": "month",
+            "timeUnit": "utcyearmonth",
+            "type": "temporal",
+            "title": "Month"
+          },
+          "y": {
+            "field": "revenue",
+            "aggregate": "sum",
+            "type": "quantitative",
+            "title": "Revenue",
+            "axis": {
+              "format": "$.2s"
+            }
+          },
+          "tooltip": [
+            {
+              "field": "month",
+              "timeUnit": "utcyearmonth",
+              "type": "temporal",
+              "title": "Month"
+            },
+            {
+              "field": "revenue",
+              "aggregate": "sum",
+              "type": "quantitative",
+              "title": "Revenue",
+              "format": "$,.0f"
+            }
+          ]
+        }
+      },
+      {
+        "transform": [
+          {
+            "aggregate": [
+              {
+                "op": "count",
+                "as": "rows"
+              }
+            ]
+          }
+        ],
+        "mark": {
+          "type": "rule",
+          "strokeDash": [
+            4,
+            4
+          ],
+          "color": "#7a7a7a"
+        },
+        "encoding": {
+          "y": {
+            "datum": 1800000,
+            "type": "quantitative"
+          }
+        }
+      },
+      {
+        "transform": [
+          {
+            "aggregate": [
+              {
+                "op": "count",
+                "as": "rows"
+              }
+            ]
+          }
+        ],
+        "mark": {
+          "type": "text",
+          "align": "right",
+          "baseline": "bottom",
+          "dy": -4,
+          "x": "width",
+          "color": "#7a7a7a"
+        },
+        "encoding": {
+          "y": {
+            "datum": 1800000,
+            "type": "quantitative"
+          },
+          "text": {
+            "value": "Target $1.8M"
+          }
+        }
+      }
+    ]
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}

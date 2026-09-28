@@ -1,0 +1,32 @@
+{
+  "title": "Total monthly revenue against target",
+  "description": "Line with a reference line. Use when a value should be read against a fixed target or threshold.",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "data"},
+    "layer": [
+      {
+        "mark": {"type": "line", "point": true},
+        "encoding": {
+          "x": {"field": "month", "timeUnit": "utcyearmonth", "type": "temporal", "title": "Month"},
+          "y": {"field": "revenue", "aggregate": "sum", "type": "quantitative", "title": "Revenue", "axis": {"format": "$.2s"}},
+          "tooltip": [
+            {"field": "month", "timeUnit": "utcyearmonth", "type": "temporal", "title": "Month"},
+            {"field": "revenue", "aggregate": "sum", "type": "quantitative", "title": "Revenue", "format": "$,.0f"}
+          ]
+        }
+      },
+      {
+        "transform": [{"aggregate": [{"op": "count", "as": "rows"}]}],
+        "mark": {"type": "rule", "strokeDash": [4, 4], "color": "#7a7a7a"},
+        "encoding": {"y": {"datum": 1800000, "type": "quantitative"}}
+      },
+      {
+        "transform": [{"aggregate": [{"op": "count", "as": "rows"}]}],
+        "mark": {"type": "text", "align": "right", "baseline": "bottom", "dy": -4, "x": "width", "color": "#7a7a7a"},
+        "encoding": {"y": {"datum": 1800000, "type": "quantitative"}, "text": {"value": "Target $1.8M"}}
+      }
+    ]
+  }
+}

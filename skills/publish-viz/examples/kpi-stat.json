@@ -1,0 +1,6 @@
+{
+  "title": "Total revenue",
+  "description": "Stat tile: one headline number, aggregated over the rows left after the dashboard's filters. Use for a KPI; it is drawn by the site, not by Vega-Lite.",
+  "renderer": "stat",
+  "spec": {"value": "revenue", "agg": "sum", "format": "$,.0f"}
+}

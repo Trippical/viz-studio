@@ -11,6 +11,8 @@ from ..config import Settings
 from ..ids import InvalidId
 from ..storage import get_storage
 from .errors import CliError
+from .dashboards import DashboardError, new_dashboard, pulled_dashboard, write_staged_dashboard
+from .skill import SkillExists, UnsafeTarget, default_destination, install_skill
 from .identity import resolve_author
 from .infer import UnsupportedColumn, table_from_file
 from .move import MoveError, apply_move, describe, plan_move
@@ -153,6 +155,47 @@ def _cmd_query(args) -> int:
     return _stage_table(table, args.id, settings, args, author=user, source=source)
 
 
+def _cmd_new_dashboard(args) -> int:
+    settings = Settings()
+    author = _resolve_author(settings)
+    try:
+        doc = new_dashboard(args.id, args.chart or [], args.title, author, datetime.now(timezone.utc))
+        path = write_staged_dashboard(doc, _staging_root(args, settings), force=args.force)
+    except (InvalidId, DashboardError, ValueError) as err:
+        raise CliError(str(err), code=1) from err
+    print(f"staged: {path}")
+    return 0
+
+
+def _cmd_pull_dashboard(args) -> int:
+    settings = Settings()
+    storage = get_storage(settings)
+    author = _resolve_author(settings)
+    try:
+        doc = pulled_dashboard(args.id, settings, storage, author, datetime.now(timezone.utc))
+        path = write_staged_dashboard(doc, _staging_root(args, settings), force=args.force)
+    except (InvalidId, DashboardError, ValueError) as err:
+        raise CliError(str(err), code=1) from err
+    print(f"staged: {path}")
+    return 0
+
+
+def _cmd_install_skill(args) -> int:
+    dest = Path(args.dest) if args.dest else default_destination()
+    try:
+        target = install_skill(dest, force=args.force)
+    except SkillExists as err:
+        raise CliError(str(err), code=1) from err
+    except FileNotFoundError as err:
+        raise CliError(str(err), code=2) from err
+    except UnsafeTarget as err:
+        raise CliError(str(err), code=1) from err
+    except OSError as err:
+        raise CliError(str(err), code=1) from err
+    print(f"installed: {target}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="viz", description="Stage, validate and publish charts and dashboards.")
     parser.add_argument("--version", action="version", version=f"viz {__version__}")
@@ -200,6 +243,25 @@ def build_parser() -> argparse.ArgumentParser:
     query_p.set_defaults(func=_cmd_query)
 
     # Later tasks add their subcommands below this line.
+
+    new_dash_p = sub.add_parser("new-dashboard", help="stage a new dashboard file with author and timestamps filled in")
+    new_dash_p.add_argument("id", metavar="ID", help="dashboard id, for example sales/emea/overview")
+    new_dash_p.add_argument("--chart", action="append", default=None, metavar="CHART_ID", help="add a chart tile (repeatable)")
+    new_dash_p.add_argument("--title", default=None)
+    new_dash_p.add_argument("--force", action="store_true", help="replace a dashboard file that is already staged")
+    new_dash_p.add_argument("--staging", default=None, metavar="DIR", help="staging directory (default ./.viz-staging)")
+    new_dash_p.set_defaults(func=_cmd_new_dashboard)
+
+    pull_p = sub.add_parser("pull-dashboard", help="copy a published dashboard into staging to edit it")
+    pull_p.add_argument("id", metavar="ID", help="dashboard id, for example sales/emea/overview")
+    pull_p.add_argument("--force", action="store_true", help="replace a dashboard file that is already staged")
+    pull_p.add_argument("--staging", default=None, metavar="DIR", help="staging directory (default ./.viz-staging)")
+    pull_p.set_defaults(func=_cmd_pull_dashboard)
+
+    install_p = sub.add_parser("install-skill", help="copy the publish-viz skill to where Claude Code reads skills")
+    install_p.add_argument("--dest", default=None, metavar="DIR", help="skills folder (default ~/.claude/skills)")
+    install_p.add_argument("--force", action="store_true", help="replace an existing publish-viz folder")
+    install_p.set_defaults(func=_cmd_install_skill)
 
     return parser
 

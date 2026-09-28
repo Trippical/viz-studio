@@ -11,6 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 ROOT = Path(__file__).resolve().parent / "viz"
+SKILL_EXAMPLES = Path(__file__).resolve().parents[1] / "skills" / "publish-viz" / "examples"
 AUTHOR = "sample@example.com"
 STAMP = "2026-09-22T10:00:00Z"
 REGIONS = ["EMEA", "NA", "APAC", "LATAM"]
@@ -258,6 +259,41 @@ def write_bakeoff(data: list[dict]) -> None:
         })
 
 
+def write_examples(data: list[dict]) -> None:
+    """Publish every chart form from the publish-viz skill, on the monthly dataset, plus a gallery."""
+    charts = ROOT / "charts" / "examples"
+    dashboards = ROOT / "dashboards" / "examples"
+    write_json(charts / "_folder.json", {"schema_version": 1, "title": "Examples", "description": "The chart forms taught by the publish-viz skill.", "order": 30})
+    write_json(dashboards / "_folder.json", {"schema_version": 1, "title": "Examples", "description": "A gallery of every chart form the publish-viz skill teaches.", "order": 30})
+
+    layout = []
+    for path in sorted(SKILL_EXAMPLES.glob("*.json")):
+        example = json.loads(path.read_text(encoding="utf-8"))
+        chart_id = f"examples/{path.stem}"
+        n = write_json(charts / path.stem / "data.json", data)
+        write_json(charts / path.stem / "chart.json", chart_doc(
+            chart_id, example["title"], example["description"], example["renderer"], example["spec"],
+            len(data), n, tags=("examples", "sample"),
+        ))
+        layout.append({"chart": chart_id, "w": 6, "h": 3})
+
+    write_json(dashboards / "gallery.json", {
+        "schema_version": 1,
+        "id": "examples/gallery",
+        "title": "Chart form gallery",
+        "description": "Every example from the publish-viz skill's Vega-Lite guide, on synthetic data.",
+        "tags": ["examples", "sample"],
+        "author": AUTHOR,
+        "created_at": STAMP,
+        "updated_at": STAMP,
+        "controls": [
+            {"id": "period", "type": "date-range", "label": "Period", "column": "month", "default": None},
+            {"id": "region", "type": "select", "label": "Region", "column": "region", "multi": True, "default": None},
+        ],
+        "layout": layout,
+    })
+
+
 def main() -> None:
     data = rows()
     charts = ROOT / "charts" / "sales"
@@ -323,6 +359,7 @@ def main() -> None:
     })
 
     write_bakeoff(data)
+    write_examples(data)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,20 @@
+{
+  "title": "Revenue by region, monthly",
+  "description": "Line chart: one line per region over time. Use for a measure over time split by a category with up to about eight values.",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "data"},
+    "mark": {"type": "line", "point": true},
+    "encoding": {
+      "x": {"field": "month", "timeUnit": "utcyearmonth", "type": "temporal", "title": "Month"},
+      "y": {"field": "revenue", "aggregate": "sum", "type": "quantitative", "title": "Revenue", "axis": {"format": "$.2s"}},
+      "color": {"field": "region", "type": "nominal", "title": "Region"},
+      "tooltip": [
+        {"field": "month", "timeUnit": "utcyearmonth", "type": "temporal", "title": "Month"},
+        {"field": "region", "type": "nominal", "title": "Region"},
+        {"field": "revenue", "aggregate": "sum", "type": "quantitative", "title": "Revenue", "format": "$,.0f"}
+      ]
+    }
+  }
+}

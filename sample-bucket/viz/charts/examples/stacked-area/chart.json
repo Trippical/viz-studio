@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "id": "examples/stacked-area",
+  "title": "Revenue by region, stacked",
+  "description": "Stacked area chart. Use when the total over time matters as much as each part's contribution.",
+  "tags": [
+    "examples",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {
+      "name": "data"
+    },
+    "mark": "area",
+    "encoding": {
+      "x": {
+        "field": "month",
+        "timeUnit": "utcyearmonth",
+        "type": "temporal",
+        "title": "Month"
+      },
+      "y": {
+        "field": "revenue",
+        "aggregate": "sum",
+        "type": "quantitative",
+        "title": "Revenue",
+        "axis": {
+          "format": "$.2s"
+        }
+      },
+      "color": {
+        "field": "region",
+        "type": "nominal",
+        "title": "Region"
+      },
+      "tooltip": [
+        {
+          "field": "month",
+          "timeUnit": "utcyearmonth",
+          "type": "temporal",
+          "title": "Month"
+        },
+        {
+          "field": "region",
+          "type": "nominal",
+          "title": "Region"
+        },
+        {
+          "field": "revenue",
+          "aggregate": "sum",
+          "type": "quantitative",
+          "title": "Revenue",
+          "format": "$,.0f"
+        }
+      ]
+    }
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}

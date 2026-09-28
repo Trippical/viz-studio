@@ -1,4 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const EXAMPLES_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../skills/publish-viz/examples');
+const EXAMPLES = readdirSync(EXAMPLES_DIR)
+  .filter((name) => name.endsWith('.json'))
+  .map((name) => JSON.parse(readFileSync(join(EXAMPLES_DIR, name), 'utf8')) as { renderer: string });
+const VEGA_EXAMPLES = EXAMPLES.filter((e) => e.renderer === 'vega-lite').length;
 
 const RENDERERS = ['vega-lite'] as const;
 const ORIGIN = 'http://127.0.0.1:8000/';
@@ -72,4 +81,25 @@ test('a missing dashboard shows one error card and the header still renders', as
   await page.goto('/d/bakeoff/nope');
   await expect(page.locator('.error-card')).toHaveCount(1);
   await expect(page.getByRole('heading', { name: 'viz-site' })).toBeVisible();
+});
+
+test('the examples gallery renders every chart form from the skill', async ({ page }) => {
+  const log = watch(page);
+  await page.goto('/d/examples/gallery');
+  await expect(page.locator('[data-tile]')).toHaveCount(EXAMPLES.length);
+  await expect(page.locator('[data-tile][data-state="ready"]')).toHaveCount(EXAMPLES.length, { timeout: 90_000 });
+  await expect(page.locator('.error-card')).toHaveCount(0);
+
+  // Every Vega-Lite example draws one canvas of a readable height.
+  const canvases = page.locator('[data-tile] canvas');
+  await expect(canvases).toHaveCount(VEGA_EXAMPLES);
+  for (let i = 0; i < VEGA_EXAMPLES; i++) {
+    const box = await canvases.nth(i).boundingBox();
+    expect(box, `canvas ${i} has a box`).not.toBeNull();
+    expect(box!.height, `canvas ${i} is taller than 50px`).toBeGreaterThan(50);
+  }
+
+  expect(log.foreign, 'every request stays on the site origin').toEqual([]);
+  expect(log.failed, 'no request failed').toEqual([]);
+  expect(log.consoleErrors, 'no console errors').toEqual([]);
 });

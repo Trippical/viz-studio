@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "id": "examples/grouped-bar",
+  "title": "Orders by region, yearly",
+  "description": "Grouped bar chart. Use to compare categories side by side within each period.",
+  "tags": [
+    "examples",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {
+      "name": "data"
+    },
+    "mark": "bar",
+    "encoding": {
+      "x": {
+        "field": "month",
+        "timeUnit": "utcyear",
+        "type": "ordinal",
+        "title": "Year"
+      },
+      "xOffset": {
+        "field": "region",
+        "type": "nominal"
+      },
+      "y": {
+        "field": "orders",
+        "aggregate": "sum",
+        "type": "quantitative",
+        "title": "Orders",
+        "axis": {
+          "format": ",.0f"
+        }
+      },
+      "color": {
+        "field": "region",
+        "type": "nominal",
+        "title": "Region"
+      },
+      "tooltip": [
+        {
+          "field": "month",
+          "timeUnit": "utcyear",
+          "type": "ordinal",
+          "title": "Year"
+        },
+        {
+          "field": "region",
+          "type": "nominal",
+          "title": "Region"
+        },
+        {
+          "field": "orders",
+          "aggregate": "sum",
+          "type": "quantitative",
+          "title": "Orders",
+          "format": ",.0f"
+        }
+      ]
+    }
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}

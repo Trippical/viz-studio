@@ -1,0 +1,18 @@
+{
+  "title": "Revenue by region, ranked",
+  "description": "Horizontal bar chart sorted largest first. Use to compare one measure across categories, especially when the labels are long.",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "data"},
+    "mark": "bar",
+    "encoding": {
+      "y": {"field": "region", "type": "nominal", "sort": "-x", "title": "Region"},
+      "x": {"field": "revenue", "aggregate": "sum", "type": "quantitative", "title": "Revenue", "axis": {"format": "$.2s"}},
+      "tooltip": [
+        {"field": "region", "type": "nominal", "title": "Region"},
+        {"field": "revenue", "aggregate": "sum", "type": "quantitative", "title": "Revenue", "format": "$,.0f"}
+      ]
+    }
+  }
+}

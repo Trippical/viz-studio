@@ -15,7 +15,7 @@ SMALL_MAX_ROWS = 100_000
 SMALL_MAX_BYTES = 20_971_520
 LARGE_MAX_BYTES = 209_715_200
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-VEGA_LITE_SCHEMA = "https://vega.github.io/schema/vega-lite/v5.json"
+VEGA_LITE_SCHEMA = "https://vega.github.io/schema/vega-lite/v6.json"
 LARGE_DEFAULT_AGGREGATE = "SELECT * FROM data LIMIT 1000"
 
 

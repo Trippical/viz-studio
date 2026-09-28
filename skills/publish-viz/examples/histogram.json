@@ -1,0 +1,18 @@
+{
+  "title": "Distribution of monthly revenue per region",
+  "description": "Histogram. Use to show how values are spread out: typical range, skew, outliers.",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "data"},
+    "mark": "bar",
+    "encoding": {
+      "x": {"field": "revenue", "bin": {"maxbins": 20}, "type": "quantitative", "title": "Monthly revenue", "axis": {"format": "$.2s"}},
+      "y": {"aggregate": "count", "type": "quantitative", "title": "Months"},
+      "tooltip": [
+        {"field": "revenue", "bin": {"maxbins": 20}, "type": "quantitative", "title": "Revenue", "format": "$,.0f"},
+        {"aggregate": "count", "type": "quantitative", "title": "Months"}
+      ]
+    }
+  }
+}

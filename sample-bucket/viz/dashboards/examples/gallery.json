@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "id": "examples/gallery",
+  "title": "Chart form gallery",
+  "description": "Every example from the publish-viz skill's Vega-Lite guide, on synthetic data.",
+  "tags": [
+    "examples",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "controls": [
+    {
+      "id": "period",
+      "type": "date-range",
+      "label": "Period",
+      "column": "month",
+      "default": null
+    },
+    {
+      "id": "region",
+      "type": "select",
+      "label": "Region",
+      "column": "region",
+      "multi": true,
+      "default": null
+    }
+  ],
+  "layout": [
+    {
+      "chart": "examples/bar-ranking",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/grouped-bar",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/heatmap",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/histogram",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/kpi-stat",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/line-by-category",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/line-with-target",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/scatter",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/small-multiples",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/stacked-area",
+      "w": 6,
+      "h": 3
+    },
+    {
+      "chart": "examples/stacked-bar-share",
+      "w": 6,
+      "h": 3
+    }
+  ]
+}

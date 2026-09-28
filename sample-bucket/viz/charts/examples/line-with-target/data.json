@@ -1,0 +1,866 @@
+[
+  {
+    "month": "2023-10-01",
+    "region": "EMEA",
+    "revenue": 443762.85,
+    "orders": 1898
+  },
+  {
+    "month": "2023-10-01",
+    "region": "NA",
+    "revenue": 598140.44,
+    "orders": 2362
+  },
+  {
+    "month": "2023-10-01",
+    "region": "APAC",
+    "revenue": 279323.47,
+    "orders": 1501
+  },
+  {
+    "month": "2023-10-01",
+    "region": "LATAM",
+    "revenue": 153043.64,
+    "orders": 690
+  },
+  {
+    "month": "2023-11-01",
+    "region": "EMEA",
+    "revenue": 431106.77,
+    "orders": 1807
+  },
+  {
+    "month": "2023-11-01",
+    "region": "NA",
+    "revenue": 676537.07,
+    "orders": 2895
+  },
+  {
+    "month": "2023-11-01",
+    "region": "APAC",
+    "revenue": 344071.57,
+    "orders": 1464
+  },
+  {
+    "month": "2023-11-01",
+    "region": "LATAM",
+    "revenue": 164292.09,
+    "orders": 832
+  },
+  {
+    "month": "2023-12-01",
+    "region": "EMEA",
+    "revenue": 488045.06,
+    "orders": 2201
+  },
+  {
+    "month": "2023-12-01",
+    "region": "NA",
+    "revenue": 637590.36,
+    "orders": 2730
+  },
+  {
+    "month": "2023-12-01",
+    "region": "APAC",
+    "revenue": 318064.72,
+    "orders": 1641
+  },
+  {
+    "month": "2023-12-01",
+    "region": "LATAM",
+    "revenue": 176058.25,
+    "orders": 687
+  },
+  {
+    "month": "2024-01-01",
+    "region": "EMEA",
+    "revenue": 377961.76,
+    "orders": 1638
+  },
+  {
+    "month": "2024-01-01",
+    "region": "NA",
+    "revenue": 615697.66,
+    "orders": 3326
+  },
+  {
+    "month": "2024-01-01",
+    "region": "APAC",
+    "revenue": 270682.0,
+    "orders": 1320
+  },
+  {
+    "month": "2024-01-01",
+    "region": "LATAM",
+    "revenue": 137076.39,
+    "orders": 738
+  },
+  {
+    "month": "2024-02-01",
+    "region": "EMEA",
+    "revenue": 394344.55,
+    "orders": 1707
+  },
+  {
+    "month": "2024-02-01",
+    "region": "NA",
+    "revenue": 548419.47,
+    "orders": 2849
+  },
+  {
+    "month": "2024-02-01",
+    "region": "APAC",
+    "revenue": 293336.71,
+    "orders": 1317
+  },
+  {
+    "month": "2024-02-01",
+    "region": "LATAM",
+    "revenue": 154403.27,
+    "orders": 794
+  },
+  {
+    "month": "2024-03-01",
+    "region": "EMEA",
+    "revenue": 468310.67,
+    "orders": 2533
+  },
+  {
+    "month": "2024-03-01",
+    "region": "NA",
+    "revenue": 674527.11,
+    "orders": 3521
+  },
+  {
+    "month": "2024-03-01",
+    "region": "APAC",
+    "revenue": 304391.81,
+    "orders": 1279
+  },
+  {
+    "month": "2024-03-01",
+    "region": "LATAM",
+    "revenue": 152413.5,
+    "orders": 838
+  },
+  {
+    "month": "2024-04-01",
+    "region": "EMEA",
+    "revenue": 458948.33,
+    "orders": 2443
+  },
+  {
+    "month": "2024-04-01",
+    "region": "NA",
+    "revenue": 658263.53,
+    "orders": 3163
+  },
+  {
+    "month": "2024-04-01",
+    "region": "APAC",
+    "revenue": 302990.48,
+    "orders": 1465
+  },
+  {
+    "month": "2024-04-01",
+    "region": "LATAM",
+    "revenue": 163890.59,
+    "orders": 791
+  },
+  {
+    "month": "2024-05-01",
+    "region": "EMEA",
+    "revenue": 439918.08,
+    "orders": 2320
+  },
+  {
+    "month": "2024-05-01",
+    "region": "NA",
+    "revenue": 695951.34,
+    "orders": 3530
+  },
+  {
+    "month": "2024-05-01",
+    "region": "APAC",
+    "revenue": 329505.42,
+    "orders": 1462
+  },
+  {
+    "month": "2024-05-01",
+    "region": "LATAM",
+    "revenue": 158688.98,
+    "orders": 619
+  },
+  {
+    "month": "2024-06-01",
+    "region": "EMEA",
+    "revenue": 484514.72,
+    "orders": 2541
+  },
+  {
+    "month": "2024-06-01",
+    "region": "NA",
+    "revenue": 694159.81,
+    "orders": 2709
+  },
+  {
+    "month": "2024-06-01",
+    "region": "APAC",
+    "revenue": 315484.94,
+    "orders": 1508
+  },
+  {
+    "month": "2024-06-01",
+    "region": "LATAM",
+    "revenue": 165119.17,
+    "orders": 839
+  },
+  {
+    "month": "2024-07-01",
+    "region": "EMEA",
+    "revenue": 434915.08,
+    "orders": 1698
+  },
+  {
+    "month": "2024-07-01",
+    "region": "NA",
+    "revenue": 632069.88,
+    "orders": 2462
+  },
+  {
+    "month": "2024-07-01",
+    "region": "APAC",
+    "revenue": 336474.32,
+    "orders": 1418
+  },
+  {
+    "month": "2024-07-01",
+    "region": "LATAM",
+    "revenue": 162817.31,
+    "orders": 863
+  },
+  {
+    "month": "2024-08-01",
+    "region": "EMEA",
+    "revenue": 445536.2,
+    "orders": 1901
+  },
+  {
+    "month": "2024-08-01",
+    "region": "NA",
+    "revenue": 687484.93,
+    "orders": 3412
+  },
+  {
+    "month": "2024-08-01",
+    "region": "APAC",
+    "revenue": 328266.08,
+    "orders": 1591
+  },
+  {
+    "month": "2024-08-01",
+    "region": "LATAM",
+    "revenue": 173958.17,
+    "orders": 742
+  },
+  {
+    "month": "2024-09-01",
+    "region": "EMEA",
+    "revenue": 485965.56,
+    "orders": 2659
+  },
+  {
+    "month": "2024-09-01",
+    "region": "NA",
+    "revenue": 722022.34,
+    "orders": 3914
+  },
+  {
+    "month": "2024-09-01",
+    "region": "APAC",
+    "revenue": 322897.01,
+    "orders": 1732
+  },
+  {
+    "month": "2024-09-01",
+    "region": "LATAM",
+    "revenue": 158310.81,
+    "orders": 840
+  },
+  {
+    "month": "2024-10-01",
+    "region": "EMEA",
+    "revenue": 497780.03,
+    "orders": 2292
+  },
+  {
+    "month": "2024-10-01",
+    "region": "NA",
+    "revenue": 661417.45,
+    "orders": 3502
+  },
+  {
+    "month": "2024-10-01",
+    "region": "APAC",
+    "revenue": 357082.07,
+    "orders": 1718
+  },
+  {
+    "month": "2024-10-01",
+    "region": "LATAM",
+    "revenue": 179281.88,
+    "orders": 701
+  },
+  {
+    "month": "2024-11-01",
+    "region": "EMEA",
+    "revenue": 548558.33,
+    "orders": 2187
+  },
+  {
+    "month": "2024-11-01",
+    "region": "NA",
+    "revenue": 802219.36,
+    "orders": 3220
+  },
+  {
+    "month": "2024-11-01",
+    "region": "APAC",
+    "revenue": 392751.44,
+    "orders": 1818
+  },
+  {
+    "month": "2024-11-01",
+    "region": "LATAM",
+    "revenue": 189428.33,
+    "orders": 876
+  },
+  {
+    "month": "2024-12-01",
+    "region": "EMEA",
+    "revenue": 563428.21,
+    "orders": 2831
+  },
+  {
+    "month": "2024-12-01",
+    "region": "NA",
+    "revenue": 774966.13,
+    "orders": 3816
+  },
+  {
+    "month": "2024-12-01",
+    "region": "APAC",
+    "revenue": 352933.97,
+    "orders": 1365
+  },
+  {
+    "month": "2024-12-01",
+    "region": "LATAM",
+    "revenue": 200190.83,
+    "orders": 803
+  },
+  {
+    "month": "2025-01-01",
+    "region": "EMEA",
+    "revenue": 473507.39,
+    "orders": 2388
+  },
+  {
+    "month": "2025-01-01",
+    "region": "NA",
+    "revenue": 632700.58,
+    "orders": 2835
+  },
+  {
+    "month": "2025-01-01",
+    "region": "APAC",
+    "revenue": 317138.45,
+    "orders": 1290
+  },
+  {
+    "month": "2025-01-01",
+    "region": "LATAM",
+    "revenue": 160142.37,
+    "orders": 810
+  },
+  {
+    "month": "2025-02-01",
+    "region": "EMEA",
+    "revenue": 460894.31,
+    "orders": 2539
+  },
+  {
+    "month": "2025-02-01",
+    "region": "NA",
+    "revenue": 646852.24,
+    "orders": 3148
+  },
+  {
+    "month": "2025-02-01",
+    "region": "APAC",
+    "revenue": 311105.82,
+    "orders": 1269
+  },
+  {
+    "month": "2025-02-01",
+    "region": "LATAM",
+    "revenue": 168421.1,
+    "orders": 671
+  },
+  {
+    "month": "2025-03-01",
+    "region": "EMEA",
+    "revenue": 536224.35,
+    "orders": 2800
+  },
+  {
+    "month": "2025-03-01",
+    "region": "NA",
+    "revenue": 734636.79,
+    "orders": 3412
+  },
+  {
+    "month": "2025-03-01",
+    "region": "APAC",
+    "revenue": 374464.0,
+    "orders": 1486
+  },
+  {
+    "month": "2025-03-01",
+    "region": "LATAM",
+    "revenue": 186356.73,
+    "orders": 910
+  },
+  {
+    "month": "2025-04-01",
+    "region": "EMEA",
+    "revenue": 507848.56,
+    "orders": 2298
+  },
+  {
+    "month": "2025-04-01",
+    "region": "NA",
+    "revenue": 740422.13,
+    "orders": 3835
+  },
+  {
+    "month": "2025-04-01",
+    "region": "APAC",
+    "revenue": 362445.5,
+    "orders": 1433
+  },
+  {
+    "month": "2025-04-01",
+    "region": "LATAM",
+    "revenue": 180453.94,
+    "orders": 863
+  },
+  {
+    "month": "2025-05-01",
+    "region": "EMEA",
+    "revenue": 530905.27,
+    "orders": 2553
+  },
+  {
+    "month": "2025-05-01",
+    "region": "NA",
+    "revenue": 754087.38,
+    "orders": 2929
+  },
+  {
+    "month": "2025-05-01",
+    "region": "APAC",
+    "revenue": 368478.59,
+    "orders": 1602
+  },
+  {
+    "month": "2025-05-01",
+    "region": "LATAM",
+    "revenue": 182558.21,
+    "orders": 784
+  },
+  {
+    "month": "2025-06-01",
+    "region": "EMEA",
+    "revenue": 509470.89,
+    "orders": 2237
+  },
+  {
+    "month": "2025-06-01",
+    "region": "NA",
+    "revenue": 789115.77,
+    "orders": 3556
+  },
+  {
+    "month": "2025-06-01",
+    "region": "APAC",
+    "revenue": 388306.48,
+    "orders": 1850
+  },
+  {
+    "month": "2025-06-01",
+    "region": "LATAM",
+    "revenue": 183013.38,
+    "orders": 724
+  },
+  {
+    "month": "2025-07-01",
+    "region": "EMEA",
+    "revenue": 559435.8,
+    "orders": 2668
+  },
+  {
+    "month": "2025-07-01",
+    "region": "NA",
+    "revenue": 794708.52,
+    "orders": 3282
+  },
+  {
+    "month": "2025-07-01",
+    "region": "APAC",
+    "revenue": 378417.59,
+    "orders": 1947
+  },
+  {
+    "month": "2025-07-01",
+    "region": "LATAM",
+    "revenue": 178246.93,
+    "orders": 690
+  },
+  {
+    "month": "2025-08-01",
+    "region": "EMEA",
+    "revenue": 552787.56,
+    "orders": 2612
+  },
+  {
+    "month": "2025-08-01",
+    "region": "NA",
+    "revenue": 804472.7,
+    "orders": 4448
+  },
+  {
+    "month": "2025-08-01",
+    "region": "APAC",
+    "revenue": 363299.54,
+    "orders": 1614
+  },
+  {
+    "month": "2025-08-01",
+    "region": "LATAM",
+    "revenue": 190597.61,
+    "orders": 796
+  },
+  {
+    "month": "2025-09-01",
+    "region": "EMEA",
+    "revenue": 513364.45,
+    "orders": 2345
+  },
+  {
+    "month": "2025-09-01",
+    "region": "NA",
+    "revenue": 806558.35,
+    "orders": 3754
+  },
+  {
+    "month": "2025-09-01",
+    "region": "APAC",
+    "revenue": 404527.54,
+    "orders": 1925
+  },
+  {
+    "month": "2025-09-01",
+    "region": "LATAM",
+    "revenue": 193781.93,
+    "orders": 973
+  },
+  {
+    "month": "2025-10-01",
+    "region": "EMEA",
+    "revenue": 524914.84,
+    "orders": 2091
+  },
+  {
+    "month": "2025-10-01",
+    "region": "NA",
+    "revenue": 767452.67,
+    "orders": 4211
+  },
+  {
+    "month": "2025-10-01",
+    "region": "APAC",
+    "revenue": 412751.54,
+    "orders": 1691
+  },
+  {
+    "month": "2025-10-01",
+    "region": "LATAM",
+    "revenue": 198414.78,
+    "orders": 909
+  },
+  {
+    "month": "2025-11-01",
+    "region": "EMEA",
+    "revenue": 578632.27,
+    "orders": 2900
+  },
+  {
+    "month": "2025-11-01",
+    "region": "NA",
+    "revenue": 905480.44,
+    "orders": 4081
+  },
+  {
+    "month": "2025-11-01",
+    "region": "APAC",
+    "revenue": 409165.93,
+    "orders": 1699
+  },
+  {
+    "month": "2025-11-01",
+    "region": "LATAM",
+    "revenue": 210179.74,
+    "orders": 1147
+  },
+  {
+    "month": "2025-12-01",
+    "region": "EMEA",
+    "revenue": 564599.99,
+    "orders": 2282
+  },
+  {
+    "month": "2025-12-01",
+    "region": "NA",
+    "revenue": 830579.55,
+    "orders": 4198
+  },
+  {
+    "month": "2025-12-01",
+    "region": "APAC",
+    "revenue": 407742.87,
+    "orders": 1722
+  },
+  {
+    "month": "2025-12-01",
+    "region": "LATAM",
+    "revenue": 223050.04,
+    "orders": 900
+  },
+  {
+    "month": "2026-01-01",
+    "region": "EMEA",
+    "revenue": 536830.56,
+    "orders": 2540
+  },
+  {
+    "month": "2026-01-01",
+    "region": "NA",
+    "revenue": 737898.92,
+    "orders": 3001
+  },
+  {
+    "month": "2026-01-01",
+    "region": "APAC",
+    "revenue": 361837.92,
+    "orders": 1475
+  },
+  {
+    "month": "2026-01-01",
+    "region": "LATAM",
+    "revenue": 186962.81,
+    "orders": 810
+  },
+  {
+    "month": "2026-02-01",
+    "region": "EMEA",
+    "revenue": 501492.43,
+    "orders": 2028
+  },
+  {
+    "month": "2026-02-01",
+    "region": "NA",
+    "revenue": 725363.65,
+    "orders": 3093
+  },
+  {
+    "month": "2026-02-01",
+    "region": "APAC",
+    "revenue": 372133.54,
+    "orders": 1605
+  },
+  {
+    "month": "2026-02-01",
+    "region": "LATAM",
+    "revenue": 197237.6,
+    "orders": 1094
+  },
+  {
+    "month": "2026-03-01",
+    "region": "EMEA",
+    "revenue": 542662.66,
+    "orders": 2676
+  },
+  {
+    "month": "2026-03-01",
+    "region": "NA",
+    "revenue": 849447.84,
+    "orders": 3684
+  },
+  {
+    "month": "2026-03-01",
+    "region": "APAC",
+    "revenue": 382148.87,
+    "orders": 1712
+  },
+  {
+    "month": "2026-03-01",
+    "region": "LATAM",
+    "revenue": 211092.85,
+    "orders": 932
+  },
+  {
+    "month": "2026-04-01",
+    "region": "EMEA",
+    "revenue": 576195.63,
+    "orders": 2464
+  },
+  {
+    "month": "2026-04-01",
+    "region": "NA",
+    "revenue": 870526.7,
+    "orders": 4549
+  },
+  {
+    "month": "2026-04-01",
+    "region": "APAC",
+    "revenue": 420217.28,
+    "orders": 1798
+  },
+  {
+    "month": "2026-04-01",
+    "region": "LATAM",
+    "revenue": 200957.54,
+    "orders": 986
+  },
+  {
+    "month": "2026-05-01",
+    "region": "EMEA",
+    "revenue": 613820.35,
+    "orders": 2392
+  },
+  {
+    "month": "2026-05-01",
+    "region": "NA",
+    "revenue": 808989.72,
+    "orders": 3263
+  },
+  {
+    "month": "2026-05-01",
+    "region": "APAC",
+    "revenue": 411422.22,
+    "orders": 1650
+  },
+  {
+    "month": "2026-05-01",
+    "region": "LATAM",
+    "revenue": 197203.41,
+    "orders": 782
+  },
+  {
+    "month": "2026-06-01",
+    "region": "EMEA",
+    "revenue": 620308.19,
+    "orders": 3306
+  },
+  {
+    "month": "2026-06-01",
+    "region": "NA",
+    "revenue": 894063.74,
+    "orders": 4820
+  },
+  {
+    "month": "2026-06-01",
+    "region": "APAC",
+    "revenue": 406758.39,
+    "orders": 1654
+  },
+  {
+    "month": "2026-06-01",
+    "region": "LATAM",
+    "revenue": 220537.34,
+    "orders": 920
+  },
+  {
+    "month": "2026-07-01",
+    "region": "EMEA",
+    "revenue": 589724.1,
+    "orders": 2555
+  },
+  {
+    "month": "2026-07-01",
+    "region": "NA",
+    "revenue": 795222.12,
+    "orders": 3976
+  },
+  {
+    "month": "2026-07-01",
+    "region": "APAC",
+    "revenue": 428518.42,
+    "orders": 1740
+  },
+  {
+    "month": "2026-07-01",
+    "region": "LATAM",
+    "revenue": 204903.26,
+    "orders": 1004
+  },
+  {
+    "month": "2026-08-01",
+    "region": "EMEA",
+    "revenue": 576315.88,
+    "orders": 2848
+  },
+  {
+    "month": "2026-08-01",
+    "region": "NA",
+    "revenue": 825159.65,
+    "orders": 3848
+  },
+  {
+    "month": "2026-08-01",
+    "region": "APAC",
+    "revenue": 409448.12,
+    "orders": 1908
+  },
+  {
+    "month": "2026-08-01",
+    "region": "LATAM",
+    "revenue": 203845.32,
+    "orders": 1043
+  },
+  {
+    "month": "2026-09-01",
+    "region": "EMEA",
+    "revenue": 620665.67,
+    "orders": 2613
+  },
+  {
+    "month": "2026-09-01",
+    "region": "NA",
+    "revenue": 849159.36,
+    "orders": 4101
+  },
+  {
+    "month": "2026-09-01",
+    "region": "APAC",
+    "revenue": 417260.98,
+    "orders": 1859
+  },
+  {
+    "month": "2026-09-01",
+    "region": "LATAM",
+    "revenue": 220780.02,
+    "orders": 884
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "title": "Orders by region, yearly",
+  "description": "Grouped bar chart. Use to compare categories side by side within each period.",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "data"},
+    "mark": "bar",
+    "encoding": {
+      "x": {"field": "month", "timeUnit": "utcyear", "type": "ordinal", "title": "Year"},
+      "xOffset": {"field": "region", "type": "nominal"},
+      "y": {"field": "orders", "aggregate": "sum", "type": "quantitative", "title": "Orders", "axis": {"format": ",.0f"}},
+      "color": {"field": "region", "type": "nominal", "title": "Region"},
+      "tooltip": [
+        {"field": "month", "timeUnit": "utcyear", "type": "ordinal", "title": "Year"},
+        {"field": "region", "type": "nominal", "title": "Region"},
+        {"field": "orders", "aggregate": "sum", "type": "quantitative", "title": "Orders", "format": ",.0f"}
+      ]
+    }
+  }
+}
