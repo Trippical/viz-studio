@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const RENDERERS = ['vega-lite', 'plotly', 'echarts'] as const;
+const RENDERERS = ['vega-lite'] as const;
 const ORIGIN = 'http://127.0.0.1:8000/';
 
 function watch(page: Page) {

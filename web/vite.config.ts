@@ -13,8 +13,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           'renderer-vega': ['vega', 'vega-lite', 'vega-embed', 'vega-interpreter'],
-          'renderer-plotly': ['plotly.js-dist-min'],
-          'renderer-echarts': ['echarts'],
           duckdb: ['@duckdb/duckdb-wasm', 'apache-arrow'],
         },
       },

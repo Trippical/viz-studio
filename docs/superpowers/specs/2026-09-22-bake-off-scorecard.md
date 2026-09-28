@@ -93,12 +93,31 @@ Notes on the measurements:
 
 ## Decision
 
-Winner: _(fill in)_
+Winner: **Vega-Lite** (decided 2026-09-28 by the user; the scoring columns
+above were not filled in).
 
-Reason: _(fill in)_
+Reason: it covers the everyday business charts natively (line, area, bar,
+stacked, combo, heatmap, box plot, small multiples, reference lines), has the
+smallest lazy chunk and a short sanitizer rule list, needs no custom `split`
+or column-binding convention, and is the most reliable format for Claude to
+write. It read cleanest in small dashboard tiles. It has no treemap, sankey,
+network graph or gauge. A capability comparison and interactive examples of a
+network graph and a gauge were reviewed alongside the dashboards.
 
-Follow-ups after the decision: Plan 3b writes the skill's authoring guide for
-the winner; a cleanup task removes the two losing adapters, their sanitizers,
-their sample folders, their dashboards, their manual chunks in
-`web/vite.config.ts`, and their values from the `renderer` enum in
-`schemas/chart.schema.json` and `viz/schemas.py`.
+Note: the first screenshots showed the Vega-Lite tiles nearly empty. That was
+a site bug, not the library: vega-embed's injected `.vega-embed { position:
+relative }` beat `.tile-mount` and collapsed every mount to 21px. Fixed by
+raising the selector to `.tile-body > .tile-mount`; the smoke test now asserts
+every chart fills its tile.
+
+Paths for the chart families Vega-Lite lacks, cheapest first: (1) site-owned
+tile types like `stat` (gauge and bullet are ~150 lines of plain SVG);
+(2) allow full Vega specs, which are already bundled (vega-lite compiles to
+vega) and add force-directed networks, treemap, sunburst, tree and custom
+shapes, at the cost of extending the sanitizer to Vega's signal and event
+features; (3) restore a second renderer from git history for one family.
+
+Done after the decision: the Plotly and ECharts adapters, sanitizers, tests,
+sample folders, dashboards, manual chunks, npm dependencies, Python checks and
+`renderer` enum values were removed (branch `vega-lite-only`). Plan 3b writes
+the skill's Vega-Lite authoring guide.

@@ -14,7 +14,7 @@
     "author": {"type": "string", "maxLength": 200},
     "created_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"},
-    "renderer": {"enum": ["vega-lite", "plotly", "echarts", "stat"]},
+    "renderer": {"enum": ["vega-lite", "stat"]},
     "spec": {"$ref": "#/$defs/noForbiddenKeys"},
     "data": {
       "type": "object",

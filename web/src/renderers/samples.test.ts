@@ -11,7 +11,7 @@ import { sanitizeSpec } from './index';
 
 const CHARTS_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../sample-bucket/viz/charts');
 
-const SANITIZED_RENDERERS = new Set(['vega-lite', 'plotly', 'echarts']);
+const SANITIZED_RENDERERS = new Set(['vega-lite']);
 
 function findChartFiles(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {

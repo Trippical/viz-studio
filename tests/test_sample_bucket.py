@@ -57,7 +57,7 @@ def test_every_folder_validates():
         schemas.validate_folder(json.loads(path.read_text(encoding="utf-8")))
 
 
-RENDERERS = ("vega-lite", "plotly", "echarts")
+RENDERERS = ("vega-lite",)
 
 
 def test_bakeoff_samples_exist_for_every_renderer():

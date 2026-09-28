@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const web = join(dirname(fileURLToPath(import.meta.url)), '..');
 const bucket = join(web, '..', 'sample-bucket', 'viz', 'charts', 'bakeoff');
-const renderers = { 'vega-lite': 'vegaLiteSanitize.ts', plotly: 'plotlySanitize.ts', echarts: 'echartsSanitize.ts' };
+const renderers = { 'vega-lite': 'vegaLiteSanitize.ts' };
 
 function specLines(renderer, chart) {
   const doc = JSON.parse(readFileSync(join(bucket, renderer, chart, 'chart.json'), 'utf8'));

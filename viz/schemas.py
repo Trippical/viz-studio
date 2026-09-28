@@ -1,19 +1,11 @@
 # viz/schemas.py
 """Document validation: JSON Schema plus renderer-specific spec rules."""
 import json
-import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterator
 
 from jsonschema import Draft202012Validator, FormatChecker
-
-PLOTLY_BOUND_KEYS = ("x", "y", "z", "text", "hovertext", "labels", "values", "customdata")
-PLOTLY_FORBIDDEN_TRACE_TYPES = frozenset(
-    ["scattergeo", "choropleth", "scattermapbox", "choroplethmapbox", "densitymapbox",
-     "scattermap", "choroplethmap", "densitymap"]
-)
-PLOTLY_ANCHOR_RE = re.compile(r"<\s*a[\s>]", re.IGNORECASE)
 
 _CANDIDATE_DIRS = (
     Path(__file__).parent / "_schemas",
@@ -81,57 +73,6 @@ def _check_vegalite(spec: dict, columns: set[str]) -> list[str]:
     return errors
 
 
-# `columns` is accepted for a uniform signature with the other renderer
-# checks and is intentionally unchecked here: ECharts specs may legitimately
-# reference fields produced by transforms or encode on derived dimensions,
-# which are not in the declared column set.
-def _check_echarts(spec: dict, columns: set[str]) -> list[str]:
-    errors = []
-    for path, key, value in _walk(spec):
-        if key == "dataset":
-            errors.append(f"{path}: dataset is injected by the viewer and must not be set")
-        if key == "data":
-            errors.append(f"{path}: inline data is not allowed")
-        if key == "image":
-            errors.append(f"{path}: image keys are not allowed")
-        if isinstance(value, str) and value.startswith("image://"):
-            errors.append(f"{path}: image URLs are not allowed")
-        if key == "formatter" and isinstance(value, str) and "<" in value:
-            errors.append(f"{path}: formatter must not contain HTML")
-        if key == "renderMode" and value != "richText":
-            errors.append(f"{path}: renderMode must be richText")
-    return errors
-
-
-def _check_plotly(spec: dict, columns: set[str]) -> list[str]:
-    errors = []
-    extra = set(spec) - {"traces", "layout"}
-    for key in sorted(extra):
-        errors.append(f"spec/{key}: plotly spec allows only traces and layout")
-    traces = spec.get("traces")
-    if not isinstance(traces, list) or not traces:
-        errors.append("spec/traces: must be a non-empty array")
-        return errors
-    for i, trace in enumerate(traces):
-        if not isinstance(trace, dict):
-            errors.append(f"spec/traces/{i}: must be an object")
-            continue
-        if trace.get("type") in PLOTLY_FORBIDDEN_TRACE_TYPES:
-            errors.append(f"spec/traces/{i}/type: geo and map traces are not allowed")
-        for key in PLOTLY_BOUND_KEYS:
-            if key not in trace:
-                continue
-            binding = trace[key]
-            if not isinstance(binding, dict) or set(binding) != {"column"}:
-                errors.append(f"spec/traces/{i}/{key}: must be a column binding {{\"column\": name}}")
-            elif binding["column"] not in columns:
-                errors.append(f"spec/traces/{i}/{key}: unknown column {binding['column']!r}")
-    for path, key, value in _walk(spec):
-        if isinstance(value, str) and PLOTLY_ANCHOR_RE.search(value):
-            errors.append(f"{path}: anchor tags are not allowed")
-    return errors
-
-
 def _check_stat(spec: dict, columns: set[str]) -> list[str]:
     errors = []
     if isinstance(spec, dict):
@@ -145,8 +86,6 @@ def _check_stat(spec: dict, columns: set[str]) -> list[str]:
 
 _RENDERER_CHECKS = {
     "vega-lite": _check_vegalite,
-    "echarts": _check_echarts,
-    "plotly": _check_plotly,
     "stat": _check_stat,
 }
 
