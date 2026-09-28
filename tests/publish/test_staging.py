@@ -140,3 +140,8 @@ def test_column_summary(tmp_path):
     assert lines[1].startswith("month")
     assert "date" in lines[1] and "3" in lines[1] and "2024-01-01" in lines[1]
     assert lines[3].startswith("revenue") and "100.5" in lines[3]
+
+
+def test_default_spec_uses_the_vega_lite_v6_schema():
+    spec = default_spec([{"name": "month", "type": "date"}, {"name": "revenue", "type": "number"}])
+    assert spec["$schema"] == "https://vega.github.io/schema/vega-lite/v6.json"
