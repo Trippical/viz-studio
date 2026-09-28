@@ -1,0 +1,79 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # Playwright starts <repo>/.venv/bin/viz-server, so the venv must live at the repo root.
+      - run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e ".[dev]"
+      # npm can skip esbuild's postinstall; run it explicitly.
+      - run: |
+          npm ci
+          node node_modules/esbuild/install.js
+        working-directory: web
+      - run: |
+          npm run typecheck
+          npm test
+        working-directory: web
+      - run: |
+          npx playwright install --with-deps chromium
+          npm run e2e
+        working-directory: web
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t viz-site:ci .
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: |
+          helm lint deploy/helm/viz-site
+          helm template ci deploy/helm/viz-site > /tmp/rendered.yaml
+          cat /tmp/rendered.yaml
+          if helm template ci deploy/helm/viz-site --set-json 'networkPolicy.egressCidrs=[]' > /dev/null 2>&1; then
+            echo "an empty networkPolicy.egressCidrs must fail the render"; exit 1
+          fi
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
