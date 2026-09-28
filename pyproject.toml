@@ -33,6 +33,7 @@ databricks = [
 [project.scripts]
 viz-server = "viz.server.__main__:main"
 viz = "viz.publish.cli:main"
+viz-refresh = "viz.refresh.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["viz"]
