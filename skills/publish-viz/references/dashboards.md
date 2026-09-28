@@ -88,5 +88,9 @@ If the dashboard already exists, `viz publish` refuses and prints its
 current author and `updated_at`. Tell the user and ask before adding
 `--force`.
 
+After `viz pull-dashboard`, this refusal is expected, because the dashboard
+already exists. Still show the user who published it last and ask before
+adding `--force`.
+
 The published dashboard is at `/d/<id>` on the site, for example
 `/d/sales/emea/overview`. A chart is at `/c/<id>`.

@@ -48,6 +48,29 @@ def test_install_skill_reports_a_missing_skill(tmp_path, monkeypatch, capsys):
     assert "not packaged" in capsys.readouterr().err
 
 
+def test_install_skill_refuses_a_regular_file_at_the_target_even_with_force(tmp_path, capsys):
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    target = dest / "publish-viz"
+    target.write_text("not a directory\n", encoding="utf-8")
+    assert main(["install-skill", "--dest", str(dest), "--force"]) == 1
+    assert target.is_file()
+    assert target.read_text(encoding="utf-8") == "not a directory\n"
+    assert "error:" in capsys.readouterr().err
+
+
+def test_install_skill_refuses_to_install_onto_its_own_source(tmp_path, monkeypatch, capsys):
+    src = tmp_path / "src"
+    src.mkdir()
+    source_dir = src / "publish-viz"
+    source_dir.mkdir()
+    (source_dir / "SKILL.md").write_text("---\nname: publish-viz\n---\n", encoding="utf-8")
+    monkeypatch.setattr(skill, "_CANDIDATE_DIRS", (source_dir,))
+    assert main(["install-skill", "--dest", str(src), "--force"]) == 1
+    assert (source_dir / "SKILL.md").is_file()
+    assert "error:" in capsys.readouterr().err
+
+
 def test_the_wheel_packages_the_skill():
     text = (REPO / "pyproject.toml").read_text(encoding="utf-8")
     assert '"skills/publish-viz" = "viz/_skills/publish-viz"' in text

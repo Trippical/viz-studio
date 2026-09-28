@@ -12,7 +12,7 @@ from ..ids import InvalidId
 from ..storage import get_storage
 from .errors import CliError
 from .dashboards import DashboardError, new_dashboard, pulled_dashboard, write_staged_dashboard
-from .skill import SkillExists, default_destination, install_skill
+from .skill import SkillExists, UnsafeTarget, default_destination, install_skill
 from .identity import resolve_author
 from .infer import UnsupportedColumn, table_from_file
 from .move import MoveError, apply_move, describe, plan_move
@@ -188,6 +188,10 @@ def _cmd_install_skill(args) -> int:
         raise CliError(str(err), code=1) from err
     except FileNotFoundError as err:
         raise CliError(str(err), code=2) from err
+    except UnsafeTarget as err:
+        raise CliError(str(err), code=1) from err
+    except OSError as err:
+        raise CliError(str(err), code=1) from err
     print(f"installed: {target}")
     return 0
 

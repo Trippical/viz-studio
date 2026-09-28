@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from viz.publish.cli import build_parser
+from viz.publish.staging import LARGE_DEFAULT_AGGREGATE
 
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "publish-viz"
 DOCS = [SKILL / "SKILL.md", *sorted((SKILL / "references").glob("*.md"))]
@@ -76,3 +77,13 @@ def test_skill_forbids_the_dangerous_flags_without_the_user():
     text = _text(SKILL / "SKILL.md")
     for flag in ("--force", "--yes", "--allow-row-level"):
         assert flag in text, flag
+
+
+def test_skill_teaches_editing_the_large_lane_aggregate():
+    workflow = _text(SKILL / "SKILL.md")
+    assert "`aggregate`" in workflow
+
+    data = _text(SKILL / "references" / "data.md")
+    assert "SELECT * FROM data LIMIT 1000" in data
+    assert LARGE_DEFAULT_AGGREGATE in data
+    assert "SELECT * FROM data LIMIT 1000" == LARGE_DEFAULT_AGGREGATE

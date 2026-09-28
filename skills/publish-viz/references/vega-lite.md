@@ -138,9 +138,11 @@ They cannot use `values` for this.
 For a single headline number set `"renderer": "stat"` and this `spec`:
 
 ```json
-{"value": "revenue", "agg": "sum", "format": "$,.0f", "compare": {"column": "orders", "agg": "sum"}}
+{"value": "revenue", "agg": "sum", "format": "$,.0f"}
 ```
 
 `value` and `compare.column` are declared columns. `agg` is one of `sum`,
 `avg`, `min`, `max`, `count`, `last`. `format` is a d3-format string.
-`compare` is optional and shows a second, smaller number under the first.
+`compare` is optional: `{"column": "<column>", "agg": "<agg>"}` adds a
+second, smaller line labelled `<column> (<agg>)`, formatted with the same
+`format`, so only compare a column in the same unit as `value`.

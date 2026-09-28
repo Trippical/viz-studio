@@ -38,7 +38,10 @@ right fix is a `GROUP BY` that brings the result into the small lane.
 
 A large-lane chart needs an `aggregate`: one DuckDB `SELECT` over a table
 named `data` that reduces the rows to something drawable. The browser runs
-it after applying the dashboard's filters. Example:
+it after applying the dashboard's filters. The `aggregate` is the top-level
+`"aggregate"` key of `chart.json`. Staging fills it with the placeholder
+`SELECT * FROM data LIMIT 1000`, which draws 1,000 arbitrary rows; always
+replace it. Example:
 
 ```sql
 SELECT day, sum(amount) AS amount FROM data GROUP BY day ORDER BY day
