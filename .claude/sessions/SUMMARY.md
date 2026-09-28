@@ -1,18 +1,20 @@
 # Session handoff — viz-site
 
-Updated: 2026-09-24
+Updated: 2026-09-28
 Log folder: .claude/sessions/logs/ — detailed per-session logs. Read only when a specific question isn't answered here.
 Latest log: .claude/sessions/logs/2026-09-24-plans-2-and-3a-built-and-merged.md
 
 ## Current objective
 
-The renderer bake-off decision, which only the user can make. Plans 2 (front end + bake-off) and 3a (the `viz` CLI) are DONE and merged into `main` (85205e9 and b13a249, `--no-ff`); `main` is not pushed. Suite state on `main`: pytest 295 passed, 2 skipped; `web/` vitest 163, typecheck clean, build ok, Playwright smoke 5/5.
+Write Plan 3b (the `publish-viz` skill plus the Vega-Lite authoring guide) with `superpowers:writing-plans`, carrying the "Plan 3b must carry" list from the 2026-09-24 log. The bake-off is DECIDED: Vega-Lite won (2026-09-28). Plotly and ECharts are fully removed and merged into `main` (46129e7, `--no-ff` of branch `vega-lite-only`); `main` is not pushed. Suite state on `main`: pytest 282 passed, 2 skipped; `web/` vitest 129, typecheck clean, build ok, Playwright smoke 3/3.
 
-To view: from the repo root run `VIZ_WEB_DIST=web/dist .venv/Scripts/viz-server` (PowerShell: `$env:VIZ_WEB_DIST = "web/dist"` first; `web/dist` is built) and open `http://127.0.0.1:8000/d/bakeoff/vega-lite`, `/d/bakeoff/plotly`, `/d/bakeoff/echarts`. Measured numbers are in `docs/superpowers/specs/2026-09-22-bake-off-scorecard.md` (lazy chunk vega-lite 841 KiB / plotly 4,727 KiB / echarts 1,108 KiB; sanitizer rules 10/10/12; all CSP-clean); the visual-quality column is blank for the user.
+The decision, reasons and fallback paths for chart families Vega-Lite lacks (site-owned tiles like `stat`; full Vega specs, already bundled; restoring a renderer from git) are recorded in `docs/superpowers/specs/2026-09-22-bake-off-scorecard.md`. A layout bug found this session (vega-embed's injected `.vega-embed{position:relative}` collapsed tiles to 21px) is fixed in b890ec3 and guarded by the smoke test. User-facing pages from this session: renderer comparison https://claude.ai/artifact/1v6MKjyf852LYCRFpz1n6V and network-graph/gauge examples https://claude.ai/artifact/6wswkytAsnwangRCm1Chw5. The user liked the network graph and gauge; consider them for a later tile-type or full-Vega plan.
 
-Next concrete steps, in order: (1) user picks the winner and fills the scorecard; (2) remove the two losing adapters, their sanitizers, samples and `renderer` enum values (spec 5.2), then write Plan 3b (the `publish-viz` skill + the winner's authoring guide) with `superpowers:writing-plans`, carrying the "Plan 3b must carry" list from the latest log; (3) the hardening pass the user wanted, seeded with the parked items in the log; (4) Plan 4 (Dockerfile, Helm, CI) with its carry-forwards.
+Known cosmetic issue for the hardening pass: at phone width the dashboard grid stays 12 columns, so tiles are cramped and the stat value clips. Discord: the user's screenshots channel is the baseball_wiggum `user` webhook (`baseball_wiggum/wiggum/discord/config.json`).
 
-Decisions already made, do not relitigate: everything in the latest log's rulings, including the spec 12.3 amendments (no `enable_external_access` in the browser; self-hosted parquet extension loaded before the lockdown; prepared inserts instead of Arrow temp tables; `datasets`, `image`/`image://`, `customdata`, `<a` and top-level `data` rules mirrored in `viz/schemas.py`), the staging layout and author-resolution order for the CLI, and that `main` is only pushed when the user says so.
+Next concrete steps, in order: (1) Plan 3b; (2) the hardening pass the user wanted, seeded with the parked items in the 2026-09-24 log plus the phone-width grid; (3) Plan 4 (Dockerfile, Helm, CI) with its carry-forwards.
+
+Decisions already made, do not relitigate: Vega-Lite is the only chart renderer; everything in the 2026-09-24 log's rulings, including the spec 12.3 amendments, the staging layout and author-resolution order for the CLI, and that `main` is only pushed when the user says so.
 
 ## Last session summary
 
