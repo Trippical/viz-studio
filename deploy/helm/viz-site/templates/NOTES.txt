@@ -1,0 +1,8 @@
+viz-site is installed as {{ include "viz-site.fullname" . }}.
+
+It answers only to: {{ .Values.allowedHosts }}
+Check it through the ingress: https://{{ .Values.ingress.host }}/api/health
+
+If pods never become ready, check that allowedHosts includes the host the
+probes send ({{ include "viz-site.probeHost" . }}) and that the IRSA role
+{{ .Values.serviceAccount.roleArn }} can read s3://{{ .Values.bucket.name }}/{{ .Values.bucket.rootPrefix }}.

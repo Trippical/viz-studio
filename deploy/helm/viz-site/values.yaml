@@ -1,0 +1,52 @@
+# Every value here is a placeholder. Copy this file, fill it in, and keep the
+# filled copy out of the repo.
+image:
+  repository: REPLACE_ME.dkr.ecr.REPLACE_ME-region.amazonaws.com/viz-site
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+bucket:
+  name: REPLACE_ME-viz-bucket
+  rootPrefix: viz/
+  region: REPLACE_ME-region
+
+# VIZ_ALLOWED_HOSTS: the host names the site answers to. Requests with any
+# other Host header get 400. The first entry is also sent by the probes.
+allowedHosts: viz.internal.example.com
+
+# Header the company SSO proxy sets with the signed-in user (logged only).
+authHeader: X-Forwarded-Email
+
+serviceAccount:
+  name: viz-site
+  # IRSA: the IAM role the pods assume (deploy/aws/server-policy.json).
+  # Never grant these permissions to the node role.
+  roleArn: arn:aws:iam::123456789012:role/viz-site-server
+
+ingress:
+  enabled: true
+  # The site must never be internet-facing: it serves company data to anyone
+  # who can reach it. Use an internal load balancer.
+  className: nginx
+  host: viz.internal.example.com
+  rateLimitPerSecond: 10
+  annotations: {}
+
+networkPolicy:
+  enabled: true
+  # Namespace of the ingress controller; only it may reach the pods.
+  ingressControllerNamespace: ingress-nginx
+  # Egress on 443: the S3 VPC endpoint (or S3 prefix-list CIDRs) and the STS
+  # endpoint IRSA uses. Replace with your ranges.
+  egressCidrs:
+    - 10.0.0.0/8
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
