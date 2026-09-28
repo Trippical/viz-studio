@@ -3,6 +3,9 @@
 A self-hosted viewer over a folder in an object store. Agents and people publish
 charts and dashboards into that folder through a paved path; the site only reads.
 
+Setting it up at work (fresh clone, AWS, Databricks, deployment):
+[`docs/work-setup.md`](docs/work-setup.md).
+
 ## Trust assumptions, read these first
 
 - Publishing a chart or dashboard means sharing it with every person who can
