@@ -16,7 +16,10 @@ pytestmark = pytest.mark.skipif(
 
 def test_round_trip_against_a_real_bucket():
     storage = S3Storage(os.environ["VIZ_IT_S3_BUCKET"])
-    prefix = f"{os.environ.get('VIZ_IT_S3_PREFIX', 'viz/')}integration-{uuid.uuid4().hex[:12]}/"
+    base = os.environ.get("VIZ_IT_S3_PREFIX", "viz/")
+    if not base.endswith("/"):
+        base += "/"
+    prefix = f"{base}integration-{uuid.uuid4().hex[:12]}/"
     first, second = f"{prefix}a.json", f"{prefix}b.json"
     try:
         storage.put(first, b'{"ok": true}', "application/json")

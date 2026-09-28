@@ -12,6 +12,7 @@ workspace.
 - Docker, `kubectl` and Helm 3 for the deployment.
 - A Databricks personal access token and a SQL warehouse id, for `viz query`.
 - AWS credentials that can assume the publisher role, for `viz publish`.
+- An AWS region for the bucket, set with `AWS_REGION` (or `aws configure`).
 
 ## 1. Clone and install the CLI
 
@@ -117,30 +118,35 @@ export VIZ_INTEGRATION=1 DATABRICKS_HOST=... DATABRICKS_TOKEN=... DATABRICKS_WAR
 ```
 
 S3 (writes, reads, copies and deletes two small objects under a throwaway
-prefix; needs the publisher role's credentials):
+prefix; needs the publisher role's credentials). It writes under `viz/`
+unless you set `VIZ_IT_S3_PREFIX`.
 
 ```
-export VIZ_INTEGRATION=1 VIZ_IT_S3_BUCKET=your-viz-bucket
+export VIZ_INTEGRATION=1 VIZ_IT_S3_BUCKET=your-viz-bucket AWS_REGION=your-region
 .venv/bin/python -m pytest tests/storage/test_s3_integration.py -v
 ```
 
 Then publish one real chart end to end:
 
 ```
-export VIZ_STORAGE=s3 VIZ_S3_BUCKET=your-viz-bucket
+export VIZ_STORAGE=s3 VIZ_S3_BUCKET=your-viz-bucket AWS_REGION=your-region
 echo "SELECT 'a' AS label, 1 AS value" > first.sql
 .venv/bin/viz query --sql @first.sql --id smoke/first-chart
 .venv/bin/viz validate .viz-staging/charts/smoke/first-chart
 .venv/bin/viz publish .viz-staging/charts/smoke/first-chart
 ```
 
+Publishing the same id again is refused with the current author and date;
+add `--force` to `viz publish` only when you mean to replace it.
+
 ## 6. Deploy
 
 1. Create the bucket, roles and policies: `deploy/aws/README.md`.
 2. Build and push the image to your registry:
-   `docker build -t <registry>/viz-site:0.1.0 .` then `docker push`.
-3. Copy `deploy/helm/viz-site/values.yaml`, fill in every `REPLACE_ME` and
-   `example.com` value, and install:
+   `docker build -t <registry>/viz-site:0.1.0 .` then
+   `docker push <registry>/viz-site:0.1.0`.
+3. Copy `deploy/helm/viz-site/values.yaml`, fill in every `REPLACE_ME`,
+   `example.com` and `123456789012` value, and install:
    `helm install viz-site deploy/helm/viz-site -f my-values.yaml -n viz --create-namespace`.
 4. Put the site behind the company SSO proxy and check
    `https://<your host>/api/health`, then open `/c/smoke/first-chart`.
