@@ -40,6 +40,17 @@ for (const renderer of RENDERERS) {
     await expect(page.locator('.error-card')).toHaveCount(0);
     await expect(page.locator(`[data-tile="bakeoff/${renderer}/time-series"] canvas, [data-tile="bakeoff/${renderer}/time-series"] svg`).first()).toBeVisible();
 
+    // Every chart must fill its tile. A renderer stylesheet once collapsed the
+    // Vega-Lite mounts to 21px tall while toBeVisible() still passed.
+    for (const name of ['time-series', 'grouped-bar', 'order-lines']) {
+      const tile = page.locator(`[data-tile="bakeoff/${renderer}/${name}"]`);
+      const tileBox = await tile.boundingBox();
+      const mountBox = await tile.locator('.tile-mount').boundingBox();
+      expect(tileBox, `${name} tile has a box`).not.toBeNull();
+      expect(mountBox, `${name} mount has a box`).not.toBeNull();
+      expect(mountBox!.height, `${name} chart fills its tile`).toBeGreaterThan(tileBox!.height * 0.6);
+    }
+
     expect(log.foreign, 'every request stays on the site origin').toEqual([]);
     expect(log.failed, 'no request failed').toEqual([]);
     expect(log.consoleErrors.filter((m) => /Content Security Policy|Refused to/i.test(m)), 'no CSP violations').toEqual([]);
