@@ -71,3 +71,8 @@ def test_integration_tests_never_run_in_ci():
 
 def test_workflow_token_is_read_only():
     assert _workflow()["permissions"] == {"contents": "read"}
+
+
+def test_gitleaks_can_read_pull_request_commits():
+    job = _workflow()["jobs"]["gitleaks"]
+    assert job["permissions"] == {"contents": "read", "pull-requests": "read"}
