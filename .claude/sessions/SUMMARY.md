@@ -12,7 +12,7 @@ The decision, reasons and fallback paths for chart families Vega-Lite lacks (sit
 
 Known cosmetic issue for the hardening pass: at phone width the dashboard grid stays 12 columns, so tiles are cramped and the stat value clips. Discord: the user's screenshots channel is the baseball_wiggum `user` webhook (`baseball_wiggum/wiggum/discord/config.json`).
 
-Next concrete steps, in order: (1) Plan 3b; (2) the hardening pass the user wanted, seeded with the parked items in the 2026-09-24 log plus the phone-width grid; (3) Plan 4 (Dockerfile, Helm, CI) with its carry-forwards.
+Next concrete steps, in order: (1) Plan 3b is WRITTEN (docs/superpowers/plans/2026-09-28-plan-3b-publish-viz-skill.md, 7 implementer tasks + a controller dry-run; all 10 Vega-Lite example specs pre-compiled clean); waiting on the user to review it and pick an execution method, then execute; (2) the hardening pass the user wanted, seeded with the parked items in the 2026-09-24 log plus the phone-width grid; (3) Plan 4 (Dockerfile, Helm, CI) with its carry-forwards.
 
 Decisions already made, do not relitigate: Vega-Lite is the only chart renderer; everything in the 2026-09-24 log's rulings, including the spec 12.3 amendments, the staging layout and author-resolution order for the CLI, and that `main` is only pushed when the user says so.
 
