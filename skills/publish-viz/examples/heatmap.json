@@ -1,0 +1,20 @@
+{
+  "title": "Average revenue by month of year and region",
+  "description": "Heatmap. Use for one measure across two categories, for example seasonality by region.",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "data"},
+    "mark": "rect",
+    "encoding": {
+      "x": {"field": "month", "timeUnit": "utcmonth", "type": "ordinal", "title": "Month"},
+      "y": {"field": "region", "type": "nominal", "title": "Region"},
+      "color": {"field": "revenue", "aggregate": "mean", "type": "quantitative", "title": "Avg revenue", "scale": {"scheme": "blues"}, "legend": {"format": "$.2s"}},
+      "tooltip": [
+        {"field": "month", "timeUnit": "utcmonth", "type": "ordinal", "title": "Month"},
+        {"field": "region", "type": "nominal", "title": "Region"},
+        {"field": "revenue", "aggregate": "mean", "type": "quantitative", "title": "Avg revenue", "format": "$,.0f"}
+      ]
+    }
+  }
+}

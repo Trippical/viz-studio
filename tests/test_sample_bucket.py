@@ -89,3 +89,51 @@ def test_parquet_sample_is_under_the_large_lane_cap():
     for renderer in RENDERERS:
         path = ROOT / "charts" / "bakeoff" / renderer / "order-lines" / "data.parquet"
         assert path.stat().st_size < 209715200
+
+
+SKILL_EXAMPLES = Path(__file__).resolve().parents[1] / "skills" / "publish-viz" / "examples"
+
+
+def _examples():
+    return sorted(SKILL_EXAMPLES.glob("*.json"))
+
+
+def test_skill_examples_exist():
+    assert len(_examples()) == 11
+
+
+def test_every_skill_example_is_published_in_the_gallery():
+    gallery = json.loads((ROOT / "dashboards" / "examples" / "gallery.json").read_text(encoding="utf-8"))
+    assert [t["chart"] for t in gallery["layout"]] == [f"examples/{p.stem}" for p in _examples()]
+    for path in _examples():
+        example = json.loads(path.read_text(encoding="utf-8"))
+        assert set(example) == {"title", "description", "renderer", "spec"}
+        doc = json.loads((ROOT / "charts" / "examples" / path.stem / "chart.json").read_text(encoding="utf-8"))
+        assert doc["title"] == example["title"]
+        assert doc["renderer"] == example["renderer"]
+        assert doc["spec"] == example["spec"]
+
+
+def _walk(node):
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from _walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _walk(value)
+
+
+def test_date_axes_use_utc_time_units():
+    for path in _examples():
+        example = json.loads(path.read_text(encoding="utf-8"))
+        for obj in _walk(example["spec"]):
+            if obj.get("field") == "month":
+                assert str(obj.get("timeUnit", "")).startswith("utc"), f"{path.name}: {obj}"
+
+
+def test_vega_lite_examples_use_the_v6_schema():
+    for path in _examples():
+        example = json.loads(path.read_text(encoding="utf-8"))
+        if example["renderer"] == "vega-lite":
+            assert example["spec"]["$schema"] == "https://vega.github.io/schema/vega-lite/v6.json", path.name

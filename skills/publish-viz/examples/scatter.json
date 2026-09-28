@@ -1,0 +1,21 @@
+{
+  "title": "Revenue against orders, per region and month",
+  "description": "Scatter plot. Use to show the relationship between two measures; each point is one row.",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "data"},
+    "mark": {"type": "point", "filled": true},
+    "encoding": {
+      "x": {"field": "orders", "type": "quantitative", "title": "Orders", "axis": {"format": ","}},
+      "y": {"field": "revenue", "type": "quantitative", "title": "Revenue", "axis": {"format": "$.2s"}},
+      "color": {"field": "region", "type": "nominal", "title": "Region"},
+      "tooltip": [
+        {"field": "month", "timeUnit": "utcyearmonth", "type": "temporal", "title": "Month"},
+        {"field": "region", "type": "nominal", "title": "Region"},
+        {"field": "orders", "type": "quantitative", "title": "Orders", "format": ","},
+        {"field": "revenue", "type": "quantitative", "title": "Revenue", "format": "$,.0f"}
+      ]
+    }
+  }
+}

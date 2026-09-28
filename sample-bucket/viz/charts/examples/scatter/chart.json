@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "id": "examples/scatter",
+  "title": "Revenue against orders, per region and month",
+  "description": "Scatter plot. Use to show the relationship between two measures; each point is one row.",
+  "tags": [
+    "examples",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {
+      "name": "data"
+    },
+    "mark": {
+      "type": "point",
+      "filled": true
+    },
+    "encoding": {
+      "x": {
+        "field": "orders",
+        "type": "quantitative",
+        "title": "Orders",
+        "axis": {
+          "format": ","
+        }
+      },
+      "y": {
+        "field": "revenue",
+        "type": "quantitative",
+        "title": "Revenue",
+        "axis": {
+          "format": "$.2s"
+        }
+      },
+      "color": {
+        "field": "region",
+        "type": "nominal",
+        "title": "Region"
+      },
+      "tooltip": [
+        {
+          "field": "month",
+          "timeUnit": "utcyearmonth",
+          "type": "temporal",
+          "title": "Month"
+        },
+        {
+          "field": "region",
+          "type": "nominal",
+          "title": "Region"
+        },
+        {
+          "field": "orders",
+          "type": "quantitative",
+          "title": "Orders",
+          "format": ","
+        },
+        {
+          "field": "revenue",
+          "type": "quantitative",
+          "title": "Revenue",
+          "format": "$,.0f"
+        }
+      ]
+    }
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}

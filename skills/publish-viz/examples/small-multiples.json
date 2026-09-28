@@ -1,0 +1,22 @@
+{
+  "title": "Revenue by region, one panel each",
+  "description": "Small multiples: the same line chart once per region, on a shared scale. Use instead of a crowded multi-line chart.",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "data"},
+    "width": 200,
+    "height": 80,
+    "autosize": {"type": "pad", "resize": true},
+    "mark": "line",
+    "encoding": {
+      "facet": {"field": "region", "type": "nominal", "columns": 2, "title": null},
+      "x": {"field": "month", "timeUnit": "utcyearmonth", "type": "temporal", "title": null},
+      "y": {"field": "revenue", "aggregate": "sum", "type": "quantitative", "title": null, "axis": {"format": "$.2s"}},
+      "tooltip": [
+        {"field": "month", "timeUnit": "utcyearmonth", "type": "temporal", "title": "Month"},
+        {"field": "revenue", "aggregate": "sum", "type": "quantitative", "title": "Revenue", "format": "$,.0f"}
+      ]
+    }
+  }
+}

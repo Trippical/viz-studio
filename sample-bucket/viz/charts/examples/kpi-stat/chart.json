@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "examples/kpi-stat",
+  "title": "Total revenue",
+  "description": "Stat tile: one headline number, aggregated over the rows left after the dashboard's filters. Use for a KPI; it is drawn by the site, not by Vega-Lite.",
+  "tags": [
+    "examples",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "stat",
+  "spec": {
+    "value": "revenue",
+    "agg": "sum",
+    "format": "$,.0f"
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}

@@ -59,7 +59,7 @@ def test_folder_sorting_order_then_name(storage, settings):
     storage.put("viz/charts/alpha/x/chart.json", b"{}", "application/json")
     tree = build_tree(storage, settings)
     names = [f["name"] for f in tree["charts"]["folders"]]
-    assert names == ["zeta", "sales", "bakeoff", "alpha"]  # order 1, order 10, order 20, then unordered by name
+    assert names == ["zeta", "sales", "bakeoff", "examples", "alpha"]  # order 1, order 10, order 20, order 30, then unordered by name
 
 
 def test_invalid_chart_becomes_error_node(storage, settings):
@@ -116,7 +116,7 @@ def test_document_deleted_between_list_and_load_becomes_error_node(storage, sett
 def test_stray_underscore_folder_key_is_not_a_folder(storage, settings):
     storage.put("viz/charts/weird_folder.json", b"{}", "application/json")
     tree = build_tree(storage, settings)
-    assert [f["name"] for f in tree["charts"]["folders"]] == ["sales", "bakeoff"]
+    assert [f["name"] for f in tree["charts"]["folders"]] == ["sales", "bakeoff", "examples"]
 
 
 def test_bad_folder_metadata_does_not_break_tree(storage, settings):

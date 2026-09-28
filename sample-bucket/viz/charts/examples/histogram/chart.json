@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "id": "examples/histogram",
+  "title": "Distribution of monthly revenue per region",
+  "description": "Histogram. Use to show how values are spread out: typical range, skew, outliers.",
+  "tags": [
+    "examples",
+    "sample"
+  ],
+  "author": "sample@example.com",
+  "created_at": "2026-09-22T10:00:00Z",
+  "updated_at": "2026-09-22T10:00:00Z",
+  "renderer": "vega-lite",
+  "spec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {
+      "name": "data"
+    },
+    "mark": "bar",
+    "encoding": {
+      "x": {
+        "field": "revenue",
+        "bin": {
+          "maxbins": 20
+        },
+        "type": "quantitative",
+        "title": "Monthly revenue",
+        "axis": {
+          "format": "$.2s"
+        }
+      },
+      "y": {
+        "aggregate": "count",
+        "type": "quantitative",
+        "title": "Months"
+      },
+      "tooltip": [
+        {
+          "field": "revenue",
+          "bin": {
+            "maxbins": 20
+          },
+          "type": "quantitative",
+          "title": "Revenue",
+          "format": "$,.0f"
+        },
+        {
+          "aggregate": "count",
+          "type": "quantitative",
+          "title": "Months"
+        }
+      ]
+    }
+  },
+  "data": {
+    "format": "json",
+    "lane": "small",
+    "rows": 144,
+    "bytes": 14756,
+    "columns": [
+      {
+        "name": "month",
+        "type": "date"
+      },
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "revenue",
+        "type": "number"
+      },
+      {
+        "name": "orders",
+        "type": "integer"
+      }
+    ]
+  },
+  "aggregate": null
+}
