@@ -36,7 +36,11 @@ def test_object_access_is_limited_to_the_root_prefix():
             if any(a in ("s3:GetObject", "s3:PutObject", "s3:DeleteObject") for a in actions):
                 assert statement["Resource"] == "arn:aws:s3:::REPLACE_ME-viz-bucket/viz/*", name
             if "s3:ListBucket" in actions:
-                assert statement["Condition"]["StringLike"]["s3:prefix"] == ["viz/", "viz/*"], name
+                # Granted on the whole bucket, with no prefix condition: S3 only answers
+                # 404 (rather than 403) for a missing key when the caller has an
+                # unconditioned s3:ListBucket, and the bucket is dedicated to viz-site.
+                assert statement["Resource"] == "arn:aws:s3:::REPLACE_ME-viz-bucket", name
+                assert "Condition" not in statement, name
 
 
 def test_bucket_policy_denies_plain_http():

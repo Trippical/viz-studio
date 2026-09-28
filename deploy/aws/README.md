@@ -26,7 +26,7 @@ Create one bucket for viz-site, then set:
 
 | Role | Policy | Who uses it |
 |---|---|---|
-| `viz-site-server` | `server-policy.json` (list and read under `viz/`, KMS decrypt) | The pods, through IRSA or EKS Pod Identity. Never the node role. |
+| `viz-site-server` | `server-policy.json` (list and read under `viz/`, KMS decrypt) | The pods, through IRSA. Never the node role. |
 | `viz-site-publisher` | `publisher-policy.json` (also put and delete under `viz/`, KMS encrypt) | People and agents running `viz publish` and `viz move`. |
 
 If `VIZ_ROOT_PREFIX` is not `viz/`, change `viz/` in both policies.
@@ -34,6 +34,11 @@ If `VIZ_ROOT_PREFIX` is not `viz/`, change `viz/` in both policies.
 For IRSA, the server role's trust policy allows the cluster's OIDC provider
 for the service account `viz-site` in the release namespace. Put the role
 ARN in the Helm value `serviceAccount.roleArn`.
+
+`s3:ListBucket` is granted on the whole bucket without a prefix condition:
+S3 needs it to answer 404 rather than 403 for a missing key, and the bucket
+holds only viz-site data. If you share the bucket, add a prefix condition
+and check that missing keys still return 404.
 
 ## 3. What the site does with S3
 

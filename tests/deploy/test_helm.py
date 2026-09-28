@@ -25,6 +25,7 @@ def test_values_hold_placeholders_only():
     assert "REPLACE_ME" in values["bucket"]["name"]
     assert values["serviceAccount"]["roleArn"].startswith("arn:aws:iam::123456789012:role/")
     assert values["allowedHosts"].endswith("example.com")
+    assert values["networkPolicy"]["egressCidrs"] == ["192.0.2.0/24"]
 
 
 def test_pod_is_locked_down():
@@ -101,3 +102,8 @@ def test_values_explain_gateway_endpoints_and_policy_enforcement():
     text = (CHART / "values.yaml").read_text(encoding="utf-8")
     assert "prefix-list" in text
     assert "enableNetworkPolicy" in text
+
+
+def test_ingress_cidrs_are_supported_for_alb():
+    assert "ingressCidrs" in (CHART / "values.yaml").read_text(encoding="utf-8")
+    assert "ingressCidrs" in _template("networkpolicy.yaml")

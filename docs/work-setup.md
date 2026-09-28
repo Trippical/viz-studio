@@ -2,8 +2,11 @@
 
 This guide takes a fresh clone to a working site on your company's AWS
 account, with charts published from Databricks. Steps 1 to 4 need only your
-laptop; steps 5 and 6 need the company's AWS account and Databricks
+laptop; steps 5 to 7 need the company's AWS account and Databricks
 workspace.
+
+The command snippets below use bash; on Windows PowerShell, use
+`$env:NAME = "value"` instead of `export NAME=value`.
 
 ## What you need
 
@@ -20,12 +23,12 @@ workspace.
 git clone https://github.com/Trippical/viz-studio.git viz-site
 cd viz-site
 python3.11 -m venv .venv
-.venv/bin/python -m pip install -e ".[databricks]"
+.venv/bin/python -m pip install -e ".[databricks,dev]"
 .venv/bin/viz --version
 ```
 
-On Windows use `py -3.11 -m venv .venv` and `.venv\Scripts\...`. Add
-`[dev]` (`".[databricks,dev]"`) if you want to run the tests.
+On Windows use `py -3.11 -m venv .venv` and `.venv\Scripts\...`. `[dev]` is
+included because step 6 runs `pytest` to prove the real integrations.
 
 ## 2. Settings
 
@@ -56,6 +59,13 @@ share the `VIZ_*` ones.
 Author: `viz query` stamps charts with your Databricks login, and
 `viz validate` confirms it with Databricks. Charts staged from files use
 `VIZ_AUTHOR`, then your AWS identity, then `<user>@local`.
+
+When you publish files (not `viz query`), set `VIZ_AUTHOR` to your email, or
+keep a fixed `role_session_name` in your AWS profile; otherwise the AWS
+identity changes between commands and validation reports an author mismatch.
+`viz stage` without Databricks falls back to the AWS caller ARN, which
+includes the role session name; without a fixed `role_session_name`, every
+process gets a new one.
 
 Service principal: if the principal has a personal access token, put it in
 `DATABRICKS_TOKEN` and everything works; `viz query` and `viz validate` both
@@ -105,7 +115,35 @@ not confirmed yet: find where your workspace loads skills from and run
 `viz install-skill --dest <that folder>`. The skill teaches the whole path
 below; its source is `skills/publish-viz/SKILL.md`.
 
-## 5. Prove the real integrations
+## 5. Create the AWS resources
+
+Create the bucket, roles and policies: `deploy/aws/README.md`. That covers
+the bucket baseline, the KMS key policy, and the `viz-site-server` and
+`viz-site-publisher` IAM roles. Do this before the next step, which proves
+the real integrations against those resources.
+
+To run `viz publish` and `viz move` from your laptop, act as the
+`viz-site-publisher` role. Add a profile that assumes it, with a fixed
+`role_session_name` (see "Author on S3" in step 2 for why a fixed session
+name matters):
+
+```
+# ~/.aws/config
+[profile viz-publisher]
+role_arn = arn:aws:iam::123456789012:role/viz-site-publisher
+source_profile = default
+role_session_name = viz-publisher
+region = your-region
+```
+
+Then `export AWS_PROFILE=viz-publisher` before running publisher commands.
+
+If your company signs in with AWS SSO, the SSO role is not
+`viz-site-publisher`; either assume the publisher role from it as above, or
+add your SSO role's ARN to the publisher exemption in
+`deploy/aws/bucket-policy.json`.
+
+## 6. Prove the real integrations
 
 Run these before anyone relies on the site. Each is skipped unless you opt
 in, and neither ever runs in CI.
@@ -139,16 +177,18 @@ echo "SELECT 'a' AS label, 1 AS value" > first.sql
 Publishing the same id again is refused with the current author and date;
 add `--force` to `viz publish` only when you mean to replace it.
 
-## 6. Deploy
+## 7. Deploy
 
-1. Create the bucket, roles and policies: `deploy/aws/README.md`.
-2. Build and push the image to your registry:
-   `docker build -t <registry>/viz-site:0.1.0 .` then
-   `docker push <registry>/viz-site:0.1.0`.
-3. Copy `deploy/helm/viz-site/values.yaml`, fill in every `REPLACE_ME`,
-   `example.com` and `123456789012` value, and install:
+1. Build and push the image to your registry:
+   `docker build --platform linux/amd64 -t <registry>/viz-site:0.1.0 .` then
+   `docker push <registry>/viz-site:0.1.0`. The chart has no `tls` block;
+   TLS is terminated by the load balancer or the company SSO proxy in front
+   of it.
+2. Copy `deploy/helm/viz-site/values.yaml`, fill in every `REPLACE_ME`,
+   `example.com` and `123456789012` value (including
+   `networkPolicy.egressCidrs`), and install:
    `helm install viz-site deploy/helm/viz-site -f my-values.yaml -n viz --create-namespace`.
-4. Put the site behind the company SSO proxy and check
+3. Put the site behind the company SSO proxy and check
    `https://<your host>/api/health`, then open `/c/smoke/first-chart`.
 
 ## Troubleshooting
@@ -156,7 +196,9 @@ add `--force` to `viz publish` only when you mean to replace it.
 | Symptom | Cause |
 |---|---|
 | Every request returns 400 | The host is not in `VIZ_ALLOWED_HOSTS` (Helm: `allowedHosts`) |
-| Pods never become ready | Same, for the probe's Host header; or the IRSA role cannot read the bucket |
+| Pods never become ready | The probe Host is not in `allowedHosts` (or the policy engine blocks kubelet probes) |
+| Pods are Ready but pages show errors or an empty tree | The pods cannot reach S3, STS or KMS: check `networkPolicy.egressCidrs`, the IRSA role and the KMS key policy. `/api/health` does not touch S3 |
 | Large-data charts fail to load | `web/dist/duckdb/` is missing from the build; the DuckDB parquet extension is self-hosted and pinned to DuckDB v1.4.3, so re-pin it when upgrading `@duckdb/duckdb-wasm` |
-| `viz validate` says the author does not match | Without `DATABRICKS_HOST` and `DATABRICKS_TOKEN`, set `VIZ_AUTHOR` to your Databricks login |
+| `viz validate` says the author does not match (Databricks) | Without `DATABRICKS_HOST` and `DATABRICKS_TOKEN`, set `VIZ_AUTHOR` to your Databricks login |
+| `viz validate` says the author does not match (file-staged charts) | The AWS identity changed between commands. Set `VIZ_AUTHOR` to your email, or use a fixed `role_session_name` in your AWS profile |
 | `viz query` says the query is refused | `VIZ_QUERY_DENY` lists that catalog or schema |

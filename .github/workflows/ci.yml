@@ -54,6 +54,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t viz-site:ci .
+      - run: |
+          docker run -d --name viz --read-only --tmpfs /tmp -p 8000:8000 -e VIZ_ALLOWED_HOSTS=localhost viz-site:ci
+          for i in $(seq 1 30); do curl -fsS -H 'Host: localhost' http://127.0.0.1:8000/api/health && break; sleep 1; done
+          curl -fsS -H 'Host: localhost' http://127.0.0.1:8000/api/health
+          curl -fsS -o /dev/null -H 'Host: localhost' http://127.0.0.1:8000/duckdb/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm
+          test "$(docker exec viz id -u)" = "10001"
+          docker rm -f viz
 
   helm:
     runs-on: ubuntu-latest

@@ -2,11 +2,10 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "ListTheVizPrefix",
+      "Sid": "ListTheVizBucket",
       "Effect": "Allow",
       "Action": "s3:ListBucket",
-      "Resource": "arn:aws:s3:::REPLACE_ME-viz-bucket",
-      "Condition": {"StringLike": {"s3:prefix": ["viz/", "viz/*"]}}
+      "Resource": "arn:aws:s3:::REPLACE_ME-viz-bucket"
     },
     {
       "Sid": "ReadVizObjects",

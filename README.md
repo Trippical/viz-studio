@@ -40,8 +40,8 @@ Setting it up at work (fresh clone, AWS, Databricks, deployment):
     viz move sales/emea/revenue sales/emea/revenue-monthly --yes
 
 The staging directory `./.viz-staging` mirrors the bucket, so `viz preview` is
-the real server pointed at it. `viz query` needs `pip install "viz-site[databricks]"`
-and `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_WAREHOUSE_ID`; nothing
+the real server pointed at it. `viz query` needs `pip install -e ".[databricks]"`
+(from a checkout) and `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_WAREHOUSE_ID`; nothing
 else in the package reads them. Publisher settings: `VIZ_AUTHOR` (overrides the
 AWS caller identity when set; the Databricks user from `viz query` always wins,
 and `viz validate` confirms it with Databricks when the `DATABRICKS_*` variables

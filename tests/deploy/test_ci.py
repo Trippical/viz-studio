@@ -51,6 +51,12 @@ def test_docker_and_helm_jobs():
     assert "helm template" in helm
 
 
+def test_docker_job_smoke_tests_the_image():
+    docker = _runs(_workflow()["jobs"]["docker"])
+    for fragment in ("docker run", "--read-only", "/api/health"):
+        assert fragment in docker, fragment
+
+
 def test_helm_job_proves_an_empty_egress_list_fails():
     helm = _runs(_workflow()["jobs"]["helm"])
     assert "networkPolicy.egressCidrs=[]" in helm

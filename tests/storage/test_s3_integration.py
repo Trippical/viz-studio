@@ -22,6 +22,8 @@ def test_round_trip_against_a_real_bucket():
     prefix = f"{base}integration-{uuid.uuid4().hex[:12]}/"
     first, second = f"{prefix}a.json", f"{prefix}b.json"
     try:
+        with pytest.raises(NotFound):
+            storage.get(f"{prefix}missing.json")
         storage.put(first, b'{"ok": true}', "application/json")
         assert storage.get(first) == b'{"ok": true}'
         assert storage.head(first).size == 12

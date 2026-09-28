@@ -43,5 +43,6 @@ def test_the_guide_covers_the_real_infrastructure_checks():
     text = _text()
     for phrase in ("VIZ_INTEGRATION=1", "VIZ_IT_S3_BUCKET", "tests/publish/test_query_integration.py",
                    "tests/storage/test_s3_integration.py", "viz install-skill", "helm install", "Genie Code",
-                   "AWS_REGION", "docker push <registry>/viz-site:0.1.0", "123456789012", "VIZ_IT_S3_PREFIX"):
+                   "AWS_REGION", "docker push <registry>/viz-site:0.1.0", "123456789012", "VIZ_IT_S3_PREFIX",
+                   "AWS_PROFILE", "role_session_name", "egressCidrs", "VIZ_AUTHOR"):
         assert phrase in text, phrase
