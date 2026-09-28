@@ -12,6 +12,7 @@ from ..ids import chart_key, is_ancestor
 from ..schemas import SchemaError, validate_chart, validate_dashboard
 from ..storage import NotFound, Storage
 from .identity import check_author
+from .query import QueryError, current_user, databricks_configured
 from .infer import UnsupportedColumn, infer_columns, table_from_file
 from .staging import LARGE_MAX_BYTES, SMALL_MAX_BYTES, SMALL_MAX_ROWS
 
@@ -101,6 +102,19 @@ def _compare_columns(declared: list[dict], inferred: list[dict]) -> list[str]:
     return errors
 
 
+def _check_chart_author(doc: dict, settings: Settings) -> list[str]:
+    """A chart staged by `viz query` carries the Databricks login as its author. When the
+    Databricks variables are set, confirm that login; otherwise check VIZ_AUTHOR as usual."""
+    source = doc.get("source") or {}
+    if source.get("kind") != "databricks-sql" or not databricks_configured():
+        return check_author(doc, settings)
+    try:
+        user = current_user(source.get("warehouse_id"))
+    except QueryError as err:
+        return [f"author: could not confirm the Databricks user: {err}"]
+    return check_author(doc, settings, databricks_user=user)
+
+
 def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage, allow_row_level: bool = False) -> list[str]:
     chart_dir = Path(chart_dir)
     doc, errors = read_document(chart_dir / "chart.json")
@@ -148,7 +162,7 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
     if lane == "large" and size > LARGE_MAX_BYTES:
         errors.append(f"data: large lane allows at most {LARGE_MAX_BYTES} bytes")
 
-    errors += check_author(doc, settings)
+    errors += _check_chart_author(doc, settings)
     for other in conflicting_ids(doc["id"], existing_chart_ids(storage, settings.root_prefix)):
         errors.append(f"id: '{doc['id']}' conflicts with existing chart '{other}'")
 

@@ -25,16 +25,18 @@ data, checks it and uploads it. The site never runs SQL.
 ## Setup check
 
 1. `viz --version` prints a version. If not, the user needs
-   `pip install viz-site` (with `[databricks]` for `viz query`).
+   to install viz-site from a checkout: `pip install -e ".[databricks]"`
+   (see `docs/work-setup.md` in the viz-site repo).
 2. For `viz query`, the user's environment has `DATABRICKS_HOST`,
    `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID`. Never ask for the
    token in the conversation.
-3. `viz query` stamps charts with the Databricks login, but `viz validate`
-   checks against `VIZ_AUTHOR`. Before the first `viz query`, ask the user to
-   set `VIZ_AUTHOR` to their Databricks login email. If validation says
-   `author '<a>' does not match the resolved identity '<b>'`, ask the user
-   to set `VIZ_AUTHOR=<a>` and run `viz validate` again. Never edit
-   `author` by hand.
+3. `viz query` stamps charts with the Databricks login. When
+   `DATABRICKS_HOST` and `DATABRICKS_TOKEN` are set, `viz validate` asks
+   Databricks for the current user and accepts that login. Without them it
+   checks `VIZ_AUTHOR` instead, so ask the user to set `VIZ_AUTHOR` to their
+   Databricks login email. If validation says
+   `author '<a>' does not match the resolved identity '<b>'`, show the user
+   both values and ask which identity is right. Never edit `author` by hand.
 
 ## Workflow
 
