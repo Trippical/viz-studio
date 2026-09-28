@@ -54,7 +54,7 @@ midnight UTC. A local time unit such as `yearmonth` would move that value to
 `utcyear`, `utcyearmonth`, `utcmonth`, `utcyearmonthdate`. Put the same
 `timeUnit` on the tooltip field. Use `"type": "temporal"` for a continuous
 time axis and `"type": "ordinal"` for discrete periods (years as bars,
-months of the year as heatmap columns).
+months of the year as heatmap columns). For data that is already one row per week or per day, use `utcyearmonthdate`, so each point keeps the date the period starts on.
 
 ## Aggregate in the encoding, not only in SQL
 
@@ -101,6 +101,8 @@ dashboard so it keeps its colour.
 Start from the closest example and change the fields. Each example binds the
 columns `month` (date), `region` (string), `revenue` (number) and `orders`
 (integer).
+
+When a question fits both a line and a grouped bar ("weekly orders by channel"), use the line for six or more periods and the grouped bar for fewer, where comparing categories inside each period is the point.
 
 | The question | Form | Example file |
 |---|---|---|

@@ -18,6 +18,8 @@
   personal data; drop it with `--drop-columns a,b` unless the user asked for
   it.
 
+`viz stage --from <file>` publishes the file as it is. If a file has more rows than the chart draws (for example one row per order), aggregate it before staging so it has one row per point on the chart, and tell the user you did.
+
 ## Lanes
 
 The CLI picks the lane from the result size:

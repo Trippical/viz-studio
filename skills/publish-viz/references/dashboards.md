@@ -60,13 +60,15 @@ give the same thing the same column name in every chart's SQL (`month`,
 `id` is a lowercase slug, unique on the page. `label` is what the viewer
 reads. At most 20 controls; three or four is usually right.
 
+For a filter on a category (region, channel, product), use a `select` with `"multi": true` and `"default": null`, so viewers start with everything and can narrow to one or several values.
+
 ## Layout
 
 The grid has 12 columns. Each tile has a width `w` from 1 to 12 and a
 height `h` from 1 to 12 in row units of 120 px. Tiles flow left to right and
 wrap. Useful sizes: a main chart `w: 8, h: 4` beside a stat tile
 `w: 4, h: 2`; two charts side by side at `w: 6, h: 4`; a full-width chart
-`w: 12, h: 4`.
+`w: 12, h: 4`. A dashboard with a single chart uses `w: 12, h: 4`.
 
 Markdown tiles (`{"markdown": "...", "w": 12, "h": 1}`) are for short notes:
 the source, a definition, what to look at. Raw HTML is ignored; links must
