@@ -31,6 +31,9 @@ charts and dashboards into that folder through a paved path; the site only reads
     viz publish .viz-staging/charts/sales/emea/revenue  # validate, then upload (data first, then chart.json)
     viz publish .viz-staging/charts/sales/emea/revenue --allow-row-level  # large-lane (row-level) charts
     viz publish .viz-staging/dashboards/sales/board.json
+    viz new-dashboard sales/board --chart sales/emea/revenue  # stage a new dashboard with author stamped
+    viz pull-dashboard sales/board                      # copy a published dashboard into staging to edit
+    viz install-skill                                   # copy the publish-viz skill to ~/.claude/skills
     viz move sales/emea/revenue sales/emea/revenue-monthly --yes
 
 The staging directory `./.viz-staging` mirrors the bucket, so `viz preview` is
@@ -41,6 +44,13 @@ AWS caller identity when set; the Databricks user from `viz query` always wins;
 author is attribution, not authentication), `VIZ_QUERY_DENY` (comma-separated
 catalogs or `catalog.schema` that `viz query` refuses), `VIZ_PII_PATTERN`,
 `VIZ_STAGING_DIR`. `--force` and `--yes` are flags only.
+
+The `publish-viz` Claude skill (`skills/publish-viz/`) teaches an agent this
+whole path, with a Vega-Lite authoring guide. Every chart form in the guide
+is an example file under `skills/publish-viz/examples/`, published by
+`sample-bucket/generate.py` as the gallery dashboard `/d/examples/gallery`.
+`viz install-skill` copies the skill to `~/.claude/skills/publish-viz/`
+(`--dest DIR` for another location).
 
 Design: `docs/superpowers/specs/2026-09-22-viz-site-design.md`.
 
