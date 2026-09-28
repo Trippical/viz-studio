@@ -18,7 +18,7 @@ Decisions already made, do not relitigate: Vega-Lite is the only chart renderer;
 
 ## Last session summary
 
-2026-09-28: fixed a CSS collision that collapsed Vega-Lite tiles to 21px (b890ec3), sent the bake-off screenshots to the user's phone and to Discord (baseball_wiggum `user` webhook), published a renderer comparison (https://claude.ai/artifact/1v6MKjyf852LYCRFpz1n6V) and network-graph/gauge examples (https://claude.ai/artifact/6wswkytAsnwangRCm1Chw5). The user picked Vega-Lite; Plotly and ECharts were removed and merged (46129e7). Wrote Plan 3b and executed it subagent-driven on `plan-3b`: 7 tasks + controller dry run, one task fix round (axis format `","` printed 4.5e+4 on axes; guide now requires a type letter), one final fix wave (large-lane aggregate placeholder, stat compare formatting, install-skill safety, wording).
+2026-09-28: fixed a CSS collision that collapsed Vega-Lite tiles to 21px (b890ec3), sent the bake-off screenshots to the user's phone and to Discord, published a renderer comparison (https://claude.ai/artifact/1v6MKjyf852LYCRFpz1n6V) and network-graph/gauge examples (https://claude.ai/artifact/6wswkytAsnwangRCm1Chw5). The user picked Vega-Lite; Plotly and ECharts were removed and merged (46129e7). Wrote Plan 3b and executed it subagent-driven on `plan-3b`: 7 tasks + controller dry run, one task fix round (axis format `","` printed 4.5e+4 on axes; guide now requires a type letter), one final fix wave (large-lane aggregate placeholder, stat compare formatting, install-skill safety, wording).
 
 ## Recent sessions
 
