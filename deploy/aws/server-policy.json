@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListTheVizPrefix",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::REPLACE_ME-viz-bucket",
+      "Condition": {"StringLike": {"s3:prefix": ["viz/", "viz/*"]}}
+    },
+    {
+      "Sid": "ReadVizObjects",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::REPLACE_ME-viz-bucket/viz/*"
+    },
+    {
+      "Sid": "DecryptWithTheBucketKey",
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "arn:aws:kms:REPLACE_ME-region:123456789012:key/REPLACE_ME-key-id"
+    }
+  ]
+}

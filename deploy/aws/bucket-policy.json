@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyPlainHttp",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": ["arn:aws:s3:::REPLACE_ME-viz-bucket", "arn:aws:s3:::REPLACE_ME-viz-bucket/*"],
+      "Condition": {"Bool": {"aws:SecureTransport": "false"}}
+    },
+    {
+      "Sid": "DenyReadsOutsideTheVpcEndpointExceptPublishers",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::REPLACE_ME-viz-bucket", "arn:aws:s3:::REPLACE_ME-viz-bucket/*"],
+      "Condition": {
+        "StringNotEquals": {"aws:SourceVpce": "vpce-REPLACE_ME"},
+        "ArnNotLike": {"aws:PrincipalArn": ["arn:aws:iam::123456789012:role/viz-site-publisher"]}
+      }
+    }
+  ]
+}
