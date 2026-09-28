@@ -10,8 +10,6 @@ const files = readdirSync(assets)
 
 const groups = {
   'vega-lite': /^renderer-vega-/,
-  plotly: /^renderer-plotly-/,
-  echarts: /^renderer-echarts-/,
   duckdb: /^duckdb-.*\.js$|worker.*\.js$|\.wasm$/,
   main: /^index-/,
 };

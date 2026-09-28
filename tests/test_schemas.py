@@ -14,7 +14,7 @@ def load(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-VALID_CHARTS = ["chart-vegalite.json", "chart-plotly.json", "chart-echarts.json", "chart-large.json", "chart-stat.json"]
+VALID_CHARTS = ["chart-vegalite.json", "chart-large.json", "chart-stat.json"]
 
 
 @pytest.mark.parametrize("name", VALID_CHARTS)
@@ -88,19 +88,8 @@ CHART_CASES = [
     ("vega-lite image mark", "chart-vegalite.json", _set("spec.mark", "image"), "image"),
     ("vega-lite image mark object", "chart-vegalite.json", _set("spec.mark", {"type": "image"}), "image"),
     ("vega-lite missing top-level data", "chart-vegalite.json", _delete("spec.data"), "top-level data"),
-    ("echarts formatter html", "chart-echarts.json", _set("spec.tooltip.formatter", "<b>{b}</b>"), "formatter"),
-    ("echarts inline series data", "chart-echarts.json", _set("spec.series.0.data", [1, 2]), "data"),
-    ("echarts dataset", "chart-echarts.json", _set("spec.dataset", {"source": []}), "dataset"),
-    ("echarts html render mode", "chart-echarts.json", _set("spec.tooltip.renderMode", "html"), "renderMode"),
-    ("echarts forbidden graphic", "chart-echarts.json", _set("spec.graphic", []), "graphic"),
-    ("echarts image key", "chart-echarts.json", _set("spec.series.0.itemStyle", {"color": {"image": "http://evil/x.png"}}), "image"),
-    ("echarts image url symbol", "chart-echarts.json", _set("spec.series.0.symbol", "image://x"), "image"),
-    ("plotly inline array", "chart-plotly.json", _set("spec.traces.0.x", ["a", "b"]), "x"),
-    ("plotly unknown column", "chart-plotly.json", _set("spec.traces.0.y", {"column": "nope"}), "nope"),
-    ("plotly geo trace", "chart-plotly.json", _set("spec.traces.0.type", "choropleth"), "type"),
-    ("plotly extra top-level key", "chart-plotly.json", _set("spec.frames", []), "frames"),
-    ("plotly layout images", "chart-plotly.json", _set("spec.layout.images", []), "images"),
-    ("plotly anchor tag", "chart-plotly.json", _set("spec.layout.title", {"text": "<a href='x'>y</a>"}), "anchor"),
+    ("plotly renderer retired", "chart-vegalite.json", _set("renderer", "plotly"), "renderer"),
+    ("echarts renderer retired", "chart-vegalite.json", _set("renderer", "echarts"), "renderer"),
     ("stat unknown column", "chart-stat.json", _set("spec.value", "nope"), "nope"),
     ("stat bad agg", "chart-stat.json", _set("spec.agg", "median"), "agg"),
     ("stat compare unknown column", "chart-stat.json", _set("spec.compare.column", "nope"), "nope"),

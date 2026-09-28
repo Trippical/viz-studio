@@ -21,7 +21,7 @@ COLUMNS = [
     {"name": "orders", "type": "integer"},
 ]
 
-RENDERERS = ["vega-lite", "plotly", "echarts"]
+RENDERERS = ["vega-lite"]
 PRODUCTS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"]
 ORDER_LINES = 200_000
 QUARTER_COLUMNS = [
@@ -145,20 +145,6 @@ def time_series_spec(renderer: str) -> dict:
                 ],
             },
         }
-    if renderer == "plotly":
-        return {
-            "traces": [{"type": "scatter", "mode": "lines+markers", "split": "region",
-                        "x": {"column": "month"}, "y": {"column": "revenue"}}],
-            "layout": {"xaxis": {"title": {"text": "Month"}}, "yaxis": {"title": {"text": "Revenue"}},
-                       "legend": {"title": {"text": "Region"}}, "hovermode": "x unified"},
-        }
-    return {
-        "xAxis": {"type": "time", "name": "Month"},
-        "yAxis": {"type": "value", "name": "Revenue"},
-        "legend": {},
-        "tooltip": {"trigger": "axis", "renderMode": "richText"},
-        "series": [{"type": "line", "split": "region", "showSymbol": True, "encode": {"x": "month", "y": "revenue"}}],
-    }
 
 
 def grouped_bar_spec(renderer: str) -> dict:
@@ -181,18 +167,6 @@ def grouped_bar_spec(renderer: str) -> dict:
                 ],
             },
         }
-    if renderer == "plotly":
-        return {
-            "traces": [{"type": "bar", "split": "region", "x": {"column": "quarter"}, "y": {"column": "orders"}}],
-            "layout": {"barmode": "group", "xaxis": {"title": {"text": "Quarter"}}, "yaxis": {"title": {"text": "Orders"}}},
-        }
-    return {
-        "xAxis": {"type": "category", "name": "Quarter"},
-        "yAxis": {"type": "value", "name": "Orders"},
-        "legend": {},
-        "tooltip": {"trigger": "axis", "renderMode": "richText"},
-        "series": [{"type": "bar", "split": "region", "encode": {"x": "quarter", "y": "orders"}}],
-    }
 
 
 def order_lines_spec(renderer: str) -> dict:
@@ -212,21 +186,10 @@ def order_lines_spec(renderer: str) -> dict:
                 ],
             },
         }
-    if renderer == "plotly":
-        return {
-            "traces": [{"type": "bar", "x": {"column": "day"}, "y": {"column": "amount"}}],
-            "layout": {"xaxis": {"title": {"text": "Day"}}, "yaxis": {"title": {"text": "Amount"}}},
-        }
-    return {
-        "xAxis": {"type": "time", "name": "Day"},
-        "yAxis": {"type": "value", "name": "Amount"},
-        "tooltip": {"trigger": "axis", "renderMode": "richText"},
-        "series": [{"type": "bar", "encode": {"x": "day", "y": "amount"}}],
-    }
 
 
 def renderer_title(renderer: str) -> str:
-    return {"vega-lite": "Vega-Lite", "plotly": "Plotly", "echarts": "ECharts"}[renderer]
+    return {"vega-lite": "Vega-Lite"}[renderer]
 
 
 def write_bakeoff(data: list[dict]) -> None:

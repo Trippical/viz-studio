@@ -56,8 +56,10 @@ required. From `web/`:
     npm run typecheck
     npm run e2e          # Playwright smoke test: builds, starts viz-server, drives Chromium
 
-Every renderer library, the DuckDB-WASM worker and its wasm are bundled and
-served from the site. Nothing loads from a CDN. Chart specs from the bucket are
-sanitized before they are mounted; see `web/src/renderers/*Sanitize.ts` and
-spec section 12.3. The bake-off between Vega-Lite, Plotly and ECharts is scored
-in `docs/superpowers/specs/2026-09-22-bake-off-scorecard.md`.
+Charts render with Vega-Lite (plus the built-in `stat` tile). The Vega
+libraries, the DuckDB-WASM worker and its wasm are bundled and served from the
+site. Nothing loads from a CDN. Chart specs from the bucket are sanitized
+before they are mounted; see `web/src/renderers/vegaLiteSanitize.ts` and spec
+section 12.3. Vega-Lite won the bake-off against Plotly and ECharts; the
+decision and measurements are in
+`docs/superpowers/specs/2026-09-22-bake-off-scorecard.md`.

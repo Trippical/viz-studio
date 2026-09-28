@@ -11,7 +11,7 @@ export interface Column {
 
 export type Row = Record<string, unknown>;
 
-export type Renderer = 'vega-lite' | 'plotly' | 'echarts' | 'stat';
+export type Renderer = 'vega-lite' | 'stat';
 
 export interface ChartData {
   format: 'json' | 'parquet';
