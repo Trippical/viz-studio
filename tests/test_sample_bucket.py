@@ -137,3 +137,15 @@ def test_vega_lite_examples_use_the_v6_schema():
         example = json.loads(path.read_text(encoding="utf-8"))
         if example["renderer"] == "vega-lite":
             assert example["spec"]["$schema"] == "https://vega.github.io/schema/vega-lite/v6.json", path.name
+
+
+def test_axis_and_legend_formats_name_a_type():
+    # A d3-format with no type letter (for example ",") lets Vega's tick
+    # formatter pick its own precision, which prints 4.5e+4 on an axis.
+    for path in _examples():
+        example = json.loads(path.read_text(encoding="utf-8"))
+        for obj in _walk(example["spec"]):
+            for key in ("axis", "legend"):
+                fmt = obj.get(key, {}).get("format") if isinstance(obj.get(key), dict) else None
+                if fmt is not None:
+                    assert fmt[-1] in "efgrsp%dbcoxXn", f"{path.name}: {key} format {fmt!r} has no type letter"

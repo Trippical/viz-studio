@@ -34,7 +34,7 @@
         "type": "quantitative",
         "title": "Orders",
         "axis": {
-          "format": ","
+          "format": ",.0f"
         }
       },
       "color": {
@@ -59,7 +59,7 @@
           "aggregate": "sum",
           "type": "quantitative",
           "title": "Orders",
-          "format": ","
+          "format": ",.0f"
         }
       ]
     }

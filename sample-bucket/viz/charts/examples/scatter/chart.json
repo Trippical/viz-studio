@@ -26,7 +26,7 @@
         "type": "quantitative",
         "title": "Orders",
         "axis": {
-          "format": ","
+          "format": ",.0f"
         }
       },
       "y": {
@@ -58,7 +58,7 @@
           "field": "orders",
           "type": "quantitative",
           "title": "Orders",
-          "format": ","
+          "format": ",.0f"
         },
         {
           "field": "revenue",

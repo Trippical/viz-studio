@@ -9,12 +9,12 @@
     "encoding": {
       "x": {"field": "month", "timeUnit": "utcyear", "type": "ordinal", "title": "Year"},
       "xOffset": {"field": "region", "type": "nominal"},
-      "y": {"field": "orders", "aggregate": "sum", "type": "quantitative", "title": "Orders", "axis": {"format": ","}},
+      "y": {"field": "orders", "aggregate": "sum", "type": "quantitative", "title": "Orders", "axis": {"format": ",.0f"}},
       "color": {"field": "region", "type": "nominal", "title": "Region"},
       "tooltip": [
         {"field": "month", "timeUnit": "utcyear", "type": "ordinal", "title": "Year"},
         {"field": "region", "type": "nominal", "title": "Region"},
-        {"field": "orders", "aggregate": "sum", "type": "quantitative", "title": "Orders", "format": ","}
+        {"field": "orders", "aggregate": "sum", "type": "quantitative", "title": "Orders", "format": ",.0f"}
       ]
     }
   }
