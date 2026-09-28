@@ -10,7 +10,9 @@ metadata:
   annotations:
     # ingress-nginx: per-client-IP request rate limit.
     nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.rateLimitPerSecond | quote }}
-    # AWS Load Balancer Controller: never create an internet-facing ALB.
+    # AWS Load Balancer Controller: never create an internet-facing ALB. With
+    # ingress-nginx this annotation does nothing: make the controller's own
+    # Service internal (service.beta.kubernetes.io/aws-load-balancer-scheme: internal).
     alb.ingress.kubernetes.io/scheme: internal
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}

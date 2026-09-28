@@ -43,6 +43,8 @@ spec:
               value: {{ .Values.authHeader | quote }}
             - name: AWS_REGION
               value: {{ .Values.bucket.region | quote }}
+            - name: AWS_STS_REGIONAL_ENDPOINTS
+              value: "regional"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

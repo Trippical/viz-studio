@@ -38,8 +38,15 @@ networkPolicy:
   enabled: true
   # Namespace of the ingress controller; only it may reach the pods.
   ingressControllerNamespace: ingress-nginx
-  # Egress on 443: the S3 VPC endpoint (or S3 prefix-list CIDRs) and the STS
-  # endpoint IRSA uses. Replace with your ranges.
+  # Egress on 443 only to these ranges. Required, must not be empty.
+  # - S3 through a gateway VPC endpoint: list the S3 prefix-list CIDRs for your
+  #   region (aws ec2 describe-managed-prefix-lists, name com.amazonaws.<region>.s3);
+  #   a gateway endpoint has no IP of its own.
+  # - STS for IRSA: the subnet CIDRs of an STS interface endpoint with private
+  #   DNS, or the public STS ranges.
+  # - S3 through an interface endpoint: its subnet CIDRs.
+  # NetworkPolicy is only enforced if the cluster runs a policy engine
+  # (EKS VPC CNI with enableNetworkPolicy=true, Calico or Cilium).
   egressCidrs:
     - 10.0.0.0/8
 

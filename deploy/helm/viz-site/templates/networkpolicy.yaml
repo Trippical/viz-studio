@@ -1,4 +1,7 @@
 {{- if .Values.networkPolicy.enabled }}
+{{- if not .Values.networkPolicy.egressCidrs }}
+{{- fail "networkPolicy.egressCidrs must list at least one CIDR (an empty list would allow egress anywhere)" }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

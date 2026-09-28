@@ -86,3 +86,18 @@ def test_no_databricks_anywhere_in_the_chart():
     for path in CHART.rglob("*"):
         if path.is_file():
             assert "DATABRICKS" not in path.read_text(encoding="utf-8"), path.name
+
+
+def test_empty_egress_list_fails_the_render():
+    text = _template("networkpolicy.yaml")
+    assert "fail" in text and "egressCidrs" in text
+
+
+def test_sts_uses_the_regional_endpoint():
+    assert "name: AWS_STS_REGIONAL_ENDPOINTS" in _template("deployment.yaml")
+
+
+def test_values_explain_gateway_endpoints_and_policy_enforcement():
+    text = (CHART / "values.yaml").read_text(encoding="utf-8")
+    assert "prefix-list" in text
+    assert "enableNetworkPolicy" in text
