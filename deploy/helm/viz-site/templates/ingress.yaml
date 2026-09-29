@@ -1,0 +1,33 @@
+{{- if .Values.ingress.enabled }}
+# Internal only: the site serves company data to anyone who can reach it, so
+# it must sit behind an internal load balancer and the company SSO proxy.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "viz-site.fullname" . }}
+  labels:
+    {{- include "viz-site.labels" . | nindent 4 }}
+  annotations:
+    # ingress-nginx: per-client-IP request rate limit.
+    nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.rateLimitPerSecond | quote }}
+    # AWS Load Balancer Controller: never create an internet-facing ALB. With
+    # ingress-nginx this annotation does nothing: make the controller's own
+    # Service internal (service.beta.kubernetes.io/aws-load-balancer-scheme: internal).
+    alb.ingress.kubernetes.io/scheme: internal
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "viz-site.fullname" . }}
+                port:
+                  name: http
+{{- end }}

@@ -1,0 +1,51 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- if not .Values.networkPolicy.egressCidrs }}
+{{- fail "networkPolicy.egressCidrs must list at least one CIDR (an empty list would allow egress anywhere)" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "viz-site.fullname" . }}
+  labels:
+    {{- include "viz-site.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "viz-site.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only the ingress controller may reach the pods.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressControllerNamespace }}
+        {{- range .Values.networkPolicy.ingressCidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - port: 8000
+          protocol: TCP
+  egress:
+    # DNS.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # S3 and STS over HTTPS only.
+    - to:
+        {{- range .Values.networkPolicy.egressCidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - port: 443
+          protocol: TCP
+{{- end }}

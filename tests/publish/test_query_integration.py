@@ -19,4 +19,5 @@ def test_query_against_a_real_warehouse(env, staging_root):
     doc = json.loads((staging_root / "charts" / "integration" / "one" / "chart.json").read_text(encoding="utf-8"))
     assert doc["data"]["rows"] == 1
     assert doc["data"]["columns"] == [{"name": "one", "type": "integer"}, {"name": "letter", "type": "string"}]
-    assert "@" in doc["author"]
+    # A service principal's login is its application id (a UUID), not an email.
+    assert isinstance(doc["author"], str) and doc["author"].strip()

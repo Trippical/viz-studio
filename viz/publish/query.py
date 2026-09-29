@@ -60,16 +60,48 @@ def read_sql_argument(value: str) -> str:
     return value
 
 
+def databricks_configured() -> bool:
+    """True when the variables `viz query` needs to reach Databricks are set."""
+    return bool(os.environ.get("DATABRICKS_HOST")) and bool(os.environ.get("DATABRICKS_TOKEN"))
+
+
+def _connection_args(warehouse_id: str | None) -> dict:
+    warehouse = resolve_warehouse(warehouse_id)
+    host = _env("DATABRICKS_HOST").removeprefix("https://").removeprefix("http://").rstrip("/")
+    token = _env("DATABRICKS_TOKEN")
+    return {"server_hostname": host, "http_path": f"/sql/1.0/warehouses/{warehouse}", "access_token": token}
+
+
+def current_user(warehouse_id: str | None = None) -> str:
+    """The Databricks login the configured token belongs to. `viz validate` uses it to
+    confirm the author `viz query` stamped (spec 12.4)."""
+    args = _connection_args(warehouse_id)
+    connect = _get_connect()
+    try:
+        connection = connect(**args)
+        try:
+            cursor = connection.cursor()
+            try:
+                cursor.execute("SELECT current_user()")
+                return cursor.fetchone()[0]
+            finally:
+                cursor.close()
+        finally:
+            connection.close()
+    except QueryError:
+        raise
+    except Exception as err:
+        raise QueryError(f"could not read the Databricks user: {err}", code=2) from err
+
+
 def run_query(sql: str, settings: Settings, warehouse_id: str | None = None) -> tuple[pa.Table, str]:
     refs = denied_references(sql, settings.query_deny)
     if refs:
         raise DeniedQuery(refs)
-    warehouse = resolve_warehouse(warehouse_id)
-    host = _env("DATABRICKS_HOST").removeprefix("https://").removeprefix("http://").rstrip("/")
-    token = _env("DATABRICKS_TOKEN")
+    args = _connection_args(warehouse_id)
     connect = _get_connect()
     try:
-        connection = connect(server_hostname=host, http_path=f"/sql/1.0/warehouses/{warehouse}", access_token=token)
+        connection = connect(**args)
         try:
             cursor = connection.cursor()
             try:

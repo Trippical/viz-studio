@@ -3,6 +3,9 @@
 A self-hosted viewer over a folder in an object store. Agents and people publish
 charts and dashboards into that folder through a paved path; the site only reads.
 
+Setting it up at work (fresh clone, AWS, Databricks, deployment):
+[`docs/work-setup.md`](docs/work-setup.md).
+
 ## Trust assumptions, read these first
 
 - Publishing a chart or dashboard means sharing it with every person who can
@@ -37,11 +40,12 @@ charts and dashboards into that folder through a paved path; the site only reads
     viz move sales/emea/revenue sales/emea/revenue-monthly --yes
 
 The staging directory `./.viz-staging` mirrors the bucket, so `viz preview` is
-the real server pointed at it. `viz query` needs `pip install "viz-site[databricks]"`
-and `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_WAREHOUSE_ID`; nothing
+the real server pointed at it. `viz query` needs `pip install -e ".[databricks]"`
+(from a checkout) and `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_WAREHOUSE_ID`; nothing
 else in the package reads them. Publisher settings: `VIZ_AUTHOR` (overrides the
-AWS caller identity when set; the Databricks user from `viz query` always wins;
-author is attribution, not authentication), `VIZ_QUERY_DENY` (comma-separated
+AWS caller identity when set; the Databricks user from `viz query` always wins,
+and `viz validate` confirms it with Databricks when the `DATABRICKS_*` variables
+are set; author is attribution, not authentication), `VIZ_QUERY_DENY` (comma-separated
 catalogs or `catalog.schema` that `viz query` refuses), `VIZ_PII_PATTERN`,
 `VIZ_STAGING_DIR`. `--force` and `--yes` are flags only.
 
