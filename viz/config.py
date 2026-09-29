@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     root_prefix: str = "viz/"
     local_dir: Path = Path("./sample-bucket")
     tree_ttl_seconds: int = 60
-    allowed_hosts: str = "localhost,127.0.0.1,testserver"
+    allowed_hosts: str = "localhost,127.0.0.1"
     auth_header: str = "X-Forwarded-Email"
     max_document_bytes: int = 1_048_576
     web_dist: Path = Path("./web/dist")

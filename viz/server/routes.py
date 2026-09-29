@@ -33,7 +33,7 @@ def _document(loader, request: Request, doc_id: str) -> dict:
         raise HTTPException(status_code=422, detail={"errors": err.errors}) from err
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok"}
 

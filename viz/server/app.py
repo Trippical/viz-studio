@@ -1,10 +1,9 @@
 """FastAPI application factory."""
 from fastapi import FastAPI
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from ..config import Settings
 from ..storage import get_storage
-from .middleware import IdentityMiddleware, SecurityHeadersMiddleware
+from .middleware import IdentityMiddleware, SecurityHeadersMiddleware, TrustedHostExceptHealth
 from .routes import router
 from .static import mount_spa
 from .tree import TreeCache
@@ -22,9 +21,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Last added runs outermost. Order: SecurityHeaders -> TrustedHost -> Identity -> routes.
     # SecurityHeaders is outermost so every response leaving the app carries the
     # headers, including ones rejected by TrustedHost (400) and ones from an
-    # unhandled exception in the router.
+    # unhandled exception in the router. The Host check skips GET and HEAD /api/health only.
     app.add_middleware(IdentityMiddleware, header=settings.auth_header)
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)
+    app.add_middleware(TrustedHostExceptHealth, allowed_hosts=settings.allowed_hosts_list)
     app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(router, prefix="/api")

@@ -42,7 +42,7 @@ share the `VIZ_*` ones.
 | `VIZ_ROOT_PREFIX` | `viz/` | both | Key prefix everything lives under |
 | `VIZ_LOCAL_DIR` | `./sample-bucket` | both | Folder used when `VIZ_STORAGE=local` |
 | `VIZ_TREE_TTL_SECONDS` | `60` | server | How long the folder tree is cached |
-| `VIZ_ALLOWED_HOSTS` | `localhost,127.0.0.1,testserver` | server | Host names the site answers to; anything else gets 400. Must be set in deployment |
+| `VIZ_ALLOWED_HOSTS` | `localhost,127.0.0.1` | server | Host names the site answers to; anything else gets 400, except `GET` and `HEAD /api/health` (load balancer checks send the pod IP). Must be set in deployment |
 | `VIZ_AUTH_HEADER` | `X-Forwarded-Email` | server | Identity header from the SSO proxy (logged, not enforced) |
 | `VIZ_MAX_DOCUMENT_BYTES` | `1048576` | server | Largest chart.json or dashboard file served |
 | `VIZ_WEB_DIST` | `./web/dist` | server | Built front end |

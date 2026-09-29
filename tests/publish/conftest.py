@@ -33,6 +33,8 @@ def env(monkeypatch, bucket, staging_root):
     monkeypatch.setenv("VIZ_ROOT_PREFIX", "viz/")
     monkeypatch.setenv("VIZ_AUTHOR", "tester@example.com")
     monkeypatch.setenv("VIZ_STAGING_DIR", str(staging_root))
+    # "testserver" is the Host header FastAPI's TestClient sends; allowed in tests only.
+    monkeypatch.setenv("VIZ_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver")
     for name in ("VIZ_QUERY_DENY", "VIZ_PII_PATTERN", "VIZ_FORCE", "VIZ_S3_BUCKET"):
         monkeypatch.delenv(name, raising=False)
 

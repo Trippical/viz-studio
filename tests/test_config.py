@@ -17,7 +17,7 @@ def test_defaults(monkeypatch):
     assert s.root_prefix == "viz/"
     assert s.local_dir == Path("./sample-bucket")
     assert s.tree_ttl_seconds == 60
-    assert s.allowed_hosts_list == ["localhost", "127.0.0.1", "testserver"]
+    assert s.allowed_hosts_list == ["localhost", "127.0.0.1"]
     assert s.auth_header == "X-Forwarded-Email"
     assert s.max_document_bytes == 1048576
     assert s.host == "127.0.0.1"

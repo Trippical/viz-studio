@@ -4,7 +4,13 @@ import time
 
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+HEALTH_PATH = "/api/health"
+# Load balancers and kubelet probes use GET; some load balancers use HEAD.
+HEALTH_METHODS = ("GET", "HEAD")
 
 CSP = (
     "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; "
@@ -37,6 +43,27 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         for name, value in SECURITY_HEADERS.items():
             response.headers[name] = value
         return response
+
+
+class TrustedHostExceptHealth:
+    """The Host allow-list for every request except GET and HEAD /api/health.
+
+    Load balancer health checks (for example an AWS ALB in IP mode) send the pod IP as
+    the Host header, which is never in the allow-list. The health route returns a
+    constant and reads nothing, so it is answered before the Host check. Every other
+    path, including /api/health with any other method, goes through TrustedHostMiddleware.
+    """
+
+    def __init__(self, app: ASGIApp, allowed_hosts: list[str]):
+        self.app = app
+        self.checked = TrustedHostMiddleware(app, allowed_hosts=allowed_hosts)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if (scope["type"] == "http" and scope.get("method") in HEALTH_METHODS
+                and scope.get("path") == HEALTH_PATH):
+            await self.app(scope, receive, send)
+            return
+        await self.checked(scope, receive, send)
 
 
 class IdentityMiddleware(BaseHTTPMiddleware):

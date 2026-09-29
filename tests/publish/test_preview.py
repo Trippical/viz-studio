@@ -42,7 +42,7 @@ def test_preview_app_serves_the_staging_directory(env, staging_root):
 def test_preview_app_rejects_foreign_host(env, staging_root):
     app = build_preview_app(staging_root)
     client = TestClient(app, base_url="http://evil.example")
-    assert client.get("/api/health").status_code == 400
+    assert client.get("/api/tree").status_code == 400
 
 
 def test_preview_command_defaults_to_loopback(env, staging_root, monkeypatch):
