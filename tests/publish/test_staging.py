@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import date, datetime, timezone
 
@@ -6,6 +7,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from viz import schemas
+from viz.ids import data_file_name
 from viz.publish import staging
 from viz.publish.staging import (
     LaneError, StagedChart, chart_dir, column_summary, dashboard_path, default_spec, title_from_id,
@@ -49,11 +51,20 @@ def test_default_spec_without_numeric_column_uses_first_column():
     assert spec["encoding"]["y"] == {"field": "region", "type": "quantitative"}
 
 
+def _data_files(directory):
+    return sorted(p.name for p in directory.glob("data.*"))
+
+
+def _content_name(path, fmt):
+    return data_file_name(hashlib.sha256(path.read_bytes()).hexdigest(), fmt)
+
+
 def test_write_small_lane(tmp_path):
     staged = write_staged_chart(_table(), "sales/test-chart", tmp_path, author="tester@example.com", now=NOW)
     assert isinstance(staged, StagedChart)
     assert staged.dir == tmp_path / "charts" / "sales" / "test-chart"
-    assert staged.data_path.name == "data.json"
+    assert staged.data_path.name == _content_name(staged.data_path, "json")
+    assert _data_files(staged.dir) == [staged.data_path.name]
     assert staged.chart_path.name == "chart.json"
     doc = json.loads(staged.chart_path.read_text(encoding="utf-8"))
     assert doc == staged.doc
@@ -64,7 +75,8 @@ def test_write_small_lane(tmp_path):
     assert doc["created_at"] == doc["updated_at"] == "2026-09-22T10:00:00Z"
     assert doc["renderer"] == "vega-lite"
     assert doc["data"] == {
-        "format": "json", "lane": "small", "rows": 3, "bytes": staged.data_path.stat().st_size,
+        "format": "json", "file": staged.data_path.name, "lane": "small", "rows": 3,
+        "bytes": staged.data_path.stat().st_size,
         "columns": [{"name": "month", "type": "date"}, {"name": "region", "type": "string"}, {"name": "revenue", "type": "number"}],
     }
     assert doc["aggregate"] is None
@@ -83,7 +95,10 @@ def test_write_with_source(tmp_path):
 def test_large_lane_by_row_count(tmp_path, monkeypatch):
     monkeypatch.setattr(staging, "SMALL_MAX_ROWS", 2)
     staged = write_staged_chart(_table(3), "sales/big", tmp_path, author="a@b", now=NOW)
-    assert staged.data_path.name == "data.parquet"
+    assert staged.data_path.name == _content_name(staged.data_path, "parquet")
+    assert staged.doc["data"]["file"] == staged.data_path.name
+    assert _data_files(staged.dir) == [staged.data_path.name]
+    assert not (staged.dir / staging.PARQUET_TMP_NAME).exists()
     assert staged.doc["data"]["format"] == "parquet"
     assert staged.doc["data"]["lane"] == "large"
     assert staged.doc["data"]["rows"] == 3
@@ -96,7 +111,7 @@ def test_large_lane_by_row_count(tmp_path, monkeypatch):
 def test_large_lane_by_byte_size(tmp_path, monkeypatch):
     monkeypatch.setattr(staging, "SMALL_MAX_BYTES", 10)
     staged = write_staged_chart(_table(), "sales/big-bytes", tmp_path, author="a@b", now=NOW)
-    assert staged.data_path.name == "data.parquet"
+    assert staged.data_path.name.endswith(".parquet")
 
 
 def test_parquet_over_cap_is_refused_and_cleaned_up(tmp_path, monkeypatch):
@@ -104,8 +119,10 @@ def test_parquet_over_cap_is_refused_and_cleaned_up(tmp_path, monkeypatch):
     monkeypatch.setattr(staging, "LARGE_MAX_BYTES", 10)
     with pytest.raises(LaneError, match="209715200|10 bytes"):
         write_staged_chart(_table(), "sales/too-big", tmp_path, author="a@b", now=NOW)
-    assert not (tmp_path / "charts" / "sales" / "too-big" / "data.parquet").exists()
-    assert not (tmp_path / "charts" / "sales" / "too-big" / "chart.json").exists()
+    directory = tmp_path / "charts" / "sales" / "too-big"
+    assert _data_files(directory) == []
+    assert not (directory / staging.PARQUET_TMP_NAME).exists()
+    assert not (directory / "chart.json").exists()
 
 
 def test_restaging_removes_the_other_format(tmp_path, monkeypatch):
@@ -113,8 +130,22 @@ def test_restaging_removes_the_other_format(tmp_path, monkeypatch):
     write_staged_chart(_table(), "sales/again", tmp_path, author="a@b", now=NOW)
     monkeypatch.setattr(staging, "SMALL_MAX_ROWS", 100)
     staged = write_staged_chart(_table(), "sales/again", tmp_path, author="a@b", now=NOW)
-    assert staged.data_path.name == "data.json"
-    assert not (staged.dir / "data.parquet").exists()
+    assert staged.data_path.name.endswith(".json")
+    assert _data_files(staged.dir) == [staged.data_path.name]
+
+
+def test_restaging_other_rows_replaces_the_data_file(tmp_path):
+    first = write_staged_chart(_table(2), "sales/again", tmp_path, author="a@b", now=NOW)
+    second = write_staged_chart(_table(3), "sales/again", tmp_path, author="a@b", now=NOW)
+    assert first.data_path.name != second.data_path.name
+    assert _data_files(second.dir) == [second.data_path.name]
+    assert json.loads(second.chart_path.read_text(encoding="utf-8"))["data"]["file"] == second.data_path.name
+
+
+def test_file_sha256_matches_hashlib(tmp_path):
+    path = tmp_path / "blob"
+    path.write_bytes(b"x" * (staging.HASH_CHUNK + 7))
+    assert staging.file_sha256(path) == hashlib.sha256(b"x" * (staging.HASH_CHUNK + 7)).hexdigest()
 
 
 def test_empty_table_is_refused(tmp_path):
@@ -124,13 +155,14 @@ def test_empty_table_is_refused(tmp_path):
 
 def test_failed_restage_leaves_no_dangling_chart_json(tmp_path, monkeypatch):
     staged = write_staged_chart(_table(), "sales/restage", tmp_path, author="tester@example.com", now=NOW)
-    assert staged.data_path.name == "data.json" and staged.chart_path.is_file()
+    assert staged.data_path.name.endswith(".json") and staged.chart_path.is_file()
     monkeypatch.setattr(staging, "SMALL_MAX_ROWS", 0)
     monkeypatch.setattr(staging, "LARGE_MAX_BYTES", 10)
     with pytest.raises(LaneError):
         write_staged_chart(_table(), "sales/restage", tmp_path, author="tester@example.com", now=NOW)
     assert not (staged.dir / "chart.json").exists()
-    assert not (staged.dir / "data.parquet").exists()
+    assert not list(staged.dir.glob("data.*.parquet"))
+    assert not (staged.dir / staging.PARQUET_TMP_NAME).exists()
 
 
 def test_column_summary(tmp_path):

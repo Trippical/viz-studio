@@ -20,6 +20,7 @@
   },
   "data": {
     "format": "json",
+    "file": "data.0123456789abcdef.json",
     "lane": "small",
     "rows": 144,
     "bytes": 9000,

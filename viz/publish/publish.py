@@ -40,6 +40,17 @@ def _guard_overwrite(storage: Storage, key: str, force: bool, out) -> None:
     print(f"overwriting: author {author}, updated_at {updated}", file=out)
 
 
+def _delete_other_data_files(storage: Storage, root: str, chart_id: str, keep: set[str]) -> None:
+    """Delete every data.* object directly under charts/<id>/ whose name is not in keep.
+    Keys one level deeper belong to another chart id and are never touched."""
+    prefix = f"{root}charts/{chart_id}/"
+    for info in storage.list(prefix):
+        name = info.key[len(prefix):]
+        if "/" in name or not name.startswith("data.") or name in keep:
+            continue
+        storage.delete(info.key)
+
+
 def publish_chart(chart_dir: Path, settings: Settings, storage: Storage, force: bool = False,
                   allow_row_level: bool = False, out=None) -> str:
     out = sys.stdout if out is None else out
@@ -50,14 +61,14 @@ def publish_chart(chart_dir: Path, settings: Settings, storage: Storage, force: 
     doc, _ = read_document(chart_dir / "chart.json")
     chart_id = doc["id"]
     fmt = doc["data"]["format"]
+    file_name = doc["data"]["file"]
     root = settings.root_prefix
     key = chart_key(root, chart_id)
     _guard_overwrite(storage, key, force, out)
 
-    storage.put(data_key(root, chart_id, fmt), (chart_dir / f"data.{fmt}").read_bytes(), MEDIA_TYPES[fmt])
+    storage.put(data_key(root, chart_id, file_name), (chart_dir / file_name).read_bytes(), MEDIA_TYPES[fmt])
     storage.put(key, (chart_dir / "chart.json").read_bytes(), "application/json")
-    other = "parquet" if fmt == "json" else "json"
-    storage.delete(data_key(root, chart_id, other))
+    _delete_other_data_files(storage, root, chart_id, keep={file_name})
     print(f"published: {chart_id}", file=out)
     return chart_id
 

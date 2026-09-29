@@ -8,13 +8,13 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ..config import Settings
-from ..ids import chart_key, is_ancestor
+from ..ids import chart_key, data_file_name, is_ancestor
 from ..schemas import SchemaError, validate_chart, validate_dashboard
 from ..storage import NotFound, Storage
 from .identity import check_author
 from .query import QueryError, current_user, databricks_configured
 from .infer import UnsupportedColumn, infer_columns, table_from_file
-from .staging import LARGE_MAX_BYTES, SMALL_MAX_BYTES, SMALL_MAX_ROWS
+from .staging import LARGE_MAX_BYTES, SMALL_MAX_BYTES, SMALL_MAX_ROWS, file_sha256
 
 DUCKDB_LOCKDOWN = (
     "SET autoinstall_known_extensions=false",
@@ -130,10 +130,16 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
         errors.append(f"id: chart.json says '{doc['id']}' but the directory is '{implied}'")
 
     data = doc["data"]
-    fmt, lane = data["format"], data["lane"]
-    data_path = chart_dir / f"data.{fmt}"
+    fmt, lane, file_name = data["format"], data["lane"], data["file"]
+    data_path = chart_dir / file_name
     if not data_path.is_file():
-        return errors + [f"data.{fmt}: not found"]
+        return errors + [f"{file_name}: not found"]
+    expected_name = data_file_name(file_sha256(data_path), fmt)
+    if expected_name != file_name:
+        errors.append(f"data.file: '{file_name}' does not match the file's SHA-256; it should be named '{expected_name}'")
+    others = sorted(p.name for p in chart_dir.glob("data.*") if p.name != file_name)
+    if others:
+        errors.append(f"data: the staged directory holds other data files ({', '.join(others)}); keep only '{file_name}'")
     size = data_path.stat().st_size
     if size != data["bytes"]:
         errors.append(f"data.bytes: declared {data['bytes']}, file is {size} bytes")
@@ -142,20 +148,20 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
         try:
             table = table_from_file(data_path)
         except (UnsupportedColumn, ValueError) as err:
-            return errors + [f"data.json: {err}"]
+            return errors + [f"{file_name}: {err}"]
         rows = len(table)
     else:
         try:
             rows = pq.read_metadata(data_path).num_rows
             table = pq.read_table(data_path)
         except (pa.ArrowException, OSError, ValueError) as err:
-            return errors + [f"data.parquet: {err}"]
+            return errors + [f"{file_name}: {err}"]
     if rows != data["rows"]:
         errors.append(f"data.rows: declared {data['rows']}, file has {rows}")
     try:
         errors += _compare_columns(data["columns"], infer_columns(table))
     except UnsupportedColumn as err:
-        errors.append(f"data.{fmt}: {err}")
+        errors.append(f"{file_name}: {err}")
 
     if lane == "small" and (rows > SMALL_MAX_ROWS or size > SMALL_MAX_BYTES):
         errors.append(f"data: small lane allows at most {SMALL_MAX_ROWS} rows and {SMALL_MAX_BYTES} bytes")

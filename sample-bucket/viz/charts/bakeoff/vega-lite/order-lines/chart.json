@@ -45,6 +45,7 @@
   },
   "data": {
     "format": "parquet",
+    "file": "data.7c630b5685d6ce49.parquet",
     "lane": "large",
     "rows": 200000,
     "bytes": 558311,

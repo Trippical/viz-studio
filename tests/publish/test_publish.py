@@ -45,9 +45,10 @@ def test_publish_chart_puts_data_then_document(settings, bucket, staging_root, c
     storage = RecordingStorage(bucket)
     staged = _staged(staging_root)
     assert publish_chart(staged.dir, settings, storage) == "sales/new-chart"
-    assert storage.puts == ["viz/charts/sales/new-chart/data.json", "viz/charts/sales/new-chart/chart.json"]
+    data_key = f"viz/charts/sales/new-chart/{staged.doc['data']['file']}"
+    assert storage.puts == [data_key, "viz/charts/sales/new-chart/chart.json"]
     assert json.loads(storage.get("viz/charts/sales/new-chart/chart.json")) == staged.doc
-    assert storage.get("viz/charts/sales/new-chart/data.json") == staged.data_path.read_bytes()
+    assert storage.get(data_key) == staged.data_path.read_bytes()
     assert capsys.readouterr().out.strip() == "published: sales/new-chart"
 
     r = TestClient(create_app(settings)).get("/api/charts/sales/new-chart")
@@ -74,15 +75,14 @@ def test_publish_refuses_overwrite_without_force(settings, storage, staging_root
     assert "overwriting: author tester@example.com, updated_at 2026-09-22T10:00:00Z" in out
 
 
-def test_publish_removes_stale_data_of_the_other_format(settings, storage, staging_root, monkeypatch):
-    monkeypatch.setattr(staging, "SMALL_MAX_ROWS", 0)
-    big = _staged(staging_root)
-    publish_chart(big.dir, settings, storage, allow_row_level=True)
-    storage.head("viz/charts/sales/new-chart/data.parquet")
-    monkeypatch.setattr(staging, "SMALL_MAX_ROWS", 100_000)
-    small = _staged(staging_root)
-    publish_chart(small.dir, settings, storage, force=True)
-    storage.head("viz/charts/sales/new-chart/data.json")
+def test_publish_removes_legacy_data_files(settings, storage, staging_root):
+    storage.put("viz/charts/sales/new-chart/data.json", b"[]", "application/json")
+    storage.put("viz/charts/sales/new-chart/data.parquet", b"PAR1", "application/octet-stream")
+    staged = _staged(staging_root)
+    publish_chart(staged.dir, settings, storage)
+    storage.head(f"viz/charts/sales/new-chart/{staged.doc['data']['file']}")
+    with pytest.raises(NotFound):
+        storage.head("viz/charts/sales/new-chart/data.json")
     with pytest.raises(NotFound):
         storage.head("viz/charts/sales/new-chart/data.parquet")
 

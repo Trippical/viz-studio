@@ -7,6 +7,7 @@
   "spec": {"value": "revenue", "agg": "sum", "format": "$,.0f", "compare": {"column": "orders", "agg": "sum"}},
   "data": {
     "format": "json",
+    "file": "data.fedcba9876543210.json",
     "lane": "small",
     "rows": 144,
     "bytes": 9000,

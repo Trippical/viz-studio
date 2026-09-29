@@ -1,7 +1,9 @@
+import hashlib
 import json
 from pathlib import Path
 
 from viz import schemas
+from viz.ids import data_file_name
 
 ROOT = Path(__file__).resolve().parents[1] / "sample-bucket" / "viz"
 
@@ -23,7 +25,7 @@ def test_every_chart_validates_and_matches_its_data():
         assert doc["author"] == "sample@example.com"
         if "source" in doc:
             assert doc["source"]["warehouse_id"] == "sample"
-        data_path = path.parent / f"data.{doc['data']['format']}"
+        data_path = path.parent / doc["data"]["file"]
         assert data_path.is_file()
         assert data_path.stat().st_size == doc["data"]["bytes"]
         declared = {c["name"] for c in doc["data"]["columns"]}
@@ -87,8 +89,18 @@ def test_bakeoff_samples_exist_for_every_renderer():
 
 def test_parquet_sample_is_under_the_large_lane_cap():
     for renderer in RENDERERS:
-        path = ROOT / "charts" / "bakeoff" / renderer / "order-lines" / "data.parquet"
-        assert path.stat().st_size < 209715200
+        chart_dir = ROOT / "charts" / "bakeoff" / renderer / "order-lines"
+        doc = json.loads((chart_dir / "chart.json").read_text(encoding="utf-8"))
+        assert (chart_dir / doc["data"]["file"]).stat().st_size < 209715200
+
+
+def test_every_chart_directory_holds_exactly_its_content_addressed_data_file():
+    for path in _docs("charts", "chart.json"):
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        name = doc["data"]["file"]
+        digest = hashlib.sha256((path.parent / name).read_bytes()).hexdigest()
+        assert name == data_file_name(digest, doc["data"]["format"]), path
+        assert sorted(p.name for p in path.parent.glob("data.*")) == [name], path
 
 
 SKILL_EXAMPLES = Path(__file__).resolve().parents[1] / "skills" / "publish-viz" / "examples"

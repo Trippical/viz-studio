@@ -19,9 +19,10 @@
     "data": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["format", "lane", "rows", "bytes", "columns"],
+      "required": ["format", "file", "lane", "rows", "bytes", "columns"],
       "properties": {
         "format": {"enum": ["json", "parquet"]},
+        "file": {"type": "string", "pattern": "^data[.][0-9a-f]{16}[.](json|parquet)$"},
         "lane": {"enum": ["small", "large"]},
         "rows": {"type": "integer", "minimum": 0},
         "bytes": {"type": "integer", "minimum": 0},
@@ -74,6 +75,14 @@
           "aggregate": {"type": "string", "minLength": 1}
         }
       }
+    },
+    {
+      "if": {"properties": {"data": {"properties": {"format": {"const": "json"}}}}},
+      "then": {"properties": {"data": {"properties": {"file": {"pattern": "[.]json$"}}}}}
+    },
+    {
+      "if": {"properties": {"data": {"properties": {"format": {"const": "parquet"}}}}},
+      "then": {"properties": {"data": {"properties": {"file": {"pattern": "[.]parquet$"}}}}}
     },
     {
       "if": {"properties": {"renderer": {"const": "stat"}}},

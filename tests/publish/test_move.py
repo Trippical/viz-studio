@@ -9,12 +9,17 @@ from viz.server.app import create_app
 from viz.storage import NotFound
 
 
+def _data_file(storage, chart_id):
+    return json.loads(storage.get(f"viz/charts/{chart_id}/chart.json"))["data"]["file"]
+
+
 def test_plan_chart_move(settings, storage):
+    name = _data_file(storage, "sales/revenue-by-region")
     plan = plan_move("sales/revenue-by-region", "sales/emea/revenue", settings, storage)
     assert isinstance(plan, MovePlan)
     assert plan.kind == "chart"
     assert plan.keys == [
-        ("viz/charts/sales/revenue-by-region/data.json", "viz/charts/sales/emea/revenue/data.json"),
+        (f"viz/charts/sales/revenue-by-region/{name}", f"viz/charts/sales/emea/revenue/{name}"),
         ("viz/charts/sales/revenue-by-region/chart.json", "viz/charts/sales/emea/revenue/chart.json"),
     ]
     assert plan.affected_dashboards == ["sales/overview"]
@@ -25,17 +30,19 @@ def test_plan_chart_move(settings, storage):
 
 def test_apply_chart_move_rewrites_dashboards(settings, storage):
     before = json.loads(storage.get("viz/dashboards/sales/overview.json"))
+    name = _data_file(storage, "sales/revenue-by-region")
     plan = plan_move("sales/revenue-by-region", "sales/emea/revenue", settings, storage)
     apply_move(plan, settings, storage)
 
     doc = json.loads(storage.get("viz/charts/sales/emea/revenue/chart.json"))
     assert doc["id"] == "sales/emea/revenue"
     assert doc["updated_at"] != before["updated_at"]
-    storage.head("viz/charts/sales/emea/revenue/data.json")
+    assert doc["data"]["file"] == name  # the data file keeps its content-addressed name
+    storage.head(f"viz/charts/sales/emea/revenue/{name}")
     with pytest.raises(NotFound):
         storage.head("viz/charts/sales/revenue-by-region/chart.json")
     with pytest.raises(NotFound):
-        storage.head("viz/charts/sales/revenue-by-region/data.json")
+        storage.head(f"viz/charts/sales/revenue-by-region/{name}")
 
     after = json.loads(storage.get("viz/dashboards/sales/overview.json"))
     assert [t.get("chart") for t in after["layout"]] == ["sales/emea/revenue", "sales/total-revenue", None]

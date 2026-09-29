@@ -57,7 +57,7 @@ def test_truncated_parquet_in_validate_is_a_clean_error(env, staging_root, tmp_p
     from datetime import datetime, timezone
     staged = write_staged_chart(table, "sales/large", staging_root, author="tester@example.com",
                                  now=datetime(2026, 9, 22, 10, 0, 0, tzinfo=timezone.utc))
-    assert staged.data_path.name == "data.parquet"
+    assert staged.data_path.name.endswith(".parquet")
     staged.data_path.write_bytes(b"0123456789")
     code = main(["validate", str(staged.dir)])
     _assert_clean_error(capsys.readouterr().err, code, 1)
