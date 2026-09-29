@@ -28,6 +28,9 @@ def _chart_node(storage, settings, chart_id: str) -> dict:
         return {"type": "chart", "id": chart_id, "error": "not found"}
     except (SchemaError, DocumentTooLarge) as err:
         return {"type": "chart", "id": chart_id, "error": str(err)}
+    except Exception as err:  # noqa: BLE001 - one unreadable object must not take down the tree
+        _log.warning("could not load chart %s: %r", chart_id, err)
+        return {"type": "chart", "id": chart_id, "error": f"could not load ({type(err).__name__})"}
     return {
         "type": "chart", "id": chart_id, "title": doc["title"], "description": doc.get("description"),
         "tags": doc.get("tags", []), "renderer": doc["renderer"], "lane": doc["data"]["lane"],
@@ -45,6 +48,9 @@ def _dashboard_node(storage, settings, dashboard_id: str) -> dict:
         return {"type": "dashboard", "id": dashboard_id, "error": "not found"}
     except (SchemaError, DocumentTooLarge) as err:
         return {"type": "dashboard", "id": dashboard_id, "error": str(err)}
+    except Exception as err:  # noqa: BLE001 - one unreadable object must not take down the tree
+        _log.warning("could not load dashboard %s: %r", dashboard_id, err)
+        return {"type": "dashboard", "id": dashboard_id, "error": f"could not load ({type(err).__name__})"}
     return {
         "type": "dashboard", "id": dashboard_id, "title": doc["title"], "description": doc.get("description"),
         "tags": doc.get("tags", []), "controls": doc.get("controls", []), "updated_at": doc.get("updated_at"),
@@ -86,6 +92,10 @@ def _assemble(kind: str, storage, settings, items: list[dict], folder_paths: set
             meta = load_folder(storage, settings, kind, path)
         except (SchemaError, DocumentTooLarge) as err:
             node["error"] = str(err)
+            continue
+        except Exception as err:  # noqa: BLE001 - one unreadable object must not take down the tree
+            _log.warning("could not load folder metadata %s/%s: %r", kind, path, err)
+            node["error"] = f"could not load ({type(err).__name__})"
             continue
         if meta:
             node["title"] = meta.get("title")

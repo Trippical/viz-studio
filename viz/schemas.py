@@ -12,6 +12,11 @@ _CANDIDATE_DIRS = (
     Path(__file__).resolve().parents[1] / "schemas",
 )
 
+# Deeper documents are refused before JSON Schema runs: the validator and the spec
+# walks below recurse once per level, and a few hundred levels of nested arrays
+# raise RecursionError. Real Vega-Lite specs stay far below this.
+MAX_NESTING_DEPTH = 64
+
 
 class SchemaError(ValueError):
     def __init__(self, errors: list[str]):
@@ -30,6 +35,31 @@ def schema_dir() -> Path:
 def _validator(name: str) -> Draft202012Validator:
     schema = json.loads((schema_dir() / f"{name}.schema.json").read_text(encoding="utf-8"))
     return Draft202012Validator(schema, format_checker=FormatChecker())
+
+
+def nesting_depth_exceeds(doc: Any, limit: int = MAX_NESTING_DEPTH) -> bool:
+    """True when objects and arrays nest deeper than limit. Iterative, so it cannot
+    itself overflow the stack. A scalar is depth 0; {"a": 1} and [1] are depth 1."""
+    stack = [(doc, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if isinstance(node, dict):
+            children = list(node.values())
+        elif isinstance(node, list):
+            children = node
+        else:
+            continue
+        if depth + 1 > limit:
+            return True
+        for child in children:
+            stack.append((child, depth + 1))
+    return False
+
+
+def _depth_errors(doc: Any) -> list[str]:
+    if nesting_depth_exceeds(doc):
+        return [f"$: nesting deeper than {MAX_NESTING_DEPTH} levels"]
+    return []
 
 
 def _schema_errors(name: str, doc: Any) -> list[str]:
@@ -91,6 +121,9 @@ _RENDERER_CHECKS = {
 
 
 def validate_chart(doc: Any) -> dict:
+    depth = _depth_errors(doc)
+    if depth:
+        raise SchemaError(depth)
     errors = _schema_errors("chart", doc)
     renderer = doc.get("renderer") if isinstance(doc, dict) else None
     if (
@@ -111,6 +144,9 @@ def validate_chart(doc: Any) -> dict:
 
 
 def validate_dashboard(doc: Any) -> dict:
+    depth = _depth_errors(doc)
+    if depth:
+        raise SchemaError(depth)
     errors = _schema_errors("dashboard", doc)
     if isinstance(doc, dict) and isinstance(doc.get("controls"), list):
         seen: set[str] = set()
@@ -126,6 +162,9 @@ def validate_dashboard(doc: Any) -> dict:
 
 
 def validate_folder(doc: Any) -> dict:
+    depth = _depth_errors(doc)
+    if depth:
+        raise SchemaError(depth)
     errors = _schema_errors("folder", doc)
     if errors:
         raise SchemaError(errors)

@@ -25,6 +25,8 @@ def _read(storage: Storage, settings: Settings, key: str) -> dict:
         return json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as err:
         raise SchemaError([f"$: invalid JSON ({err})"]) from err
+    except RecursionError as err:
+        raise SchemaError(["$: invalid JSON (nested too deeply)"]) from err
 
 
 def _load(storage, settings, key, validate: Callable[[dict], dict], expected_id: str) -> dict:

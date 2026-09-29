@@ -33,6 +33,8 @@ def read_document(path: Path) -> tuple[dict | None, list[str]]:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as err:
         return None, [f"{path.name}: invalid JSON ({err})"]
+    except RecursionError:
+        return None, [f"{path.name}: invalid JSON (nested too deeply)"]
     return doc, []
 
 
