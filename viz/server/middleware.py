@@ -1,4 +1,5 @@
-"""Security headers on every response, and the identity slot."""
+"""Security headers on every response, the Host allow-list, and the identity header:
+logged with every request and, when VIZ_REQUIRE_IDENTITY is on, required."""
 import logging
 import time
 
@@ -66,33 +67,40 @@ class TrustedHostExceptHealth:
         await self.checked(scope, receive, send)
 
 
-class IdentityMiddleware(BaseHTTPMiddleware):
-    """Reads the identity header set by an upstream SSO proxy. No-op without one.
+def _log_access(user: str | None, request: Request, status: int, started: float) -> None:
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    access_log.info(
+        "user=%s method=%s path=%s status=%s ms=%.1f",
+        user or "-", request.method, request.url.path, status, elapsed_ms,
+    )
 
-    This is the auth slot: a real deployment puts the site behind a proxy that
-    sets the header, and this middleware records it. Nothing here enforces.
+
+class IdentityMiddleware(BaseHTTPMiddleware):
+    """Reads the identity header set by the SSO proxy in front of the site and logs it
+    with every request (the viz.access log).
+
+    When `require` is true (VIZ_REQUIRE_IDENTITY), a request without a non-empty identity
+    header gets 401, except GET and HEAD /api/health. The header is trusted as-is: this
+    only works behind a proxy that sets it and strips any value the client sent.
     """
 
-    def __init__(self, app, header: str):
+    def __init__(self, app, header: str, require: bool = False):
         super().__init__(app)
         self.header = header
+        self.require = require
 
     async def dispatch(self, request: Request, call_next):
-        user = request.headers.get(self.header) or None
+        user = request.headers.get(self.header, "").strip() or None
         request.state.user = user
         started = time.perf_counter()
+        is_health = request.method in HEALTH_METHODS and request.url.path == HEALTH_PATH
+        if self.require and user is None and not is_health:
+            _log_access(user, request, 401, started)
+            return JSONResponse({"detail": "identity header required"}, status_code=401)
         try:
             response = await call_next(request)
         except Exception:
-            elapsed_ms = (time.perf_counter() - started) * 1000
-            access_log.info(
-                "user=%s method=%s path=%s status=%s ms=%.1f",
-                user or "-", request.method, request.url.path, 500, elapsed_ms,
-            )
+            _log_access(user, request, 500, started)
             raise
-        elapsed_ms = (time.perf_counter() - started) * 1000
-        access_log.info(
-            "user=%s method=%s path=%s status=%s ms=%.1f",
-            user or "-", request.method, request.url.path, response.status_code, elapsed_ms,
-        )
+        _log_access(user, request, response.status_code, started)
         return response

@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     tree_ttl_seconds: int = 60
     allowed_hosts: str = "localhost,127.0.0.1"
     auth_header: str = "X-Forwarded-Email"
+    # True in deployment (Helm sets it): every request except GET and HEAD /api/health
+    # needs a non-empty auth_header, or gets 401. False for local development and viz preview.
+    require_identity: bool = False
     max_document_bytes: int = 1_048_576
     web_dist: Path = Path("./web/dist")
     host: str = "127.0.0.1"

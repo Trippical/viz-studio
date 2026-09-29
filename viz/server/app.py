@@ -22,7 +22,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # SecurityHeaders is outermost so every response leaving the app carries the
     # headers, including ones rejected by TrustedHost (400) and ones from an
     # unhandled exception in the router. The Host check skips GET and HEAD /api/health only.
-    app.add_middleware(IdentityMiddleware, header=settings.auth_header)
+    app.add_middleware(IdentityMiddleware, header=settings.auth_header, require=settings.require_identity)
     app.add_middleware(TrustedHostExceptHealth, allowed_hosts=settings.allowed_hosts_list)
     app.add_middleware(SecurityHeadersMiddleware)
 
