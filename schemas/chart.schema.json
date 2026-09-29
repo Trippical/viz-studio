@@ -114,7 +114,7 @@
       "then": {
         "propertyNames": {
           "not": {
-            "enum": ["url", "href", "usermeta", "datasets", "link", "sublink", "graphic", "extraCssText", "appendTo", "className", "images", "mapbox", "map", "__proto__", "constructor", "prototype"]
+            "enum": ["url", "values", "href", "usermeta", "datasets", "__proto__", "constructor", "prototype"]
           }
         },
         "additionalProperties": {"$ref": "#/$defs/noForbiddenKeys"}
