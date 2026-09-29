@@ -4,13 +4,21 @@ from typing import Iterator
 import boto3
 from botocore.exceptions import ClientError
 
-from .base import NotFound, ObjectInfo
+from .base import NotFound, ObjectInfo, PreconditionFailed
 
 CHUNK = 1024 * 1024
 
 
 def _is_missing(err: ClientError) -> bool:
     return err.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound")
+
+
+def _is_precondition_failure(err: ClientError) -> bool:
+    """412 PreconditionFailed: the condition was false. 409 ConditionalRequestConflict:
+    another conditional write to the same key won the race."""
+    code = err.response.get("Error", {}).get("Code")
+    status = err.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    return code in ("PreconditionFailed", "ConditionalRequestConflict") or status == 412
 
 
 class S3Storage:
@@ -60,8 +68,23 @@ class S3Storage:
             raise
         yield from resp["Body"].iter_chunks(CHUNK)
 
-    def put(self, key: str, data: bytes, content_type: str) -> None:
-        self.client.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType=content_type)
+    def put(self, key: str, data: bytes, content_type: str, *, if_match: str | None = None,
+            if_none_match: bool = False) -> None:
+        if if_match is not None and if_none_match:
+            raise ValueError("pass if_match or if_none_match, not both")
+        kwargs = {"Bucket": self.bucket, "Key": key, "Body": data, "ContentType": content_type}
+        if if_none_match:
+            kwargs["IfNoneMatch"] = "*"
+        if if_match is not None:
+            kwargs["IfMatch"] = f'"{if_match}"'
+        try:
+            self.client.put_object(**kwargs)
+        except ClientError as err:
+            if _is_precondition_failure(err):
+                raise PreconditionFailed(key) from err
+            if if_match is not None and _is_missing(err):
+                raise PreconditionFailed(key) from err  # deleted since the caller read its ETag
+            raise
 
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=key)

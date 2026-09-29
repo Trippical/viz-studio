@@ -1,10 +1,10 @@
 """Pick a storage backend from settings."""
 from ..config import Settings
-from .base import NotFound, ObjectInfo, Storage
+from .base import NotFound, ObjectInfo, PreconditionFailed, Storage
 from .local import LocalStorage
 from .s3 import S3Storage
 
-__all__ = ["NotFound", "ObjectInfo", "Storage", "get_storage"]
+__all__ = ["NotFound", "ObjectInfo", "PreconditionFailed", "Storage", "get_storage"]
 
 
 def get_storage(settings: Settings) -> Storage:

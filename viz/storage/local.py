@@ -1,15 +1,33 @@
 """Filesystem backend. The root directory is the bucket."""
+import hashlib
 import logging
 import os
 import shutil
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-from .base import NotFound, ObjectInfo
+from .base import NotFound, ObjectInfo, PreconditionFailed
 
 CHUNK = 1024 * 1024
 _log = logging.getLogger("viz.storage")
+
+# One lock for every LocalStorage in this process: a conditional put checks the
+# current ETag and writes under it, so two threads cannot both pass the check.
+# It does not protect against a second process; the local backend is for development.
+_PUT_LOCK = threading.Lock()
+
+
+def _md5_hex(path: Path) -> str:
+    digest = hashlib.md5()
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(CHUNK)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 class LocalStorage:
@@ -34,7 +52,7 @@ class LocalStorage:
         return ObjectInfo(
             key=key,
             size=st.st_size,
-            etag=f"{st.st_size:x}-{st.st_mtime_ns:x}",
+            etag=_md5_hex(path),
             last_modified=datetime.fromtimestamp(st.st_mtime, tz=timezone.utc),
         )
 
@@ -84,12 +102,20 @@ class LocalStorage:
                 remaining -= len(chunk)
                 yield chunk
 
-    def put(self, key: str, data: bytes, content_type: str) -> None:
+    def put(self, key: str, data: bytes, content_type: str, *, if_match: str | None = None,
+            if_none_match: bool = False) -> None:
+        if if_match is not None and if_none_match:
+            raise ValueError("pass if_match or if_none_match, not both")
         path = self._path(key)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(path.name + ".tmp")
-        tmp.write_bytes(data)
-        os.replace(tmp, path)
+        with _PUT_LOCK:
+            if if_none_match and path.is_file():
+                raise PreconditionFailed(key)
+            if if_match is not None and (not path.is_file() or _md5_hex(path) != if_match):
+                raise PreconditionFailed(key)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(path.name + ".tmp")
+            tmp.write_bytes(data)
+            os.replace(tmp, path)
 
     def delete(self, key: str) -> None:
         path = self._path(key)
