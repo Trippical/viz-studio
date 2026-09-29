@@ -243,3 +243,24 @@ def test_validate_command(env, staging_root, capsys):
 
     assert main(["validate", str(staging_root / "nowhere")]) == 2
     assert "error: path not found" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("chart_id", ["team/charts/revenue", "charts/revenue", "team/dashboards/revenue"])
+def test_chart_id_with_a_charts_or_dashboards_segment_validates(settings, storage, staging_root, chart_id):
+    staged = _staged(staging_root, chart_id=chart_id)
+    assert validate_staged_chart(staged.dir, settings, storage) == []
+
+
+@pytest.mark.parametrize("dashboard_id", ["team/dashboards/board", "dashboards/board", "team/charts/board"])
+def test_dashboard_id_with_a_charts_or_dashboards_segment_validates(settings, storage, staging_root, dashboard_id):
+    path = _write_dashboard(staging_root, _dashboard(dashboard_id=dashboard_id), name=dashboard_id)
+    assert validate_dashboard_file(path, settings, storage) == []
+
+
+def test_mismatch_under_a_charts_segment_still_reports_the_directory(settings, storage, staging_root):
+    staged = _staged(staging_root, chart_id="team/charts/one")
+    doc = dict(staged.doc)
+    doc["id"] = "team/charts/two"
+    _rewrite(staged, doc)
+    errors = validate_staged_chart(staged.dir, settings, storage)
+    assert "id: chart.json says 'team/charts/two' but the directory is 'one'" in errors

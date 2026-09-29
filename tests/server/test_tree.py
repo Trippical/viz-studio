@@ -91,6 +91,29 @@ def test_prefix_conflict_marks_both(storage, settings):
     assert set(child) == {"type", "id", "error"}
 
 
+def test_dashboard_ids_a_and_a_slash_b_coexist(storage, settings):
+    doc = json.loads(storage.get("viz/dashboards/sales/overview.json"))
+    doc["id"] = "sales"
+    storage.put("viz/dashboards/sales.json", json.dumps(doc).encode(), "application/json")
+    tree = build_tree(storage, settings)
+    top = next(i for i in tree["dashboards"]["items"] if i["id"] == "sales")
+    assert "error" not in top
+    assert top["title"] == "Sales overview"
+    child = next(i for i in _find_folder(tree["dashboards"], "sales")["items"] if i["id"] == "sales/overview")
+    assert "error" not in child
+
+
+def test_tree_accepts_ids_with_a_charts_segment(storage, settings):
+    doc = json.loads(storage.get("viz/charts/sales/total-revenue/chart.json"))
+    doc["id"] = "team/charts/revenue"
+    storage.put("viz/charts/team/charts/revenue/chart.json", json.dumps(doc).encode(), "application/json")
+    tree = build_tree(storage, settings)
+    charts_folder = _find_folder(_find_folder(tree["charts"], "team"), "charts")
+    node = charts_folder["items"][0]
+    assert node["id"] == "team/charts/revenue"
+    assert "error" not in node
+
+
 def test_document_deleted_between_list_and_load_becomes_error_node(storage, settings, monkeypatch):
     real_get = storage.get
     real_head = storage.head

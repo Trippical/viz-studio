@@ -134,9 +134,11 @@ def build_tree(storage: Storage, settings: Settings) -> dict:
             dashboard_ids.append(rel[: -len(".json")])
 
     charts = [_chart_node(storage, settings, cid) for cid in chart_ids]
+    # Chart ids `a` and `a/b` conflict: charts/a/ would hold both a's files and the
+    # folder of b. Dashboards have no such problem (dashboards/a.json and
+    # dashboards/a/b.json are separate keys), so they get no conflict check.
     _mark_conflicts(charts)
     dashboards = [_dashboard_node(storage, settings, did) for did in dashboard_ids]
-    _mark_conflicts(dashboards)
 
     return {
         "charts": _assemble("charts", storage, settings, charts, chart_folders),

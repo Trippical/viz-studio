@@ -52,14 +52,23 @@ def conflicting_ids(chart_id: str, existing: list[str]) -> list[str]:
     return sorted(e for e in existing if e != chart_id and (is_ancestor(chart_id, e) or is_ancestor(e, chart_id)))
 
 
-def _id_from_path(path: Path, kind: str) -> str | None:
-    """The id implied by a path under a `charts` or `dashboards` directory, or None."""
+def _id_from_path(path: Path, kind: str, doc_id: str) -> str | None:
+    """The id implied by a path under a `charts` or `dashboards` directory, or None.
+
+    doc_id is the id the document declares. When the path ends with <kind>/<doc_id>,
+    that is the answer, even if doc_id itself has a `charts` or `dashboards` segment
+    (for example `team/charts/revenue`). Otherwise the id is everything after the
+    last <kind> directory, which is what the error message reports."""
     parts = list(Path(path).parts)
+    if kind == "dashboards" and parts and parts[-1].endswith(".json"):
+        parts[-1] = parts[-1][:-5]
+    id_parts = doc_id.split("/")
+    n = len(id_parts)
+    if len(parts) > n and parts[-n:] == id_parts and parts[-n - 1] == kind:
+        return doc_id
     if kind not in parts:
         return None
     tail = parts[len(parts) - parts[::-1].index(kind):]
-    if kind == "dashboards" and tail and tail[-1].endswith(".json"):
-        tail[-1] = tail[-1][:-5]
     return "/".join(tail) if tail else None
 
 
@@ -127,7 +136,7 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
     except SchemaError as err:
         return [f"chart.json: {e}" for e in err.errors]
 
-    implied = _id_from_path(chart_dir, "charts")
+    implied = _id_from_path(chart_dir, "charts", doc["id"])
     if implied is not None and implied != doc["id"]:
         errors.append(f"id: chart.json says '{doc['id']}' but the directory is '{implied}'")
 
@@ -191,7 +200,7 @@ def validate_dashboard_file(path: Path, settings: Settings, storage: Storage) ->
         validate_dashboard(doc)
     except SchemaError as err:
         return [f"dashboard: {e}" for e in err.errors]
-    implied = _id_from_path(path, "dashboards")
+    implied = _id_from_path(path, "dashboards", doc["id"])
     if implied is not None and implied != doc["id"]:
         errors.append(f"id: dashboard says '{doc['id']}' but the file is '{implied}'")
     for i, tile in enumerate(doc["layout"]):
