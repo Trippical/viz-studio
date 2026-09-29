@@ -19,7 +19,7 @@ vi.mock('../renderers', () => ({ getAdapter: () => mocks.adapter }));
 const chart: Chart = {
   schema_version: 1, id: 'sales/revenue', title: 'Revenue', description: 'Monthly *revenue*.', renderer: 'vega-lite',
   spec: { data: { name: 'data' }, mark: 'line' },
-  data: { format: 'json', lane: 'small', rows: 1, bytes: 1, columns: [{ name: 'month', type: 'date' }, { name: 'revenue', type: 'number' }] },
+  data: { format: 'json', file: 'data.0123456789abcdef.json', lane: 'small', rows: 1, bytes: 1, columns: [{ name: 'month', type: 'date' }, { name: 'revenue', type: 'number' }] },
   aggregate: null,
   source: { kind: 'databricks-sql', sql: 'SELECT month, revenue FROM t', show_sql: true, schedule: '0 6 * * *' },
 };

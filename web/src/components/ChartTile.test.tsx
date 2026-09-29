@@ -36,6 +36,7 @@ const chart: Chart = {
   spec: { data: { name: 'data' }, mark: 'line' },
   data: {
     format: 'json',
+    file: 'data.0123456789abcdef.json',
     lane: 'small',
     rows: 2,
     bytes: 10,

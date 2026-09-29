@@ -33,7 +33,7 @@ const columns = [
 const chart: Chart = {
   schema_version: 1, id: 'sales/revenue', title: 'Revenue', renderer: 'vega-lite',
   spec: { data: { name: 'data' }, mark: 'line' },
-  data: { format: 'json', lane: 'small', rows: 2, bytes: 1, columns }, aggregate: null,
+  data: { format: 'json', file: 'data.0123456789abcdef.json', lane: 'small', rows: 2, bytes: 1, columns }, aggregate: null,
 };
 const stat: Chart = { ...chart, id: 'sales/total', title: 'Total', renderer: 'stat', spec: { value: 'revenue', agg: 'sum' } };
 const rows = [
