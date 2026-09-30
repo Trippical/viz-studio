@@ -158,3 +158,20 @@ def test_readme_creates_the_key_before_the_roles_and_the_key_policy_after():
     assert text.index("aws iam create-role --role-name viz-site-publisher") < text.index("aws kms put-key-policy")
     for name in ("key-policy.json", "publisher-trust-policy.json", "server-policy.json", "publisher-policy.json"):
         assert f"file://{name}" in text, name
+
+
+def test_publisher_trust_matches_sso_roles_with_and_without_a_region_segment():
+    # Fix round 1, item 4: older IAM Identity Center roles have no region in their path.
+    [statement] = _policy("publisher-trust-policy.json")["Statement"]
+    allowed = statement["Condition"]["ArnLike"]["aws:PrincipalArn"]
+    assert "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_REPLACE_ME-publishers_*" in allowed
+    assert "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_REPLACE_ME-publishers_*" in allowed
+    readme = " ".join((AWS / "README.md").read_text(encoding="utf-8").split())
+    assert "no region segment" in readme
+
+
+def test_readme_limits_the_exemption_advice_to_sso_roles_that_publish_directly():
+    # Fix round 1, item 5.
+    readme = " ".join((AWS / "README.md").read_text(encoding="utf-8").split())
+    assert "If publishers sign in with a different role (for example an AWS SSO role), add its ARN to both exemptions." not in readme
+    assert "publish directly with that role instead of assuming `viz-site-publisher`" in readme

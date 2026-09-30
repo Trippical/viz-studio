@@ -47,9 +47,11 @@ Create one bucket for viz-site, in the same region as the cluster, then set:
   change what the site shows or erase an object's history, whatever its own
   IAM policy allows. Nobody else, including administrators, can read objects
   from outside the VPC endpoint, or write or delete objects at all; for
-  break-glass access, edit the bucket policy first. If publishers sign in
-  with a different role (for example an AWS SSO role), add its ARN to both
-  exemptions.
+  break-glass access, edit the bucket policy first. Publishers who sign in
+  with another role (for example an AWS SSO role) and assume
+  `viz-site-publisher` from it need no change here: the bucket sees the
+  publisher role. Only if they publish directly with that role instead of
+  assuming `viz-site-publisher`, add its ARN to both exemptions.
 
 ## 3. Roles
 
@@ -108,7 +110,14 @@ Helm value `serviceAccount.roleArn`.
 trusts your own account, limited by `aws:PrincipalArn` to the roles or users
 you list. The example lists an AWS SSO permission set named
 `REPLACE_ME-publishers`; SSO roles have generated names, hence the `*`
-wildcards. List the role of each group of people or agents that publishes,
+wildcards. It lists two patterns because the role's path differs: roles
+from IAM Identity Center in a region look like
+`role/aws-reserved/sso.amazonaws.com/<region>/AWSReservedSSO_<name>_<suffix>`,
+while older ones have no region segment:
+`role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_<name>_<suffix>`. This
+command prints the full ARNs of the SSO roles in the account, so you can see
+which pattern yours follows:
+`aws iam list-roles --path-prefix /aws-reserved/sso.amazonaws.com/ --query "Roles[].Arn" --output text` List the role of each group of people or agents that publishes,
 for example `arn:aws:iam::123456789012:role/REPLACE_ME-analyst-role`. Those
 principals also need `sts:AssumeRole` on the publisher role in their own
 IAM policy.

@@ -9,7 +9,8 @@
       "Condition": {
         "ArnLike": {
           "aws:PrincipalArn": [
-            "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_REPLACE_ME-publishers_*"
+            "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_REPLACE_ME-publishers_*",
+            "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_REPLACE_ME-publishers_*"
           ]
         }
       }
