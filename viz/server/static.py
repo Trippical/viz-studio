@@ -9,7 +9,8 @@ from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.staticfiles import StaticFiles
+
+from .compression import ImmutableStaticFiles
 
 
 def mount_spa(app: FastAPI, dist: Path) -> None:
@@ -17,7 +18,7 @@ def mount_spa(app: FastAPI, dist: Path) -> None:
     index = dist / "index.html"
     assets = dist / "assets"
     if assets.is_dir():
-        app.mount("/assets", StaticFiles(directory=assets), name="assets")
+        app.mount("/assets", ImmutableStaticFiles(directory=assets), name="assets")
 
     @app.exception_handler(StarletteHTTPException)
     async def spa_fallback(request: Request, exc: StarletteHTTPException):
