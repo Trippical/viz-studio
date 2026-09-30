@@ -31,7 +31,7 @@ def test_log_config_sends_viz_to_stderr_at_info():
 def test_main_passes_the_log_config_to_uvicorn(monkeypatch):
     calls = []
     monkeypatch.setattr(server_main.uvicorn, "run", lambda *args, **kwargs: calls.append(kwargs))
-    server_main.main()
+    server_main.main([])
     assert calls[0]["log_config"] == server_main.log_config()
     assert calls[0]["factory"] is True
 
