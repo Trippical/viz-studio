@@ -65,7 +65,37 @@ def _mark_conflicts(nodes: list[dict]) -> None:
             nodes[i] = {"type": node["type"], "id": node["id"], "error": f"id conflicts with {', '.join(sorted(others))}"}
 
 
+def _is_valid_id(value: str) -> bool:
+    try:
+        validate_id(value)
+    except InvalidId:
+        return False
+    return True
+
+
+def _valid_folder_paths(kind: str, folder_paths: set[str]) -> set[str]:
+    """Folder paths come from _folder.json keys in the bucket. Only valid ids are
+    nested into the tree; any other path is logged and skipped, so a very deep key
+    cannot exhaust recursion when the tree is built or serialized (adopter fix A4)."""
+    valid = set()
+    for path in folder_paths:
+        if path == "" or _is_valid_id(path):
+            valid.add(path)
+        else:
+            _log.warning("skipping folder metadata with an invalid path: %s/%.200s", kind, path)
+    return valid
+
+
+def _parent_path(item_id: str) -> str:
+    """The folder an item sits in. An item with an invalid id (already an error node)
+    sits at the root, so its unvalidated id is never used to nest folders."""
+    if "/" not in item_id or not _is_valid_id(item_id):
+        return ""
+    return item_id.rsplit("/", 1)[0]
+
+
 def _assemble(kind: str, storage, settings, items: list[dict], folder_paths: set[str]) -> dict:
+    folder_paths = _valid_folder_paths(kind, folder_paths)
     root = _folder_node("")
     index = {"": root}
 
@@ -82,8 +112,7 @@ def _assemble(kind: str, storage, settings, items: list[dict], folder_paths: set
     for path in sorted(folder_paths):
         folder_for(path)
     for item in items:
-        parent_path = item["id"].rsplit("/", 1)[0] if "/" in item["id"] else ""
-        folder_for(parent_path)["items"].append(item)
+        folder_for(_parent_path(item["id"]))["items"].append(item)
 
     for path, node in index.items():
         if path not in folder_paths and path != "":
