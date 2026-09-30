@@ -1,11 +1,12 @@
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ApiError, DataTooLarge, fetchChart, fetchRows } from '../api/client';
+import { ApiError, DataTooLarge, dataUrl, fetchChart, fetchRows } from '../api/client';
 import type { Chart, Row } from '../api/types';
 import { applyFilters, filterKey, isActive, type Filter } from '../data/filters';
 import { getAdapter } from '../renderers';
 import type { Adapter } from '../renderers/adapter';
 import { SanitizeError, isPlainObject } from '../renderers/common';
 import { ErrorCard } from './ErrorCard';
+import { formatDataAsOf } from './freshness';
 import { StatTile } from './StatTile';
 
 let duckdbModule: Promise<typeof import('../data/duckdb')> | null = null;
@@ -234,6 +235,11 @@ export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, 
   const appliedCount = activeFilters.length - ignored.length;
   const empty = !error && rendered && filtered !== null && filtered.length === 0;
 
+  // Finding A10: a text alternative for the canvas and a link to the data
+  // file; plus when the data was published (no refresher runs in v1).
+  const ariaLabel = chart ? (chart.description ? `${chart.title}. ${chart.description}` : chart.title) : chartId;
+  const asOf = formatDataAsOf(chart?.updated_at);
+
   const state = error ? 'error' : rendered ? 'ready' : 'loading';
   const columnNames = chart ? chart.data.columns.map((c) => c.name) : [];
 
@@ -254,7 +260,7 @@ export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, 
             <StatTile spec={chart.spec} rows={filtered} columns={columnNames} />
           </TileErrorBoundary>
         ) : (
-          <div className="tile-mount" ref={mountRef} />
+          <div className="tile-mount" ref={mountRef} role="img" aria-label={ariaLabel} />
         )}
         {!error && !rendered && <div className="muted tile-loading">Loading…</div>}
         {empty && <div className="tile-empty muted">{appliedCount > 0 ? 'No rows match the filters' : 'No rows'}</div>}
@@ -263,6 +269,12 @@ export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, 
         {ignored.map((f) => (
           <span key={f.controlId} className="badge tile-badge">{`not filtered by ${controlLabels?.[f.controlId] ?? f.controlId}`}</span>
         ))}
+        {asOf && <span className="muted tile-asof">{`Data as of ${asOf}`}</span>}
+        {chart && (
+          <a className="tile-download" href={dataUrl(chartId)} download>
+            Download data
+          </a>
+        )}
       </div>
     </div>
   );

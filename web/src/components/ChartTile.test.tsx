@@ -382,6 +382,48 @@ describe('ChartTile empty state and badges (A9)', () => {
   });
 });
 
+describe('ChartTile download, label and freshness (A10)', () => {
+  const described: Chart = { ...chart, description: 'Monthly revenue.', updated_at: '2026-09-22T10:00:00Z' };
+
+  it('links the data file, labels the chart for screen readers and shows when the data is from', async () => {
+    mocks.fetchChart.mockResolvedValue(described);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    const link = screen.getByRole('link', { name: 'Download data' });
+    expect(link).toHaveAttribute('href', '/api/data/sales/x');
+    expect(link).toHaveAttribute('download');
+    expect(screen.getByRole('img', { name: 'Revenue. Monthly revenue.' })).toBe(tile().querySelector('.tile-mount'));
+    expect(screen.getByText('Data as of 2026-09-22 10:00 UTC')).toBeInTheDocument();
+  });
+
+  it('uses the title alone without a description and skips an unreadable timestamp', async () => {
+    mocks.fetchChart.mockResolvedValue({ ...chart, updated_at: 'not a date' });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByRole('img', { name: 'Revenue' })).toBeInTheDocument();
+    expect(screen.queryByText(/^Data as of/)).toBeNull();
+  });
+
+  it('has no download link when the chart document failed to load', async () => {
+    mocks.fetchChart.mockRejectedValue(new ApiError(404, 'not found'));
+    render(<ChartTile chartId="sales/nope" filters={[]} />);
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('link', { name: 'Download data' })).toBeNull();
+  });
+
+  it('shows the data-as-of line and the download link on a stat tile too', async () => {
+    mocks.fetchChart.mockResolvedValue({ ...described, renderer: 'stat', spec: { value: 'revenue', agg: 'sum' } });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByTestId('stat-value')).toHaveTextContent('3');
+    expect(screen.getByText('Data as of 2026-09-22 10:00 UTC')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Download data' })).toHaveAttribute('href', '/api/data/sales/x');
+  });
+});
+
 describe('describeError', () => {
   it('maps every failure kind to a sentence', () => {
     expect(describeError(new ApiError(404, 'x'))).toBe('not found');

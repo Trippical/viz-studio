@@ -61,3 +61,4 @@ pre.sql { background: #f6f6f6; padding: 10px; overflow: auto; font-size: 12px; }
 .tile-footer { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 11px; white-space: nowrap; overflow: hidden; }
 .tile-footer:empty { display: none; }
 .tile-badge { margin-left: 0; }
+.tile-download { margin-left: auto; }
