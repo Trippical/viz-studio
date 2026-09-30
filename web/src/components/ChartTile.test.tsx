@@ -390,11 +390,19 @@ describe('ChartTile download, label and freshness (A10)', () => {
     mocks.fetchRows.mockResolvedValue(rows);
     render(<ChartTile chartId="sales/x" filters={[]} />);
     await waitFor(() => expect(tile().dataset.state).toBe('ready'));
-    const link = screen.getByRole('link', { name: 'Download data' });
+    const link = screen.getByRole('link', { name: 'Download data for Revenue' });
     expect(link).toHaveAttribute('href', '/api/data/sales/x');
     expect(link).toHaveAttribute('download');
     expect(screen.getByRole('img', { name: 'Revenue. Monthly revenue.' })).toBe(tile().querySelector('.tile-chart'));
     expect(screen.getByText('Data as of 2026-09-22 10:00 UTC')).toBeInTheDocument();
+  });
+
+  it('gives every download link an accessible name that names its own chart (B3)', async () => {
+    mocks.fetchChart.mockResolvedValue({ ...chart, title: 'Order lines' });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByRole('link', { name: 'Download data for Order lines' })).toHaveAttribute('aria-label', 'Download data for Order lines');
   });
 
   it('gives the accessible label to the chart wrapper only, never the tile body, the error card or a stat tile', async () => {
@@ -433,7 +441,7 @@ describe('ChartTile download, label and freshness (A10)', () => {
     await waitFor(() => expect(tile().dataset.state).toBe('ready'));
     expect(screen.getByTestId('stat-value')).toHaveTextContent('3');
     expect(screen.getByText('Data as of 2026-09-22 10:00 UTC')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Download data' })).toHaveAttribute('href', '/api/data/sales/x');
+    expect(screen.getByRole('link', { name: 'Download data for Revenue' })).toHaveAttribute('href', '/api/data/sales/x');
   });
 });
 

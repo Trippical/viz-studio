@@ -283,7 +283,7 @@ export function ChartTile({ chartId, chart: preloadedChart, filters, onRows, opt
         ))}
         {asOf && <span className="muted tile-asof">{`Data as of ${asOf}`}</span>}
         {chart && (
-          <a className="tile-download" href={dataUrl(chartId)} download>
+          <a className="tile-download" href={dataUrl(chartId)} download aria-label={`Download data for ${chart.title}`}>
             Download data
           </a>
         )}
