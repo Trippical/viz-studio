@@ -14,7 +14,7 @@ from ..storage import NotFound, Storage
 from .identity import author_errors, publisher_author
 from .query import QueryError
 from .infer import UnsupportedColumn, infer_columns, table_from_file
-from .staging import LARGE_MAX_BYTES, SMALL_MAX_BYTES, SMALL_MAX_ROWS, file_sha256
+from .staging import LARGE_DEFAULT_AGGREGATE, LARGE_MAX_BYTES, SMALL_MAX_BYTES, SMALL_MAX_ROWS, file_sha256
 
 DUCKDB_LOCKDOWN = (
     "SET autoinstall_known_extensions=false",
@@ -70,6 +70,18 @@ def _id_from_path(path: Path, kind: str, doc_id: str) -> str | None:
         return None
     tail = parts[len(parts) - parts[::-1].index(kind):]
     return "/".join(tail) if tail else None
+
+
+PLACEHOLDER_ERROR = (
+    f"aggregate: still the staging placeholder '{LARGE_DEFAULT_AGGREGATE}'; "
+    "replace it with a SELECT that summarizes the rows for this chart"
+)
+
+
+def is_placeholder_aggregate(aggregate: str) -> bool:
+    """True for the aggregate staging writes, ignoring case, spacing and a trailing semicolon."""
+    normalized = " ".join(aggregate.split()).rstrip(";").strip().lower()
+    return normalized == LARGE_DEFAULT_AGGREGATE.lower()
 
 
 def check_aggregate(aggregate: str, parquet_path: Path) -> list[str]:
@@ -188,6 +200,8 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
         errors.append(f"id: '{doc['id']}' conflicts with existing chart '{other}'")
 
     if lane == "large":
+        if is_placeholder_aggregate(doc["aggregate"]):
+            errors.append(PLACEHOLDER_ERROR)
         if not allow_row_level:
             errors.append("large lane publishes row-level data; ask the user before passing --allow-row-level to confirm")
         else:

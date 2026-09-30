@@ -10,7 +10,7 @@ from viz.publish import staging
 from viz.publish.cli import main
 from viz.publish.staging import write_staged_chart
 from viz.publish.validate import (
-    check_aggregate, conflicting_ids, validate_dashboard_file, validate_staged_chart,
+    PLACEHOLDER_ERROR, check_aggregate, conflicting_ids, validate_dashboard_file, validate_staged_chart,
 )
 
 NOW = datetime(2026, 9, 22, 10, 0, 0, tzinfo=timezone.utc)
@@ -160,9 +160,10 @@ def test_large_lane_needs_allow_row_level_and_runs_the_aggregate(settings, stora
     staged = _staged(staging_root, chart_id="sales/large")
     assert staged.data_path.name.endswith(".parquet")
     assert validate_staged_chart(staged.dir, settings, storage) == [
-        "large lane publishes row-level data; ask the user before passing --allow-row-level to confirm"
+        PLACEHOLDER_ERROR,
+        "large lane publishes row-level data; ask the user before passing --allow-row-level to confirm",
     ]
-    assert validate_staged_chart(staged.dir, settings, storage, allow_row_level=True) == []
+    assert validate_staged_chart(staged.dir, settings, storage, allow_row_level=True) == [PLACEHOLDER_ERROR]
 
     doc = dict(staged.doc)
     doc["aggregate"] = "SELECT region, sum(revenue) AS total FROM data GROUP BY region"

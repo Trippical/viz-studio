@@ -153,6 +153,9 @@ def test_publish_command_large_lane_needs_flag(env, staging_root, capsys, monkey
     staged = _staged(staging_root, chart_id="sales/large")
     assert main(["publish", str(staged.dir)]) == 1
     assert "ask the user before passing --allow-row-level" in capsys.readouterr().err
+    doc = json.loads(staged.chart_path.read_text(encoding="utf-8"))
+    doc["aggregate"] = "SELECT month, sum(revenue) AS revenue FROM data GROUP BY month"
+    staged.chart_path.write_text(json.dumps(doc), encoding="utf-8")
     assert main(["publish", str(staged.dir), "--allow-row-level"]) == 0
 
 

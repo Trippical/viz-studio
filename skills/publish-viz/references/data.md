@@ -26,8 +26,13 @@ The CLI picks the lane from the result size:
 
 | Lane | File | Limit | When |
 |---|---|---|---|
-| small | `data.json` | 100,000 rows and 20 MB | Almost always. Filters run in the browser. |
-| large | `data.parquet` | 200 MB | Only when viewers must filter row-level data that the warehouse cannot pre-aggregate. |
+| small | `data.<hash>.json` | 100,000 rows and 20 MB | Almost always. Filters run in the browser. |
+| large | `data.<hash>.parquet` | 200 MB | Only when viewers must filter row-level data that the warehouse cannot pre-aggregate. |
+
+`<hash>` is the first 16 hex characters of the file's SHA-256, and
+`chart.json` names the file in `data.file`. Never rename or edit the data file
+by hand: `viz validate` refuses a file whose name does not match its bytes.
+To change the data, run `viz query` or `viz stage` again.
 
 A large-lane chart shares every row with every viewer. `viz validate` and
 `viz publish` refuse it unless you pass `--allow-row-level`. Pass it only
@@ -40,8 +45,9 @@ A large-lane chart needs an `aggregate`: one DuckDB `SELECT` over a table
 named `data` that reduces the rows to something drawable. The browser runs
 it after applying the dashboard's filters. The `aggregate` is the top-level
 `"aggregate"` key of `chart.json`. Staging fills it with the placeholder
-`SELECT * FROM data LIMIT 1000`, which draws 1,000 arbitrary rows; always
-replace it. Example:
+`SELECT * FROM data LIMIT 1000`, which draws 1,000 arbitrary rows.
+`viz validate` refuses a chart whose `aggregate` is still this placeholder,
+so always replace it. Example:
 
 ```sql
 SELECT day, sum(amount) AS amount FROM data GROUP BY day ORDER BY day

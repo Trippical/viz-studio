@@ -122,3 +122,11 @@ def test_skill_uses_sql_file():
     text = _text(SKILL / "SKILL.md")
     assert "viz query --sql-file" in text
     assert "--sql @" not in text
+
+
+def test_data_guide_names_content_addressed_data_files():
+    data = _text(SKILL / "references" / "data.md")
+    assert "`data.json`" not in data
+    assert "`data.parquet`" not in data
+    assert "data.<hash>.json" in data
+    assert "Never rename or edit the data file" in data
