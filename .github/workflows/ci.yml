@@ -54,13 +54,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t viz-site:ci .
+      # Smoke: run the image locked down, with the synthetic sample bucket
+      # mounted read-only, and check that it serves real WebAssembly (not the
+      # index.html fallback) and a folder tree with dashboards.
       - run: |
-          docker run -d --name viz --read-only --tmpfs /tmp -p 8000:8000 -e VIZ_ALLOWED_HOSTS=localhost viz-site:ci
-          for i in $(seq 1 30); do curl -fsS -H 'Host: localhost' http://127.0.0.1:8000/api/health && break; sleep 1; done
-          curl -fsS -H 'Host: localhost' http://127.0.0.1:8000/api/health
-          curl -fsS -o /dev/null -H 'Host: localhost' http://127.0.0.1:8000/duckdb/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm
+          docker run -d --name viz --read-only --tmpfs /tmp -p 8000:8000 \
+            -v "$PWD/sample-bucket:/data:ro" \
+            -e VIZ_STORAGE=local -e VIZ_LOCAL_DIR=/data -e VIZ_ROOT_PREFIX=viz/ \
+            -e VIZ_ALLOWED_HOSTS=localhost \
+            viz-site:ci
+          python3 .github/scripts/docker_smoke.py http://localhost:8000
           test "$(docker exec viz id -u)" = "10001"
-          docker rm -f viz
+      - if: failure()
+        run: docker logs viz || true
+      - if: always()
+        run: docker rm -f viz || true
 
   helm:
     runs-on: ubuntu-latest
