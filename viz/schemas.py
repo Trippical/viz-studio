@@ -7,6 +7,8 @@ from typing import Any, Iterator
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from . import ids
+
 _CANDIDATE_DIRS = (
     Path(__file__).parent / "_schemas",
     Path(__file__).resolve().parents[1] / "schemas",
@@ -130,6 +132,14 @@ def validate_chart(doc: Any) -> dict:
     if depth:
         raise SchemaError(depth)
     errors = _schema_errors("chart", doc)
+    data = doc.get("data") if isinstance(doc, dict) else None
+    file_name = data.get("file") if isinstance(data, dict) else None
+    if (
+        isinstance(file_name, str)
+        and not ids.DATA_FILE_PATTERN.fullmatch(file_name)
+        and not any(e.startswith("data/file:") for e in errors)
+    ):
+        errors.append("data/file: must be data.<16 hex>.<json|parquet>")
     renderer = doc.get("renderer") if isinstance(doc, dict) else None
     if (
         isinstance(doc, dict)

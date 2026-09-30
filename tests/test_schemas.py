@@ -180,6 +180,17 @@ def test_vegalite_bind_without_element_passes():
     assert schemas.validate_chart(doc) is doc
 
 
+def test_data_file_trailing_newline_is_rejected():
+    # jsonschema applies `pattern` with re.search, and Python's `$` also
+    # matches just before a trailing "\n", so the schema's own pattern lets
+    # this through. validate_chart must catch it with an explicit fullmatch.
+    doc = copy.deepcopy(load("chart-vegalite.json"))
+    doc["data"]["file"] = "data.0123456789abcdef.json\n"
+    with pytest.raises(schemas.SchemaError) as excinfo:
+        schemas.validate_chart(doc)
+    assert "data/file: must be data.<16 hex>.<json|parquet>" in str(excinfo.value)
+
+
 def test_vegalite_layer_without_its_own_data_passes():
     doc = copy.deepcopy(load("chart-vegalite.json"))
     doc["spec"]["layer"] = [{"mark": "line"}, {"mark": "rule"}]

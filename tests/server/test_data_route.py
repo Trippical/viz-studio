@@ -79,6 +79,17 @@ def test_data_for_invalid_chart_is_422(client, storage):
     assert client.get("/api/data/sales/bad").status_code == 422
 
 
+def test_data_file_with_trailing_newline_is_422_not_500(client, storage):
+    # jsonschema's `pattern` check lets a trailing "\n" through (Python's `$`
+    # matches just before it); data_key()'s fullmatch does not, so without the
+    # validate_chart fix this reaches an unhandled ValueError and a 500.
+    doc = json.loads(storage.get("viz/charts/sales/total-revenue/chart.json"))
+    doc.update({"id": "sales/bad-newline", "data": {**doc["data"], "file": doc["data"]["file"] + "\n"}})
+    storage.put("viz/charts/sales/bad-newline/chart.json", json.dumps(doc).encode(), "application/json")
+    r = client.get("/api/data/sales/bad-newline")
+    assert r.status_code == 422
+
+
 def test_data_invalid_id_400_and_missing_404(client):
     assert client.get("/api/data/Bad").status_code == 400
     assert client.get("/api/data/sales/nope").status_code == 404
