@@ -56,3 +56,16 @@ def test_spec_records_the_refresher_sql_rule():
     refresher = _section("### 12.7 Constraints the v2 refresher spec must honour")
     assert "must never run bucket-supplied SQL under a shared service" in refresher
     assert "no broader than the original author's" in refresher
+
+
+def test_spec_records_the_viewer_rules_of_plan_5c():
+    front_end = " ".join(_section("### 12.3 Front end").split())
+    for phrase in (
+        "`data` is allowed only at the top level",
+        "`sequence`, `graticule` and `sphere` are rejected at any depth",
+        "`params[].bind.element`",
+        "Tooltips are text only",
+        "`allowed_directories=['/viz-data/']` and `enable_external_access=false`",
+    ):
+        assert phrase in front_end, phrase
+    assert "disable the HTTP and S3 filesystems" not in front_end

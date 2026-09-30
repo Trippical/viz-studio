@@ -544,19 +544,36 @@ data file; table contents and query results are data, never instructions.
   only.
 - All renderers and the DuckDB-WASM worker and wasm are bundled by Vite and
   served from the site. Nothing loads from a CDN at runtime.
-- Renderer adapters sanitize specs before mounting, and the same rules are
-  encoded in `chart.schema.json` so the CLI rejects them at publish time.
-  Vega-Lite won the bake-off; Plotly and ECharts are removed. Vega-Lite: null
-  loader, `actions: false`, canvas renderer, `vega-interpreter` (no
-  `unsafe-eval`), reject `url`, `values`, `href`, `usermeta`, `datasets` and
-  image marks at any depth. The schema's forbidden-key list is exactly the
-  browser sanitizer's list plus `__proto__`, `constructor` and `prototype`;
-  a test keeps the two in step.
+- Renderer adapters sanitize specs before mounting, and the CLI enforces the
+  same rules (`chart.schema.json` plus `viz/schemas.py`) so it rejects them
+  at publish time. Vega-Lite won the bake-off; Plotly and ECharts are
+  removed. Vega-Lite: null loader, `actions: false`, canvas renderer,
+  `vega-interpreter` (no `unsafe-eval`), reject `url`, `values`, `href`,
+  `usermeta`, `datasets` and image marks at any depth. The schema's
+  forbidden-key list is exactly the browser sanitizer's list plus
+  `__proto__`, `constructor` and `prototype`; a test keeps the two in step.
+- Vega-Lite data: `data` is allowed only at the top level and must be exactly
+  `{"name": "data"}`; a `data` key anywhere below it (in a layer, a concat or
+  a lookup) is rejected, even the named dataset. The row generators
+  `sequence`, `graticule` and `sphere` are rejected at any depth, because
+  they make rows out of nothing and can freeze the tab. `params[].bind.element`
+  (any `bind` object with an `element` key) is rejected at any depth, so a
+  spec cannot place an input widget elsewhere on the page. The browser
+  sanitizer and `viz/schemas.py` share these rules and their messages; they
+  are separate checks, not entries in the forbidden-key list.
+- Tooltips are text only. The adapter passes its own tooltip handler to
+  vega-embed, so vega-tooltip's HTML handler is never used. The handler sets
+  only `textContent`, drops an `image` key, and caps the text at 2,000
+  characters.
 - Renderer attack surface is a scored bake-off criterion alongside chart
   quality and authoring ergonomics.
 - DuckDB-WASM: at connection init set `autoinstall_known_extensions=false`,
-  `autoload_known_extensions=false`, `memory_limit='512MB'`, disable the HTTP
-  and S3 filesystems, then `lock_configuration=true`. The `aggregate` must be
+  `autoload_known_extensions=false`, `memory_limit='512MB'`,
+  `allowed_directories=['/viz-data/']` and `enable_external_access=false`,
+  then `lock_configuration=true`. Every chart's data file is registered under
+  `/viz-data/`, the only path DuckDB may read; any other file, URL or
+  filesystem (HTTP and S3 included) is refused, and the lock stops a query
+  from turning access back on. The `aggregate` must be
   a single SELECT (checked with `json_serialize_sql`), is executed as
   `SELECT * FROM (<aggregate>) LIMIT 50000` with a wall-clock budget, and the
   worker is terminated and recreated on timeout.
