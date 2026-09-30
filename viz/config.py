@@ -29,7 +29,13 @@ class Settings(BaseSettings):
     # Publisher (viz CLI) settings. The server ignores them.
     author: str | None = None
     query_deny: str = ""
-    pii_pattern: str = r"(?i)(email|ssn|phone|name|address|dob|salary|\bip\b)"
+    # Column names that look like personal data. "name" matches alone, or after a person
+    # word such as first_ or customer_; product_name and region_name do not (finding A21).
+    pii_pattern: str = (
+        r"(?i)(email|ssn|phone|address|dob|salary|\bip\b|^name$"
+        r"|(?<![a-z0-9])(first|last|full|given|family|middle|maiden|nick|sur|user|customer|client|contact"
+        r"|person|employee|manager|owner|member|patient|student|agent|rep|display)_?name(?![a-z0-9]))"
+    )
     staging_dir: Path = Path("./.viz-staging")
 
     @field_validator("root_prefix")

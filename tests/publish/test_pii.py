@@ -44,3 +44,11 @@ def test_parse_drop_list():
     assert parse_drop_list(None) == []
     assert parse_drop_list("") == []
     assert parse_drop_list("a, b ,,c") == ["a", "b", "c"]
+
+
+def test_name_matches_person_names_only():
+    not_pii = ["product_name", "region_name", "campaign_name", "report_name", "filename", "hostname"]
+    pii = ["name", "Name", "first_name", "last_name", "full_name", "firstname", "surname",
+           "customer_name", "customer_first_name", "sales_rep_name", "username", "display_name",
+           "email", "phone", "ssn"]
+    assert pii_columns(not_pii + pii, DEFAULT) == pii
