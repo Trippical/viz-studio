@@ -455,6 +455,43 @@ describe('ChartTile with a preloaded chart (A12)', () => {
   });
 });
 
+describe('ChartTile duckdb retry (I2)', () => {
+  // The DuckDB chunk import is cached at module scope (`duckdbModule` in
+  // ChartTile.tsx) for the life of the page, so the rejected-import case has
+  // to be exercised against a *fresh* copy of that module scope: the
+  // already-imported ChartTile at the top of this file may, by the time this
+  // test runs, already hold a resolved (non-null) `duckdbModule` from an
+  // earlier large-lane test, which would skip the import entirely. A fresh
+  // dynamic `import('./ChartTile')` after `vi.resetModules()` gets its own
+  // `duckdbModule = null` to start from.
+  //
+  // `vi.doMock` overrides the file's hoisted `vi.mock('../data/duckdb', ...)`
+  // for every import of that specifier from here on, not just the next one,
+  // so a second `vi.doMock` call switches it back to a resolving factory
+  // before the remount. That is what lets one `import()` reject and the
+  // next one (on the remounted tile) resolve.
+  it('shows the error card once, then renders on a remounted tile after the import is retried', async () => {
+    vi.resetModules();
+    vi.doMock('../data/duckdb', () => {
+      throw new Error('chunk load failed');
+    });
+    const { ChartTile: RetryChartTile } = await import('./ChartTile');
+
+    const large: Chart = { ...chart, data: { ...chart.data, lane: 'large', format: 'parquet' }, aggregate: 'SELECT 1' };
+    mocks.fetchChart.mockResolvedValue(large);
+    mocks.queryLargeLane.mockResolvedValue([{ region: 'EMEA', revenue: 1 }]);
+
+    const first = render(<RetryChartTile chartId="sales/x" filters={[]} />);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('render failed');
+    first.unmount();
+
+    vi.doMock('../data/duckdb', () => ({ queryLargeLane: mocks.queryLargeLane, distinctValues: mocks.distinctValues }));
+    render(<RetryChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+  });
+});
+
 describe('describeError', () => {
   it('maps every failure kind to a sentence', () => {
     expect(describeError(new ApiError(404, 'x'))).toBe('not found');

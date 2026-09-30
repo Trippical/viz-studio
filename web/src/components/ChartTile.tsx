@@ -11,7 +11,12 @@ import { StatTile } from './StatTile';
 
 let duckdbModule: Promise<typeof import('../data/duckdb')> | null = null;
 function loadDuckdb(): Promise<typeof import('../data/duckdb')> {
-  if (!duckdbModule) duckdbModule = import('../data/duckdb');
+  if (!duckdbModule) {
+    duckdbModule = import('../data/duckdb').catch((err: unknown) => {
+      duckdbModule = null;
+      throw err;
+    });
+  }
   return duckdbModule;
 }
 
