@@ -77,6 +77,14 @@ def databricks_configured() -> bool:
     return bool(os.environ.get("DATABRICKS_HOST")) and bool(os.environ.get("DATABRICKS_TOKEN"))
 
 
+def databricks_login_available(warehouse_id: str | None = None) -> bool:
+    """True when the CLI stamps the Databricks login as `author` (finding A19):
+    DATABRICKS_HOST, DATABRICKS_TOKEN and a warehouse are all set. The warehouse is
+    warehouse_id when the caller has one (the warehouse a `viz query` chart ran on),
+    else DATABRICKS_WAREHOUSE_ID. Makes no connection."""
+    return databricks_configured() and bool(warehouse_id or os.environ.get("DATABRICKS_WAREHOUSE_ID"))
+
+
 def _connection_args(warehouse_id: str | None) -> dict:
     warehouse = resolve_warehouse(warehouse_id)
     host = _env("DATABRICKS_HOST").removeprefix("https://").removeprefix("http://").rstrip("/")

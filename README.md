@@ -42,10 +42,11 @@ Setting it up at work (fresh clone, AWS, Databricks, deployment):
 The staging directory `./.viz-staging` mirrors the bucket, so `viz preview` is
 the real server pointed at it. `viz query` needs `pip install -e ".[databricks]"`
 (from a checkout) and `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_WAREHOUSE_ID`; nothing
-else in the package reads them. Publisher settings: `VIZ_AUTHOR` (overrides the
-AWS caller identity when set; the Databricks user from `viz query` always wins,
-and `viz validate` confirms it with Databricks when the `DATABRICKS_*` variables
-are set; author is attribution, not authentication), `VIZ_QUERY_DENY` (comma-separated
+else in the package reads them. Publisher settings: `VIZ_AUTHOR` (used unless
+`DATABRICKS_HOST`, `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are all set;
+with all three, every command stamps the Databricks login and `viz validate`
+confirms it; without `VIZ_AUTHOR` the AWS caller identity is the fallback;
+author is attribution, not authentication), `VIZ_QUERY_DENY` (comma-separated
 catalogs or `catalog.schema` that `viz query` refuses), `VIZ_PII_PATTERN`,
 `VIZ_STAGING_DIR`. `--force` and `--yes` are flags only. `viz publish` and
 `viz move` refuse to run unless `VIZ_STORAGE` is set in the environment, so a

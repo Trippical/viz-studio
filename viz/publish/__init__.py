@@ -12,7 +12,7 @@ def stage(df, chart_id: str, staging_root: Path | str | None = None) -> Path:
     import pyarrow as pa
 
     from ..config import Settings
-    from .identity import resolve_author
+    from .identity import publisher_author
     from .pii import pii_warning
     from .staging import write_staged_chart
 
@@ -25,7 +25,7 @@ def stage(df, chart_id: str, staging_root: Path | str | None = None) -> Path:
     settings = Settings()
     root = Path(staging_root) if staging_root is not None else settings.staging_dir
     try:
-        author = resolve_author(settings)
+        author = publisher_author(settings)
     except Exception as err:
         raise RuntimeError(f"could not resolve the author identity: {err}") from err
     warning = pii_warning(table.column_names, settings.pii_pattern)

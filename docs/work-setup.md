@@ -57,11 +57,15 @@ share the `VIZ_*` ones.
 | `DATABRICKS_TOKEN` | none | CLI only | Personal access token. Keep it in your shell or a secret store, never in a file in the repo |
 | `DATABRICKS_WAREHOUSE_ID` | none | CLI only | SQL warehouse id, or pass `--warehouse` |
 
-Author: `viz query` stamps charts with your Databricks login, and
-`viz validate` confirms it with Databricks. Charts staged from files use
-`VIZ_AUTHOR`, then your AWS identity, then `<user>@local`.
+Author (attribution, not a permission check): when `DATABRICKS_HOST`,
+`DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are all set, every command
+(`viz query`, `viz stage`, `viz new-dashboard`, `viz pull-dashboard`) stamps
+your Databricks login and `viz validate` confirms it with Databricks. A chart
+from `viz query --warehouse <id>` also counts: validation asks the warehouse
+the query ran on. Otherwise the CLI uses `VIZ_AUTHOR`, then your AWS identity,
+then `<user>@local`; no command requires `DATABRICKS_WAREHOUSE_ID`.
 
-When you publish files (not `viz query`), set `VIZ_AUTHOR` to your email, or
+Without all three Databricks variables, set `VIZ_AUTHOR` to your email, or
 keep a fixed `role_session_name` in your AWS profile; otherwise the AWS
 identity changes between commands and validation reports an author mismatch.
 `viz stage` without Databricks falls back to the AWS caller ARN, which
@@ -200,6 +204,6 @@ add `--force` to `viz publish` only when you mean to replace it.
 | Pods never become ready | The probe Host is not in `allowedHosts` (or the policy engine blocks kubelet probes) |
 | Pods are Ready but pages show errors or an empty tree | The pods cannot reach S3, STS or KMS: check `networkPolicy.egressCidrs`, the IRSA role and the KMS key policy. `/api/health` does not touch S3 |
 | Large-data charts fail to load | `web/dist/duckdb/` is missing from the build; the DuckDB parquet extension is self-hosted and pinned to DuckDB v1.4.3, so re-pin it when upgrading `@duckdb/duckdb-wasm` |
-| `viz validate` says the author does not match (Databricks) | Without `DATABRICKS_HOST` and `DATABRICKS_TOKEN`, set `VIZ_AUTHOR` to your Databricks login |
-| `viz validate` says the author does not match (file-staged charts) | The AWS identity changed between commands. Set `VIZ_AUTHOR` to your email, or use a fixed `role_session_name` in your AWS profile |
+| `viz validate` says the author does not match (Databricks) | The CLI uses the Databricks login only when `DATABRICKS_HOST`, `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are all set. Set all three, or set `VIZ_AUTHOR` to your Databricks login |
+| `viz validate` says the author does not match (not all Databricks variables set) | The AWS identity changed between commands. Set `VIZ_AUTHOR` to your email, or use a fixed `role_session_name` in your AWS profile |
 | `viz query` says the query is refused | `VIZ_QUERY_DENY` lists that catalog or schema |

@@ -30,13 +30,14 @@ data, checks it and uploads it. The site never runs SQL.
 2. For `viz query`, the user's environment has `DATABRICKS_HOST`,
    `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID`. Never ask for the
    token in the conversation.
-3. `viz query` stamps charts with the Databricks login. When
-   `DATABRICKS_HOST` and `DATABRICKS_TOKEN` are set, `viz validate` asks
-   Databricks for the current user and accepts that login. Without them it
-   checks `VIZ_AUTHOR` instead, so ask the user to set `VIZ_AUTHOR` to their
+3. The CLI stamps `author` on every chart and dashboard. It records who
+   published (attribution); it is not a permission check. When
+   `DATABRICKS_HOST`, `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are
+   all set, `author` is the Databricks login for every command. Otherwise
+   the CLI uses `VIZ_AUTHOR`, so ask the user to set `VIZ_AUTHOR` to their
    Databricks login email. If validation says
    `author '<a>' does not match the resolved identity '<b>'`, show the user
-   both values and ask which identity is right. Never edit `author` by hand.
+   both values and ask which one is right. Never edit `author` by hand.
 
 ## Workflow
 

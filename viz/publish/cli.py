@@ -14,7 +14,7 @@ from ..storage import get_storage
 from .errors import CliError
 from .dashboards import DashboardError, new_dashboard, pulled_dashboard, write_staged_dashboard
 from .skill import SkillExists, UnsafeTarget, default_destination, install_skill
-from .identity import resolve_author
+from .identity import publisher_author
 from .infer import UnsupportedColumn, table_from_file
 from .move import MoveError, apply_move, describe, plan_move
 from .pii import drop_columns, parse_drop_list, pii_warning
@@ -25,11 +25,11 @@ from .staging import LaneError, column_summary, write_staged_chart
 from .validate import validate_dashboard_file, validate_staged_chart
 
 
-def _resolve_author(settings: Settings) -> str:
-    """resolve_author() can reach out to AWS (VIZ_STORAGE=s3) or the local user
-    database; any failure there is an environment problem, not a crash."""
+def _resolve_author(settings: Settings, databricks_user: str | None = None) -> str:
+    """publisher_author() can reach Databricks, AWS or the local user database; any
+    failure there is an environment problem, not a crash."""
     try:
-        return resolve_author(settings)
+        return publisher_author(settings, databricks_user=databricks_user)
     except Exception as err:
         raise CliError(f"could not resolve the author identity: {err}", code=2) from err
 
@@ -167,7 +167,8 @@ def _cmd_query(args) -> int:
     except QueryError as err:
         raise CliError(str(err), code=err.code) from err
     source = {"kind": "databricks-sql", "sql": sql, "warehouse_id": warehouse}
-    return _stage_table(table, args.id, settings, args, author=user, source=source)
+    return _stage_table(table, args.id, settings, args, author=_resolve_author(settings, databricks_user=user),
+                        source=source)
 
 
 def _cmd_new_dashboard(args) -> int:

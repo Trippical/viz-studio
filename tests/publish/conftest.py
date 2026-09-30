@@ -1,5 +1,6 @@
 """Fixtures for the publisher tests. Commands read Settings() from the
 environment, so the `env` fixture is how tests point them at a temp bucket."""
+import os
 import shutil
 from pathlib import Path
 
@@ -37,6 +38,12 @@ def env(monkeypatch, bucket, staging_root):
     monkeypatch.setenv("VIZ_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver")
     for name in ("VIZ_QUERY_DENY", "VIZ_PII_PATTERN", "VIZ_FORCE", "VIZ_S3_BUCKET"):
         monkeypatch.delenv(name, raising=False)
+    if os.environ.get("VIZ_INTEGRATION") != "1":
+        # A developer machine may have real Databricks variables. Unit tests must never reach Databricks.
+        # With VIZ_INTEGRATION=1 they are kept, so run integration tests one file at a time
+        # (docs/work-setup.md, step 6), never the whole suite.
+        for name in ("DATABRICKS_HOST", "DATABRICKS_TOKEN", "DATABRICKS_WAREHOUSE_ID"):
+            monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture

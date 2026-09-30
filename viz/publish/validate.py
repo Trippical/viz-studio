@@ -11,8 +11,8 @@ from ..config import Settings
 from ..ids import chart_key, data_file_name, is_ancestor
 from ..schemas import SchemaError, validate_chart, validate_dashboard
 from ..storage import NotFound, Storage
-from .identity import check_author
-from .query import QueryError, current_user, databricks_configured
+from .identity import author_errors, publisher_author
+from .query import QueryError
 from .infer import UnsupportedColumn, infer_columns, table_from_file
 from .staging import LARGE_MAX_BYTES, SMALL_MAX_BYTES, SMALL_MAX_ROWS, file_sha256
 
@@ -113,17 +113,21 @@ def _compare_columns(declared: list[dict], inferred: list[dict]) -> list[str]:
     return errors
 
 
-def _check_chart_author(doc: dict, settings: Settings) -> list[str]:
-    """A chart staged by `viz query` carries the Databricks login as its author. When the
-    Databricks variables are set, confirm that login; otherwise check VIZ_AUTHOR as usual."""
+def _source_warehouse(doc: dict) -> str | None:
+    """The warehouse a `viz query` chart ran on, so validation asks the same warehouse."""
     source = doc.get("source") or {}
-    if source.get("kind") != "databricks-sql" or not databricks_configured():
-        return check_author(doc, settings)
+    return source.get("warehouse_id") if source.get("kind") == "databricks-sql" else None
+
+
+def _check_stamped_author(doc: dict, settings: Settings, warehouse_id: str | None = None) -> list[str]:
+    """The author must equal what the CLI stamps now (publisher_author). Attribution only."""
     try:
-        user = current_user(source.get("warehouse_id"))
+        expected = publisher_author(settings, warehouse_id=warehouse_id)
     except QueryError as err:
         return [f"author: could not confirm the Databricks user: {err}"]
-    return check_author(doc, settings, databricks_user=user)
+    except Exception as err:  # the AWS caller identity lookup can fail too
+        return [f"author: could not resolve the author: {err}"]
+    return author_errors(doc, expected)
 
 
 def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage, allow_row_level: bool = False) -> list[str]:
@@ -179,7 +183,7 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
     if lane == "large" and size > LARGE_MAX_BYTES:
         errors.append(f"data: large lane allows at most {LARGE_MAX_BYTES} bytes")
 
-    errors += _check_chart_author(doc, settings)
+    errors += _check_stamped_author(doc, settings, _source_warehouse(doc))
     for other in conflicting_ids(doc["id"], existing_chart_ids(storage, settings.root_prefix)):
         errors.append(f"id: '{doc['id']}' conflicts with existing chart '{other}'")
 
@@ -210,5 +214,5 @@ def validate_dashboard_file(path: Path, settings: Settings, storage: Storage) ->
             storage.head(chart_key(settings.root_prefix, tile["chart"]))
         except NotFound:
             errors.append(f"layout/{i}/chart: chart '{tile['chart']}' is not published")
-    errors += check_author(doc, settings)
+    errors += _check_stamped_author(doc, settings)
     return errors
