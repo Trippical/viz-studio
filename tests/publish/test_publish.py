@@ -95,7 +95,7 @@ def test_publish_refuses_overwrite_without_force(settings, storage, staging_root
     publish_chart(staged.dir, settings, storage)
     with pytest.raises(PublishRefused) as exc:
         publish_chart(staged.dir, settings, storage)
-    assert exc.value.errors == ["id exists: author tester@example.com, updated_at 2026-09-22T10:00:00Z; pass --force to overwrite"]
+    assert exc.value.errors == ["id exists: author tester@example.com, updated_at 2026-09-22T10:00:00Z; ask the user before passing --force to overwrite"]
     publish_chart(staged.dir, settings, storage, force=True)
     out = capsys.readouterr().out
     assert "overwriting: author tester@example.com, updated_at 2026-09-22T10:00:00Z" in out
@@ -152,7 +152,7 @@ def test_publish_command_large_lane_needs_flag(env, staging_root, capsys, monkey
     monkeypatch.setattr(staging, "SMALL_MAX_ROWS", 0)
     staged = _staged(staging_root, chart_id="sales/large")
     assert main(["publish", str(staged.dir)]) == 1
-    assert "pass --allow-row-level" in capsys.readouterr().err
+    assert "ask the user before passing --allow-row-level" in capsys.readouterr().err
     assert main(["publish", str(staged.dir), "--allow-row-level"]) == 0
 
 

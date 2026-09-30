@@ -142,7 +142,7 @@ def _cmd_move(args) -> int:
         raise CliError(str(err), code=1) from err
     print(describe(plan))
     if not args.yes:
-        print("dry run: pass --yes to apply", file=sys.stderr)
+        print("dry run: ask the user before passing --yes to apply", file=sys.stderr)
         return 1
     try:
         apply_move(plan, settings, storage)

@@ -14,8 +14,9 @@ the CLI resolves, and the CLI stamps it for you.
 - Change a published dashboard: `viz pull-dashboard sales/emea/overview`
   copies it into staging with your identity and a new `updated_at`.
 
-Both refuse to replace a staged file you may have edited. Add `--force` only
-when you mean to discard the staged copy.
+Both refuse to replace a staged file you may have edited. The refusal says
+`ask the user before passing --force`: do that, because `--force` discards
+the staged copy.
 
 ## The file
 

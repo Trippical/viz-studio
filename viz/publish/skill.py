@@ -50,7 +50,7 @@ def install_skill(dest_root: Path, force: bool = False) -> Path:
 
     if target.exists():
         if not force:
-            raise SkillExists(f"{target} already exists; pass --force to replace it")
+            raise SkillExists(f"{target} already exists; ask the user before passing --force to replace it")
         shutil.rmtree(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, target)

@@ -160,7 +160,7 @@ def test_large_lane_needs_allow_row_level_and_runs_the_aggregate(settings, stora
     staged = _staged(staging_root, chart_id="sales/large")
     assert staged.data_path.name.endswith(".parquet")
     assert validate_staged_chart(staged.dir, settings, storage) == [
-        "large lane publishes row-level data; pass --allow-row-level to confirm"
+        "large lane publishes row-level data; ask the user before passing --allow-row-level to confirm"
     ]
     assert validate_staged_chart(staged.dir, settings, storage, allow_row_level=True) == []
 

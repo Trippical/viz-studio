@@ -60,7 +60,7 @@ def pulled_dashboard(dashboard_id: str, settings: Settings, storage: Storage, au
 def write_staged_dashboard(doc: dict, staging_root: Path, force: bool = False) -> Path:
     path = dashboard_path(staging_root, doc["id"])
     if path.exists() and not force:
-        raise DashboardError(f"{path} already exists; pass --force to replace it")
+        raise DashboardError(f"{path} already exists; ask the user before passing --force to replace it")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     return path

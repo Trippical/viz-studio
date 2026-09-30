@@ -185,7 +185,7 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
 
     if lane == "large":
         if not allow_row_level:
-            errors.append("large lane publishes row-level data; pass --allow-row-level to confirm")
+            errors.append("large lane publishes row-level data; ask the user before passing --allow-row-level to confirm")
         else:
             errors += check_aggregate(doc["aggregate"], data_path)
     return errors

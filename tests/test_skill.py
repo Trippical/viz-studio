@@ -92,3 +92,14 @@ def test_skill_teaches_editing_the_large_lane_aggregate():
 def test_skill_says_to_ask_when_viz_storage_is_not_set():
     text = _text(SKILL / "SKILL.md")
     assert "`VIZ_STORAGE` is not set" in text
+
+
+def _step(text: str, start: str, end: str) -> str:
+    return text[text.index(start):text.index(end)]
+
+
+def test_skill_stops_on_errors_that_need_the_user():
+    text = _text(SKILL / "SKILL.md")
+    step5 = _step(text, "5. **Validate.**", "6. **Preview")
+    assert "ask the user" in step5
+    assert "Never add `--force`, `--yes` or `--allow-row-level` on your own." in step5

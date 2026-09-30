@@ -52,7 +52,7 @@ def _guard_overwrite(storage: Storage, key: str, force: bool, out) -> tuple[dict
     author = existing.get("author", "unknown")
     updated = existing.get("updated_at", "unknown")
     if not force:
-        raise PublishRefused([f"id exists: author {author}, updated_at {updated}; pass --force to overwrite"])
+        raise PublishRefused([f"id exists: author {author}, updated_at {updated}; ask the user before passing --force to overwrite"])
     print(f"overwriting: author {author}, updated_at {updated}", file=out)
     return existing, etag
 

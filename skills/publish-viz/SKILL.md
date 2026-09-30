@@ -60,7 +60,11 @@ data, checks it and uploads it. The site never runs SQL.
    example in `references/vega-lite.md`. Only edit `title`, `description`,
    `tags`, `spec`, and for a large-lane chart `aggregate`. Keep `source`.
 5. **Validate.** `viz validate .viz-staging/charts/<id>`. Fix every error
-   it prints and run it again until it prints `ok:`.
+   it prints and run it again until it prints `ok:`. The exception is an
+   error that says `ask the user`: it needs the user's consent, not a fix.
+   Stop, show the user that line, and wait for their answer. The same goes
+   for `viz publish`, `viz move` and the dashboard commands.
+   Never add `--force`, `--yes` or `--allow-row-level` on your own.
 6. **Preview when unsure.** `viz preview` serves the staging directory on
    `http://127.0.0.1:8000`; the chart is at `/c/<id>` when the front end is
    available (`VIZ_WEB_DIST` set). Give the user the link.

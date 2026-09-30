@@ -84,7 +84,7 @@ def test_move_command_requires_yes(env, storage, capsys, monkeypatch):
     assert main(["move", "sales/revenue-by-region", "sales/emea/revenue"]) == 1
     captured = capsys.readouterr()
     assert "sales/overview" in captured.out
-    assert "pass --yes to apply" in captured.err
+    assert "ask the user before passing --yes to apply" in captured.err
     storage.head("viz/charts/sales/revenue-by-region/chart.json")
 
     monkeypatch.setenv("VIZ_YES", "1")
