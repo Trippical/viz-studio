@@ -74,8 +74,9 @@ networkPolicy:
   ingressControllerNamespace: ingress-nginx
   # Egress on 443 only to these ranges. Required, must not be empty.
   # - S3 through a gateway VPC endpoint: list the S3 prefix-list CIDRs for your
-  #   region (aws ec2 describe-managed-prefix-lists, name com.amazonaws.<region>.s3);
-  #   a gateway endpoint has no IP of its own.
+  #   region (aws ec2 describe-managed-prefix-lists, name com.amazonaws.<region>.s3,
+  #   then aws ec2 get-managed-prefix-list-entries --prefix-list-id pl-...);
+  #   a gateway endpoint has no IP of its own. docs/work-setup.md step 5.
   # - STS for IRSA: the subnet CIDRs of an STS interface endpoint with private
   #   DNS, or the public STS ranges.
   # - S3 through an interface endpoint: its subnet CIDRs.

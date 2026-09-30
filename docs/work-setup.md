@@ -13,6 +13,23 @@ The command snippets below use bash; on Windows PowerShell, use
 - Python 3.11 and Git.
 - Node.js 24 (only to build the front end outside Docker).
 - Docker, `kubectl` and Helm 3 for the deployment.
+- AWS CLI v2, signed in to the company account with rights to create IAM
+  roles, KMS keys, VPC endpoints and ECR repositories. `eksctl` is
+  optional; step 5 uses it for one command and shows the AWS CLI
+  alternative.
+- An EKS cluster that already has:
+  - an ingress controller: either ingress-nginx with its controller Service
+    on an internal load balancer
+    (`service.beta.kubernetes.io/aws-load-balancer-scheme: internal`), or
+    the AWS Load Balancer Controller with the private subnets tagged
+    `kubernetes.io/role/internal-elb=1`;
+  - a NetworkPolicy engine: the Amazon VPC CNI with network policy turned
+    on (`enableNetworkPolicy=true`), or Calico or Cilium. Without one the
+    chart's NetworkPolicy is silently ignored;
+  - an IAM OIDC provider for IRSA, or the rights to add one (step 5 checks
+    and creates it).
+- The bucket must be in the same region as the cluster: the S3 gateway
+  endpoint in step 5 reaches only buckets in its own region.
 - A Databricks personal access token and a SQL warehouse id, for `viz query`.
 - AWS credentials that can assume the publisher role, for `viz publish`.
 - An AWS region for the bucket, set with both `AWS_DEFAULT_REGION` (read by
@@ -133,10 +150,31 @@ Do these in order: later items need values from earlier ones.
    `viz-site` (another release name `x` gives `x-viz-site`; the Helm value
    `serviceAccount.name` overrides it). Create the namespace now:
    `kubectl create namespace viz`
-2. **Create the S3 gateway VPC endpoint** in the cluster's VPC, attached to
+2. **Find the cluster's OIDC issuer and register it with IAM.** IRSA needs
+   an IAM OIDC provider for the cluster. Print the issuer (replace
+   `<cluster>` with the EKS cluster name):
+
+   ```
+   aws eks describe-cluster --name <cluster> --query cluster.identity.oidc.issuer --output text
+   ```
+
+   It prints `https://oidc.eks.<region>.amazonaws.com/id/<ID>`. Write down
+   the part after `https://`; the server role's trust policy in item 6 needs
+   it. Then list the providers IAM already has:
+   `aws iam list-open-id-connect-providers`. If one of the ARNs ends in the
+   same `<ID>`, skip to item 3. Otherwise create the provider:
+
+   ```
+   eksctl utils associate-iam-oidc-provider --cluster <cluster> --region <region> --approve
+   ```
+
+   Without `eksctl`, the AWS CLI does the same (use the full `https://` URL
+   printed above):
+   `aws iam create-open-id-connect-provider --url <issuer URL> --client-id-list sts.amazonaws.com`
+3. **Create the S3 gateway VPC endpoint** in the cluster's VPC, attached to
    the route tables of the subnets the nodes run in, and write down its id
-   (`vpce-...`). The pods reach S3 through it, and the bucket policy in the
-   next item needs the id.
+   (`vpce-...`). The pods reach S3 through it, and the bucket policy in
+   item 6 needs the id.
 
    ```
    aws ec2 create-vpc-endpoint --vpc-endpoint-type Gateway \
@@ -147,12 +185,79 @@ Do these in order: later items need values from earlier ones.
 
    If the VPC already has an S3 gateway endpoint, use its id instead:
    `aws ec2 describe-vpc-endpoints --filters Name=service-name,Values=com.amazonaws.<region>.s3`
-3. **Create the bucket, roles and policies**: `deploy/aws/README.md`. That
-   covers the bucket baseline, the bucket policy (put the id from item 2 in
-   place of `vpce-REPLACE_ME`), the KMS key policy, the `viz-site-server`
-   role with its IRSA trust policy (use the namespace and service account
-   from item 1), and the `viz-site-publisher` role.
-4. **Act as the publisher role on your laptop.** To run `viz publish` and
+
+   A gateway endpoint has no IP address of its own: traffic to S3 goes to
+   the addresses in the region's S3 prefix list. Turn that list into CIDRs.
+   The first command prints the prefix list id (`pl-...`), the second its
+   CIDRs:
+
+   ```
+   aws ec2 describe-managed-prefix-lists --filters Name=prefix-list-name,Values=com.amazonaws.<region>.s3 \
+     --query "PrefixLists[0].PrefixListId" --output text
+   aws ec2 get-managed-prefix-list-entries --prefix-list-id pl-<id from the line above> \
+     --query "Entries[].Cidr" --output text
+   ```
+
+   Write the CIDRs down: they go in the Helm value
+   `networkPolicy.egressCidrs` in step 7.
+4. **Create the STS interface endpoint.** The pods get their IRSA
+   credentials from STS, and the NetworkPolicy only lets them reach the
+   addresses you list, so give STS a fixed place in the VPC. Private DNS
+   needs the VPC settings "DNS hostnames" and "DNS resolution" on. First
+   find the VPC's CIDR and create a security group that lets the VPC reach
+   the endpoint on 443:
+
+   ```
+   aws ec2 describe-vpcs --vpc-ids <cluster vpc id> --query "Vpcs[0].CidrBlock" --output text
+   aws ec2 create-security-group --group-name viz-site-sts-endpoint \
+     --description "HTTPS from the VPC to the STS endpoint" \
+     --vpc-id <cluster vpc id> --query GroupId --output text
+   aws ec2 authorize-security-group-ingress --group-id <sg id from the line above> \
+     --protocol tcp --port 443 --cidr <vpc cidr from the first line>
+   ```
+
+   Then create the endpoint in the node subnets, with private DNS on so
+   `sts.<region>.amazonaws.com` resolves to it:
+
+   ```
+   aws ec2 create-vpc-endpoint --vpc-endpoint-type Interface \
+     --vpc-id <cluster vpc id> --service-name com.amazonaws.<region>.sts \
+     --subnet-ids <node subnet ids> --security-group-ids <sg id> \
+     --private-dns-enabled --query VpcEndpoint.VpcEndpointId --output text
+   ```
+
+   If the VPC already has an STS interface endpoint, use it instead; this
+   prints its subnet ids:
+   `aws ec2 describe-vpc-endpoints --filters Name=vpc-id,Values=<cluster vpc id> Name=service-name,Values=com.amazonaws.<region>.sts --query "VpcEndpoints[0].SubnetIds" --output text`
+
+   Record the CIDRs of the endpoint's subnets:
+
+   ```
+   aws ec2 describe-subnets --subnet-ids <the endpoint's subnet ids> --query "Subnets[].CidrBlock" --output text
+   ```
+
+   Write them down next to the S3 CIDRs from item 3: both go in
+   `networkPolicy.egressCidrs` in step 7.
+5. **Create the ECR repository** for the image:
+
+   ```
+   aws ecr create-repository --repository-name viz-site \
+     --image-scanning-configuration scanOnPush=true \
+     --query repository.repositoryUri --output text
+   ```
+
+   It prints `123456789012.dkr.ecr.<region>.amazonaws.com/viz-site` (with
+   your account id and region). Write it down: it is the Helm value
+   `image.repository` in step 7, and the part before `/viz-site` is the
+   registry you log in to there.
+6. **Create the KMS key, the bucket, the roles and the policies**:
+   `deploy/aws/README.md`, in its order. That covers the KMS key, the bucket
+   baseline, the bucket policy (put the id from item 3 in place of
+   `vpce-REPLACE_ME`), the `viz-site-server` role with its IRSA trust policy
+   (use the namespace and service account from item 1 and the issuer from
+   item 2), the `viz-site-publisher` role with its trust policy, and the KMS
+   key policy.
+7. **Act as the publisher role on your laptop.** To run `viz publish` and
    `viz move`, add a profile that assumes `viz-site-publisher`, with a fixed
    `role_session_name`. A fixed session name keeps your AWS identity, and so
    the author stamped on charts you stage from files, the same from one
@@ -229,16 +334,25 @@ with `Remove-Item Env:VIZ_ROOT_PREFIX`.
 
 ## 7. Deploy
 
-1. Build and push the image to your registry:
-   `docker build --platform linux/amd64 -t <registry>/viz-site:0.1.0 .` then
-   `docker push <registry>/viz-site:0.1.0`. The chart has no `tls` block;
-   TLS is terminated by the load balancer or the company SSO proxy in front
-   of it.
+1. **Build and push the image.** `<registry>` is the part of the repository
+   URI from step 5, item 5, before `/viz-site`
+   (`123456789012.dkr.ecr.<region>.amazonaws.com`). Log in, build and push:
+
+   ```
+   aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <registry>
+   docker build --platform linux/amd64 -t <registry>/viz-site:0.1.0 .
+   docker push <registry>/viz-site:0.1.0
+   ```
+
+   The chart has no `tls` block; TLS is terminated by the load balancer or
+   the company SSO proxy in front of it.
 2. **Fill in your values and install.** Copy
    `deploy/helm/viz-site/values.yaml` to `my-values.yaml` at the repo root
    (never commit the filled copy). Fill in every `REPLACE_ME`, `example.com`
-   and `123456789012` value, including `networkPolicy.egressCidrs`, and
-   `ingress.alb.certificateArn` if you set `ingress.className: alb`. Then
+   and `123456789012` value: `image.repository` is the repository URI from
+   step 5, item 5; `networkPolicy.egressCidrs` lists the S3 and STS CIDRs
+   from step 5, items 3 and 4; set `ingress.alb.certificateArn` if you set
+   `ingress.className: alb`. Then
    make these three decisions in `my-values.yaml` before you install:
 
    a. **Who may reach the pods.** The chart's NetworkPolicy lets only the

@@ -120,3 +120,41 @@ def test_readme_shows_the_irsa_trust_policy():
     assert "system:serviceaccount:viz:viz-site" in text
     assert "sts:AssumeRoleWithWebIdentity" in text
     assert "choose the namespace and the\nHelm release name before you create the role" in text
+
+
+def _principal_statement(policy: dict, arn: str) -> dict:
+    found = [s for s in policy["Statement"] if s["Principal"] == {"AWS": arn}]
+    assert len(found) == 1, arn
+    return found[0]
+
+
+def test_key_policy_lets_the_server_decrypt_and_the_publisher_encrypt():
+    # C5: a customer-managed key needs the roles in its key policy.
+    policy = _policy("key-policy.json")
+    admin = _principal_statement(policy, "arn:aws:iam::123456789012:root")
+    assert admin["Action"] == "kms:*" and admin["Resource"] == "*"
+    server = _principal_statement(policy, "arn:aws:iam::123456789012:role/viz-site-server")
+    assert server["Action"] == "kms:Decrypt"
+    publisher = _principal_statement(policy, "arn:aws:iam::123456789012:role/viz-site-publisher")
+    assert sorted(publisher["Action"]) == ["kms:Decrypt", "kms:GenerateDataKey"]
+    assert all(s["Effect"] == "Allow" for s in policy["Statement"])
+
+
+def test_publisher_trust_policy_names_who_may_assume_the_role():
+    policy = _policy("publisher-trust-policy.json")
+    [statement] = policy["Statement"]
+    assert statement["Effect"] == "Allow"
+    assert statement["Action"] == "sts:AssumeRole"
+    assert statement["Principal"] == {"AWS": "arn:aws:iam::123456789012:root"}
+    allowed = statement["Condition"]["ArnLike"]["aws:PrincipalArn"]
+    assert allowed and all(arn.startswith("arn:aws:iam::123456789012:") and "REPLACE_ME" in arn for arn in allowed)
+
+
+def test_readme_creates_the_key_before_the_roles_and_the_key_policy_after():
+    text = (AWS / "README.md").read_text(encoding="utf-8")
+    create_key = text.index("aws kms create-key")
+    assert "REPLACE_ME-key-id" in text[create_key:text.index("## ", create_key)]
+    assert create_key < text.index("aws iam create-role --role-name viz-site-server")
+    assert text.index("aws iam create-role --role-name viz-site-publisher") < text.index("aws kms put-key-policy")
+    for name in ("key-policy.json", "publisher-trust-policy.json", "server-policy.json", "publisher-policy.json"):
+        assert f"file://{name}" in text, name

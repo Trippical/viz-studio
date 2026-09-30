@@ -124,3 +124,45 @@ def test_deploy_locks_the_load_balancer_before_the_identity_gate():
         "security group",
     ):
         assert phrase in flat, phrase
+
+
+def test_what_you_need_names_the_cluster_prerequisites():
+    # C6
+    need = " ".join(_section(_text(), "What you need").split())
+    for phrase in (
+        "AWS CLI v2",
+        "ingress-nginx",
+        "AWS Load Balancer Controller",
+        "kubernetes.io/role/internal-elb",
+        "enableNetworkPolicy=true",
+        "Calico",
+        "Cilium",
+        "OIDC provider",
+        "same region as the cluster",
+    ):
+        assert phrase in need, phrase
+
+
+def test_step_5_creates_every_aws_prerequisite_in_order():
+    # C5
+    step = _section(_text(), "5. Create the AWS resources")
+    order = [
+        "kubectl create namespace viz",
+        "aws eks describe-cluster --name <cluster> --query cluster.identity.oidc.issuer --output text",
+        "eksctl utils associate-iam-oidc-provider",
+        "create-vpc-endpoint --vpc-endpoint-type Gateway",
+        "aws ec2 get-managed-prefix-list-entries --prefix-list-id pl-",
+        "--service-name com.amazonaws.<region>.sts",
+        "--private-dns-enabled",
+        "aws ecr create-repository --repository-name viz-site",
+        "deploy/aws/README.md",
+        "role_session_name = viz-publisher",
+    ]
+    positions = [step.index(phrase) for phrase in order]
+    assert positions == sorted(positions), order
+
+
+def test_step_7_logs_in_to_ecr_before_the_push():
+    deploy = _section(_text(), "7. Deploy")
+    login = deploy.index("aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin")
+    assert login < deploy.index("docker push <registry>/viz-site:0.1.0")
