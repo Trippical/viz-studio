@@ -8,7 +8,10 @@ import pyarrow as pa
 from ..config import Settings
 from .denylist import denied_references
 
-INSTALL_HINT = 'databricks-sql-connector is not installed; run: pip install "viz-site[databricks]"'
+INSTALL_HINT = (
+    'databricks-sql-connector is not installed; from your viz-site checkout run: '
+    'pip install -e ".[databricks]" (see docs/work-setup.md)'
+)
 
 
 class QueryError(Exception):
@@ -51,12 +54,21 @@ def resolve_warehouse(warehouse_id: str | None) -> str:
     return warehouse
 
 
+def read_sql_file(path: str) -> str:
+    """The SQL in a file. `--sql-file` exists because PowerShell treats a leading @ as an
+    operator, so `--sql @query.sql` does not work there (finding A16)."""
+    sql_path = Path(path)
+    if not sql_path.is_file():
+        raise QueryError(f"sql file not found: {sql_path}", code=2)
+    try:
+        return sql_path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError as err:
+        raise QueryError(f"sql file {sql_path} is not UTF-8 text; save it as UTF-8 ({err})", code=2) from err
+
+
 def read_sql_argument(value: str) -> str:
     if value.startswith("@"):
-        path = Path(value[1:])
-        if not path.is_file():
-            raise QueryError(f"sql file not found: {path}", code=2)
-        return path.read_text(encoding="utf-8")
+        return read_sql_file(value[1:])
     return value
 
 

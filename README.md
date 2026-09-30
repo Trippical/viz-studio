@@ -27,8 +27,8 @@ Setting it up at work (fresh clone, AWS, Databricks, deployment):
 
     viz stage --from rows.csv --id sales/emea/revenue   # stage a csv, json or parquet file
     viz stage --from rows.csv --id sales/emea/revenue --drop-columns a,b --staging DIR
-    viz query --sql @q.sql --id sales/emea/revenue      # run SQL on Databricks and stage the result
-    viz query --sql @q.sql --id sales/emea/revenue --drop-columns a,b --staging DIR
+    viz query --sql-file q.sql --id sales/emea/revenue  # run SQL on Databricks and stage the result
+    viz query --sql-file q.sql --id sales/emea/revenue --drop-columns a,b --staging DIR
     viz validate .viz-staging/charts/sales/emea/revenue # schema, data file, columns, author, id conflicts
     viz preview                                         # serve ./.viz-staging on 127.0.0.1:8000
     viz publish .viz-staging/charts/sales/emea/revenue  # validate, then upload (data first, then chart.json)

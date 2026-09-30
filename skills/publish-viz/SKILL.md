@@ -46,9 +46,9 @@ data, checks it and uploads it. The site never runs SQL.
 2. **Write the SQL** so the result is small: aggregate in the warehouse,
    select only needed columns, name columns with letters, digits and
    underscores. Details: `references/data.md`.
-3. **Stage the rows.**
-   `viz query --sql @query.sql --id sales/emea/revenue-by-region` runs the
-   SQL and stages the result. For a file the user already has:
+3. **Stage the rows.** Write the SQL to a file, then
+   `viz query --sql-file query.sql --id sales/emea/revenue-by-region` runs
+   it and stages the result. For a file the user already has:
    `viz stage --from rows.csv --id sales/emea/revenue-by-region`.
    Read the printed column summary. If it warns about personal data, rerun
    with `--drop-columns` unless the user asked for that column by name.

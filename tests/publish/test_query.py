@@ -8,7 +8,7 @@ import pytest
 from viz.config import Settings
 from viz.publish import query
 from viz.publish.cli import main
-from viz.publish.query import DeniedQuery, QueryError, read_sql_argument, resolve_warehouse, run_query
+from viz.publish.query import DeniedQuery, QueryError, read_sql_argument, read_sql_file, resolve_warehouse, run_query
 
 SQL = "SELECT month, region, revenue FROM sales.public.monthly"
 
@@ -117,8 +117,10 @@ def test_missing_connector_gives_install_hint(env, dbx_env, monkeypatch):
     monkeypatch.setattr(query, "_connect", None)
     monkeypatch.setitem(sys.modules, "databricks", None)
     monkeypatch.setitem(sys.modules, "databricks.sql", None)
-    with pytest.raises(QueryError, match='pip install "viz-site\\[databricks\\]"'):
+    with pytest.raises(QueryError) as exc:
         run_query(SQL, Settings())
+    assert 'pip install -e ".[databricks]"' in str(exc.value)
+    assert "viz-site[databricks]" not in str(exc.value), "viz-site is not on PyPI"
 
 
 def test_read_sql_argument(tmp_path):
@@ -158,3 +160,35 @@ def test_query_command_drops_pii(env, dbx_env, fake, staging_root, capsys):
     assert "warning" not in capsys.readouterr().err, "the only PII column was dropped before the warning was computed"
     doc = json.loads((staging_root / "charts" / "sales" / "pii" / "chart.json").read_text(encoding="utf-8"))
     assert [c["name"] for c in doc["data"]["columns"]] == ["month", "revenue"]
+
+
+def test_read_sql_file(tmp_path):
+    path = tmp_path / "q.sql"
+    path.write_bytes(b"\xef\xbb\xbfSELECT 3\n")  # a UTF-8 byte order mark, as some Windows editors write
+    assert read_sql_file(str(path)) == "SELECT 3\n"
+    with pytest.raises(QueryError, match="sql file not found"):
+        read_sql_file(str(tmp_path / "missing.sql"))
+    utf16 = tmp_path / "utf16.sql"
+    utf16.write_bytes("SELECT 4".encode("utf-16"))  # what PowerShell 5 writes with >
+    with pytest.raises(QueryError, match="not UTF-8"):
+        read_sql_file(str(utf16))
+
+
+def test_query_command_reads_sql_file(env, dbx_env, fake, staging_root, tmp_path):
+    path = tmp_path / "q.sql"
+    path.write_text(SQL, encoding="utf-8")
+    assert main(["query", "--sql-file", str(path), "--id", "sales/from-sql-file"]) == 0
+    doc = json.loads((staging_root / "charts" / "sales" / "from-sql-file" / "chart.json").read_text(encoding="utf-8"))
+    assert doc["source"]["sql"] == SQL
+    assert SQL in fake.log
+
+
+def test_query_command_needs_exactly_one_sql_option(env, dbx_env, fake, tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        main(["query", "--id", "sales/no-sql"])
+    assert exc.value.code == 2
+    path = tmp_path / "q.sql"
+    path.write_text(SQL, encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        main(["query", "--sql", SQL, "--sql-file", str(path), "--id", "sales/both"])
+    assert exc.value.code == 2

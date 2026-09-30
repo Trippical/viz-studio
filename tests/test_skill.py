@@ -116,3 +116,9 @@ def test_dashboards_guide_calls_author_attribution():
     assert "must equal the identity" not in text
     assert "with your identity" not in text
     assert "attribution" in text
+
+
+def test_skill_uses_sql_file():
+    text = _text(SKILL / "SKILL.md")
+    assert "viz query --sql-file" in text
+    assert "--sql @" not in text

@@ -20,7 +20,7 @@ from .move import MoveError, apply_move, describe, plan_move
 from .pii import drop_columns, parse_drop_list, pii_warning
 from .preview import run_preview
 from .publish import PublishRefused, destination, publish_chart, publish_dashboard
-from .query import QueryError, read_sql_argument, resolve_warehouse, run_query
+from .query import QueryError, read_sql_argument, read_sql_file, resolve_warehouse, run_query
 from .staging import LaneError, column_summary, write_staged_chart
 from .validate import validate_dashboard_file, validate_staged_chart
 
@@ -161,7 +161,7 @@ def _cmd_preview(args) -> int:
 def _cmd_query(args) -> int:
     settings = Settings()
     try:
-        sql = read_sql_argument(args.sql)
+        sql = read_sql_file(args.sql_file) if args.sql_file else read_sql_argument(args.sql)
         table, user = run_query(sql, settings, args.warehouse)
         warehouse = resolve_warehouse(args.warehouse)
     except QueryError as err:
@@ -250,7 +250,9 @@ def build_parser() -> argparse.ArgumentParser:
     preview_p.set_defaults(func=_cmd_preview)
 
     query_p = sub.add_parser("query", help="run SQL on Databricks and stage the result as a chart")
-    query_p.add_argument("--sql", required=True, metavar="SQL_OR_@FILE")
+    sql_group = query_p.add_mutually_exclusive_group(required=True)
+    sql_group.add_argument("--sql", default=None, metavar="SQL_OR_@FILE", help="the SQL text, or @path to read it from a file")
+    sql_group.add_argument("--sql-file", default=None, metavar="PATH", help="read the SQL from this file (works in every shell)")
     query_p.add_argument("--id", required=True, help="chart id, for example sales/emea/revenue")
     query_p.add_argument("--warehouse", default=None, metavar="ID", help="SQL warehouse id (default DATABRICKS_WAREHOUSE_ID)")
     query_p.add_argument("--drop-columns", default=None, metavar="a,b")

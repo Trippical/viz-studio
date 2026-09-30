@@ -170,7 +170,7 @@ Then publish one real chart end to end:
 ```
 export VIZ_STORAGE=s3 VIZ_S3_BUCKET=your-viz-bucket AWS_REGION=your-region
 echo "SELECT 'a' AS label, 1 AS value" > first.sql
-.venv/bin/viz query --sql @first.sql --id smoke/first-chart
+.venv/bin/viz query --sql-file first.sql --id smoke/first-chart
 .venv/bin/viz validate .viz-staging/charts/smoke/first-chart
 .venv/bin/viz publish .viz-staging/charts/smoke/first-chart
 ```
