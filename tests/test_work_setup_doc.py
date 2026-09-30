@@ -162,6 +162,13 @@ def test_step_5_creates_every_aws_prerequisite_in_order():
     assert positions == sorted(positions), order
 
 
+def test_viz_local_dir_row_says_publish_and_move_refuse_without_it():
+    # C9: the server still defaults to ./sample-bucket; publish and move do not.
+    [row] = [line for line in _text().splitlines() if line.startswith("| `VIZ_LOCAL_DIR` |")]
+    assert "`./sample-bucket` for the server" in row
+    assert "`viz publish` and `viz move` refuse to run without it" in row
+
+
 def test_step_7_logs_in_to_ecr_before_the_push():
     deploy = _section(_text(), "7. Deploy")
     login = deploy.index("aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin")

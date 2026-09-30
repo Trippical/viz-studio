@@ -94,6 +94,13 @@ def test_skill_says_to_ask_when_viz_storage_is_not_set():
     assert "`VIZ_STORAGE` is not set" in text
 
 
+def test_skill_says_local_publishing_needs_viz_local_dir():
+    # C8: publish and move refuse VIZ_STORAGE=local without VIZ_LOCAL_DIR; the agent must ask, not guess.
+    text = " ".join(_text(SKILL / "SKILL.md").split())
+    assert ("`VIZ_STORAGE=local` without `VIZ_LOCAL_DIR`: `viz publish` and `viz move` refuse to run. "
+            "Ask the user which folder to publish to.") in text
+
+
 def _step(text: str, start: str, end: str) -> str:
     return text[text.index(start):text.index(end)]
 

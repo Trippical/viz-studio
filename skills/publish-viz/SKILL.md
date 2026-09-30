@@ -93,6 +93,9 @@ data, checks it and uploads it. The site never runs SQL.
   row-level data may be shared, or rewrite the SQL to aggregate.
 - `VIZ_STORAGE` is not set: `viz publish` and `viz move` refuse to run.
   Ask the user which bucket to publish to. Do not pick one yourself.
+- `VIZ_STORAGE=local` without `VIZ_LOCAL_DIR`: `viz publish` and
+  `viz move` refuse to run. Ask the user which folder to publish to. Do not
+  set `VIZ_LOCAL_DIR` to `./sample-bucket` or any folder yourself.
 - Selecting an identifier or free-text column the user did not name.
 
 ## Never

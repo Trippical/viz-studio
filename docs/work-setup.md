@@ -58,7 +58,7 @@ share the `VIZ_*` ones.
 | `VIZ_STORAGE` | `local` | both | `local` (a folder) or `s3`. `viz publish` and `viz move` refuse to run unless it is set explicitly |
 | `VIZ_S3_BUCKET` | none | both | Bucket name when `VIZ_STORAGE=s3` |
 | `VIZ_ROOT_PREFIX` | `viz/` | both | Key prefix everything lives under |
-| `VIZ_LOCAL_DIR` | `./sample-bucket` | both | Folder used when `VIZ_STORAGE=local` |
+| `VIZ_LOCAL_DIR` | `./sample-bucket` for the server; none for publishing | both | Folder used when `VIZ_STORAGE=local`. With `VIZ_STORAGE=local`, `viz publish` and `viz move` refuse to run without it, so they never write into the default `./sample-bucket` |
 | `VIZ_TREE_TTL_SECONDS` | `60` | server | How long the folder tree is cached |
 | `VIZ_ALLOWED_HOSTS` | `localhost,127.0.0.1` | server | Host names the site answers to; anything else gets 400, except `GET` and `HEAD /api/health` (load balancer checks send the pod IP). Must be set in deployment |
 | `VIZ_AUTH_HEADER` | `X-Forwarded-Email` | server | Identity header set by the SSO proxy. Logged with every request; required on every request when `VIZ_REQUIRE_IDENTITY` is true |
