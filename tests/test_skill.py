@@ -103,3 +103,16 @@ def test_skill_stops_on_errors_that_need_the_user():
     step5 = _step(text, "5. **Validate.**", "6. **Preview")
     assert "ask the user" in step5
     assert "Never add `--force`, `--yes` or `--allow-row-level` on your own." in step5
+
+
+def test_skill_allows_editing_the_renderer():
+    text = _text(SKILL / "SKILL.md")
+    step4 = _step(text, "4. **Write the chart.**", "5. **Validate.**")
+    assert "`renderer`" in step4
+
+
+def test_dashboards_guide_calls_author_attribution():
+    text = _text(SKILL / "references" / "dashboards.md")
+    assert "must equal the identity" not in text
+    assert "with your identity" not in text
+    assert "attribution" in text

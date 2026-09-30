@@ -58,7 +58,9 @@ data, checks it and uploads it. The site never runs SQL.
    `.viz-staging/charts/<id>/chart.json`: set `title`, a one-sentence
    `description`, and the `spec`. Pick the form and start from the matching
    example in `references/vega-lite.md`. Only edit `title`, `description`,
-   `tags`, `spec`, and for a large-lane chart `aggregate`. Keep `source`.
+   `tags`, `spec`, `renderer`, and for a large-lane chart `aggregate`.
+   Set `renderer` to `"stat"` only for a single headline number (see the
+   stat tile in `references/vega-lite.md`). Keep `source`.
 5. **Validate.** `viz validate .viz-staging/charts/<id>`. Fix every error
    it prints and run it again until it prints `ok:`. The exception is an
    error that says `ask the user`: it needs the user's consent, not a fix.

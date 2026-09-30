@@ -5,14 +5,15 @@ grid and adds filter controls. It holds no data.
 
 ## Start the file with the CLI
 
-Never write a dashboard file from nothing: `author` must equal the identity
-the CLI resolves, and the CLI stamps it for you.
+Never write a dashboard file from nothing: the CLI stamps `author` for you.
+`author` records who published the dashboard (attribution). It is not a
+permission check, and `viz validate` rejects a hand-typed value.
 
 - New dashboard: `viz new-dashboard sales/emea/overview --chart sales/emea/revenue --chart sales/emea/total-revenue --title "EMEA overview"`
   writes `.viz-staging/dashboards/sales/emea/overview.json` with one
   `w: 6, h: 4` tile per chart.
 - Change a published dashboard: `viz pull-dashboard sales/emea/overview`
-  copies it into staging with your identity and a new `updated_at`.
+  copies it into staging with you as `author` and a new `updated_at`.
 
 Both refuse to replace a staged file you may have edited. The refusal says
 `ask the user before passing --force`: do that, because `--force` discards
