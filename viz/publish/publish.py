@@ -10,6 +10,7 @@ A chart publish is three steps (hardening decision B2):
    so a reader still holding the old chart.json can fetch its data. One generation is kept.
 """
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -97,6 +98,30 @@ def destination(settings: Settings, key: str) -> str:
     return str((Path(settings.local_dir) / key).resolve())
 
 
+CREATED_AT_PATTERN = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
+
+
+def keep_created_at(existing: dict | None, staged_file: Path) -> None:
+    """Republishing an id keeps the created_at of the published document (finding A20).
+    `existing` is the document the overwrite guard read (None for a new id). The staged
+    file is rewritten before the upload, so the bytes in the bucket still equal the staged
+    file byte for byte. The published value is untrusted: it is copied only when it is a
+    plain UTC timestamp such as 2026-09-29T10:00:00Z."""
+    if not isinstance(existing, dict):
+        return
+    created = existing.get("created_at")
+    if not isinstance(created, str) or not CREATED_AT_PATTERN.fullmatch(created):
+        return
+    staged_file = Path(staged_file)
+    doc = json.loads(staged_file.read_text(encoding="utf-8"))
+    if doc.get("created_at") == created:
+        return
+    doc["created_at"] = created
+    tmp = staged_file.with_name(staged_file.name + ".tmp")
+    tmp.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+    tmp.replace(staged_file)
+
+
 def publish_chart(chart_dir: Path, settings: Settings, storage: Storage, force: bool = False,
                   allow_row_level: bool = False, out=None) -> str:
     out = sys.stdout if out is None else out
@@ -111,6 +136,7 @@ def publish_chart(chart_dir: Path, settings: Settings, storage: Storage, force: 
     root = settings.root_prefix
     key = chart_key(root, chart_id)
     existing, etag = _guard_overwrite(storage, key, force, out)
+    keep_created_at(existing, chart_dir / "chart.json")
 
     storage.put(data_key(root, chart_id, file_name), (chart_dir / file_name).read_bytes(), MEDIA_TYPES[fmt])
     _commit(storage, key, (chart_dir / "chart.json").read_bytes(), chart_id, etag)
@@ -132,7 +158,8 @@ def publish_dashboard(path: Path, settings: Settings, storage: Storage, force: b
     doc, _ = read_document(path)
     dashboard_id = doc["id"]
     key = dashboard_key(settings.root_prefix, dashboard_id)
-    _existing_doc, etag = _guard_overwrite(storage, key, force, out)
+    existing, etag = _guard_overwrite(storage, key, force, out)
+    keep_created_at(existing, path)
     _commit(storage, key, path.read_bytes(), dashboard_id, etag)
     print(f"published: {dashboard_id} -> {destination(settings, key)}", file=out)
     return dashboard_id
