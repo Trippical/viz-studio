@@ -8,10 +8,20 @@ import { SanitizeError, isPlainObject } from '../renderers/common';
 import { ErrorCard } from './ErrorCard';
 import { StatTile } from './StatTile';
 
+let duckdbModule: Promise<typeof import('../data/duckdb')> | null = null;
+function loadDuckdb(): Promise<typeof import('../data/duckdb')> {
+  if (!duckdbModule) duckdbModule = import('../data/duckdb');
+  return duckdbModule;
+}
+
 export interface ChartTileProps {
   chartId: string;
   filters: Filter[];
   onRows?: (chartId: string, rows: Row[]) => void;
+  /** Columns of the dashboard's select controls; a large-lane tile lists their distinct values (A7). */
+  optionColumns?: string[];
+  /** Called once per loaded large-lane chart with the distinct values of each declared option column. */
+  onOptions?: (chartId: string, values: Record<string, string[]>) => void;
   showTitle?: boolean;
 }
 
@@ -50,7 +60,7 @@ class TileErrorBoundary extends Component<{ id: string; onError?: (err: unknown)
   }
 }
 
-export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartTileProps) {
+export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, showTitle = true }: ChartTileProps) {
   const [chart, setChart] = useState<Chart | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [largeRows, setLargeRows] = useState<Row[] | null>(null);
@@ -61,6 +71,10 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const onRowsRef = useRef(onRows);
   onRowsRef.current = onRows;
+  const onOptionsRef = useRef(onOptions);
+  onOptionsRef.current = onOptions;
+  const optionColumnsRef = useRef(optionColumns);
+  optionColumnsRef.current = optionColumns;
   const key = filterKey(filters);
 
   // Load the chart document and its small-lane rows.
@@ -105,7 +119,7 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
     let cancelled = false;
     (async () => {
       try {
-        const { queryLargeLane } = await import('../data/duckdb');
+        const { queryLargeLane } = await loadDuckdb();
         const result = await queryLargeLane(chartId, chart.aggregate ?? '', chart.data.columns, filters);
         if (!cancelled) setLargeRows(result);
       } catch (err) {
@@ -117,6 +131,29 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands in for `filters`
   }, [chart, chartId, key, error]);
+
+  // Large lane (finding A7): list the distinct values of every select-control
+  // column this chart declares, once per loaded chart, over the unfiltered
+  // data, and report them so the control bar can offer them.
+  useEffect(() => {
+    if (!chart || chart.id !== chartId || chart.data.lane !== 'large') return;
+    let cancelled = false;
+    const declared = new Set(chart.data.columns.map((c) => c.name));
+    const wanted = (optionColumnsRef.current ?? []).filter((column, i, all) => declared.has(column) && all.indexOf(column) === i);
+    (async () => {
+      try {
+        const { distinctValues } = await loadDuckdb();
+        const out: Record<string, string[]> = {};
+        for (const column of wanted) out[column] = await distinctValues(chartId, column, chart.data.columns);
+        if (!cancelled) onOptionsRef.current?.(chartId, out);
+      } catch (err) {
+        if (!cancelled) setError(describeError(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chart, chartId]);
 
   // Mount once, then update on every filter change. Operations are serialized.
   // The cleanup below also fires on a chartId change (it is in the deps), so

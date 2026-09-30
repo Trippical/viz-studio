@@ -4,9 +4,11 @@ import type { Filter } from './filters';
 import {
   DuckDbError,
   DATA_DIR,
+  DISTINCT_LIMIT,
   INIT_STATEMENTS,
   ROW_LIMIT,
   arrowRowsToRows,
+  buildDistinctAggregate,
   buildFilteredQuery,
   buildPreloadStatements,
   checkSingleSelectSyntax,
@@ -226,5 +228,26 @@ describe('withTempTables', () => {
     expect(created).toEqual(['a']);
     expect(dropped).toEqual([]);
     expect(closed).toEqual([]);
+  });
+});
+
+describe('buildDistinctAggregate (A7)', () => {
+  it('lists one more distinct value than the option cap, cast the way select filters cast', () => {
+    expect(DISTINCT_LIMIT).toBe(501);
+    expect(buildDistinctAggregate('region', columns)).toBe(
+      'SELECT DISTINCT CAST("region" AS VARCHAR) AS v FROM data WHERE "region" IS NOT NULL LIMIT 501',
+    );
+  });
+
+  it('refuses a column the chart does not declare or an unsafe name', () => {
+    expect(() => buildDistinctAggregate('nope', columns)).toThrow('unknown column: nope');
+    expect(() => buildDistinctAggregate('bad"col', [...columns, { name: 'bad"col', type: 'string' }])).toThrow(DuckDbError);
+  });
+
+  it('is a single SELECT that the filtered-query wrapper accepts', () => {
+    const q = buildFilteredQuery(buildDistinctAggregate('day', columns), 'raw_x', columns, []);
+    expect(q.sql).toBe(
+      'WITH data AS (SELECT * FROM "raw_x") SELECT * FROM (SELECT DISTINCT CAST("day" AS VARCHAR) AS v FROM data WHERE "day" IS NOT NULL LIMIT 501) LIMIT 50000',
+    );
   });
 });

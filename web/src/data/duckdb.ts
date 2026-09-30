@@ -3,7 +3,7 @@
 // parameters and temp tables, a 50k row cap and a wall-clock budget.
 import { dataUrl } from '../api/client';
 import type { Column, Row } from '../api/types';
-import { isActive, type Filter } from './filters';
+import { MAX_SELECT_OPTIONS, isActive, type Filter } from './filters';
 
 export const ROW_LIMIT = 50000;
 export const DEFAULT_TIMEOUT_MS = 15000;
@@ -392,4 +392,24 @@ export function queryLargeLane(chartId: string, aggregate: string, columns: Colu
   const next = chain.then(() => runQuery(chartId, aggregate, columns, filters, timeoutMs));
   chain = next.catch(() => undefined);
   return next;
+}
+
+/** One more than the option cap, so "too many values" is still detected (finding A7). */
+export const DISTINCT_LIMIT = MAX_SELECT_OPTIONS + 1;
+
+/**
+ * The aggregate that lists a column's distinct values for a select control.
+ * The column is checked against the declared columns and the identifier
+ * pattern before it is quoted into the SQL; no value is ever interpolated.
+ */
+export function buildDistinctAggregate(column: string, columns: Column[]): string {
+  if (!COLUMN_NAME.test(column) || !columns.some((c) => c.name === column)) throw new DuckDbError(`unknown column: ${column}`);
+  return `SELECT DISTINCT CAST("${column}" AS VARCHAR) AS v FROM data WHERE "${column}" IS NOT NULL LIMIT ${DISTINCT_LIMIT}`;
+}
+
+/** Distinct values of one column over a large-lane chart's unfiltered data, as strings. */
+export async function distinctValues(chartId: string, column: string, columns: Column[], timeoutMs = DEFAULT_TIMEOUT_MS): Promise<string[]> {
+  const aggregate = buildDistinctAggregate(column, columns);
+  const rows = await queryLargeLane(chartId, aggregate, [{ name: 'v', type: 'string' }], [], timeoutMs);
+  return rows.map((r) => String(r.v));
 }

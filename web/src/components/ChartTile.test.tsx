@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   },
   getAdapter: vi.fn(),
   queryLargeLane: vi.fn(),
+  distinctValues: vi.fn(),
 }));
 
 vi.mock('../api/client', async (importOriginal) => ({
@@ -26,7 +27,7 @@ vi.mock('../api/client', async (importOriginal) => ({
   fetchRows: mocks.fetchRows,
 }));
 vi.mock('../renderers', () => ({ getAdapter: mocks.getAdapter }));
-vi.mock('../data/duckdb', () => ({ queryLargeLane: mocks.queryLargeLane }));
+vi.mock('../data/duckdb', () => ({ queryLargeLane: mocks.queryLargeLane, distinctValues: mocks.distinctValues }));
 
 const chart: Chart = {
   schema_version: 1,
@@ -60,6 +61,7 @@ beforeEach(() => {
   mocks.adapter.destroy.mockClear();
   mocks.getAdapter.mockReset().mockReturnValue(mocks.adapter);
   mocks.queryLargeLane.mockReset();
+  mocks.distinctValues.mockReset().mockResolvedValue([]);
 });
 
 // vitest.config.ts does not set `test.globals`, so @testing-library/react's
@@ -264,6 +266,50 @@ describe('ChartTile', () => {
 
     await waitFor(() => expect(tile('sales/y').dataset.state).toBe('ready'));
     expect(screen.getByTestId('stat-value')).toHaveTextContent('3');
+  });
+});
+
+describe('ChartTile select options (A7)', () => {
+  const large: Chart = {
+    ...chart,
+    data: { ...chart.data, lane: 'large', format: 'parquet' },
+    aggregate: 'SELECT region, sum(revenue) AS revenue FROM data GROUP BY region',
+  };
+
+  it('reports the distinct values of each declared select column once, for the large lane', async () => {
+    mocks.fetchChart.mockResolvedValue(large);
+    mocks.queryLargeLane.mockResolvedValue([{ region: 'EMEA', revenue: 1 }]);
+    mocks.distinctValues.mockResolvedValue(['EMEA', 'NA']);
+    const onOptions = vi.fn();
+    const { rerender } = render(<ChartTile chartId="sales/x" filters={[]} optionColumns={['region', 'month', 'region']} onOptions={onOptions} />);
+    await waitFor(() => expect(onOptions).toHaveBeenCalledWith('sales/x', { region: ['EMEA', 'NA'] }));
+    expect(mocks.distinctValues).toHaveBeenCalledTimes(1);
+    expect(mocks.distinctValues).toHaveBeenCalledWith('sales/x', 'region', large.data.columns);
+
+    const filter = { controlId: 'r', column: 'region', value: { type: 'select' as const, values: ['NA'] } };
+    rerender(<ChartTile chartId="sales/x" filters={[filter]} optionColumns={['region', 'month', 'region']} onOptions={onOptions} />);
+    await waitFor(() => expect(mocks.queryLargeLane).toHaveBeenCalledTimes(2));
+    expect(mocks.distinctValues).toHaveBeenCalledTimes(1);
+    expect(onOptions).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an empty set when the chart declares none of the columns', async () => {
+    mocks.fetchChart.mockResolvedValue(large);
+    mocks.queryLargeLane.mockResolvedValue([]);
+    const onOptions = vi.fn();
+    render(<ChartTile chartId="sales/x" filters={[]} optionColumns={['month']} onOptions={onOptions} />);
+    await waitFor(() => expect(onOptions).toHaveBeenCalledWith('sales/x', {}));
+    expect(mocks.distinctValues).not.toHaveBeenCalled();
+  });
+
+  it('never lists options for the small lane (onRows covers it)', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    const onOptions = vi.fn();
+    render(<ChartTile chartId="sales/x" filters={[]} optionColumns={['region']} onOptions={onOptions} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(mocks.distinctValues).not.toHaveBeenCalled();
+    expect(onOptions).not.toHaveBeenCalled();
   });
 });
 

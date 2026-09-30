@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { INIT_STATEMENTS, registeredFileName } from './duckdb';
+import { INIT_STATEMENTS, buildDistinctAggregate, buildFilteredQuery, registeredFileName } from './duckdb';
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DIST = join(WEB, 'node_modules', '@duckdb', 'duckdb-wasm', 'dist');
@@ -77,6 +77,25 @@ describe('DuckDB lockdown (A4), real duckdb-wasm', () => {
     }
     expect(() => conn.query('SET enable_external_access=true')).toThrow(/locked/);
     expect(() => conn.query("SET allowed_directories=['/']")).toThrow();
+    conn.close();
+  }, 60_000);
+
+  it('runs the distinct-values aggregate over a locked database (A7)', async () => {
+    const { db, conn } = await lockedDb();
+    const name = csvName('sales/y');
+    db.registerFileBuffer(name, new TextEncoder().encode('region,amount\nEMEA,1\nNA,2\nEMEA,3\n,4\n'));
+    conn.query(`CREATE TABLE "raw_sales_y" AS SELECT * FROM read_csv('${name}')`);
+    const cols = [
+      { name: 'region', type: 'string' as const },
+      { name: 'amount', type: 'number' as const },
+    ];
+    const q = buildFilteredQuery(buildDistinctAggregate('region', cols), 'raw_sales_y', cols, []);
+    const values = conn
+      .query(q.sql)
+      .toArray()
+      .map((r) => String(r.toJSON().v))
+      .sort();
+    expect(values).toEqual(['EMEA', 'NA']);
     conn.close();
   }, 60_000);
 });
