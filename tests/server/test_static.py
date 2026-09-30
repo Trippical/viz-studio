@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from viz.server.app import create_app
+from viz.server.compression import IMMUTABLE
 
 
 def test_no_dist_returns_404_json(client):
@@ -49,6 +50,35 @@ def test_security_headers_on_static(settings, tmp_path):
     client = TestClient(create_app(settings))
     r = client.get("/anything")
     assert r.headers["x-frame-options"] == "DENY"
+
+
+def test_index_fallback_has_no_cache_header(settings, tmp_path):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>viz</title>", encoding="utf-8")
+    settings.web_dist = dist
+    client = TestClient(create_app(settings))
+    for path in ("/", "/d/any/thing"):
+        r = client.get(path)
+        assert r.status_code == 200, path
+        assert r.headers["cache-control"] == "no-cache", path
+
+
+def test_missing_asset_is_a_real_404_not_the_index_fallback(settings, tmp_path):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>viz</title>", encoding="utf-8")
+    (dist / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
+    settings.web_dist = dist
+    client = TestClient(create_app(settings))
+
+    r = client.get("/assets/does-not-exist.js")
+    assert r.status_code == 404
+    assert "<title>viz</title>" not in r.text
+
+    r = client.get("/assets/app.js")
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == IMMUTABLE
 
 
 def test_wasm_asset_has_wasm_content_type(settings, tmp_path):

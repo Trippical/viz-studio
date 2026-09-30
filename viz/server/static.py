@@ -24,7 +24,8 @@ def mount_spa(app: FastAPI, dist: Path) -> None:
     async def spa_fallback(request: Request, exc: StarletteHTTPException):
         path = request.url.path
         is_api = path == "/api" or path.startswith("/api/")
-        if exc.status_code == 404 and request.method in ("GET", "HEAD") and not is_api:
+        is_assets = path == "/assets" or path.startswith("/assets/")
+        if exc.status_code == 404 and request.method in ("GET", "HEAD") and not is_api and not is_assets:
             if not index.is_file():
                 return JSONResponse({"detail": "front end not built"}, status_code=404)
             rel = path.lstrip("/")
@@ -32,5 +33,5 @@ def mount_spa(app: FastAPI, dist: Path) -> None:
                 candidate = (dist / rel).resolve()
                 if candidate.is_file() and dist.resolve() in candidate.parents:
                     return FileResponse(candidate)
-            return FileResponse(index)
+            return FileResponse(index, headers={"Cache-Control": "no-cache"})
         return await http_exception_handler(request, exc)
