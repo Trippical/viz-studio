@@ -41,9 +41,21 @@ ingress:
   enabled: true
   # The site must never be internet-facing: it serves company data to anyone
   # who can reach it. Use an internal load balancer.
+  # "nginx" (ingress-nginx) or "alb" (AWS Load Balancer Controller). The
+  # ingress.alb values are used only when className is "alb".
   className: nginx
   host: viz.internal.example.com
-  rateLimitPerSecond: 10
+  # ingress-nginx only. nginx counts requests per client IP. With the company
+  # SSO proxy in front of the ingress, every request arrives from the proxy's
+  # IP, so all users share one limit and the site starts refusing everyone:
+  # set enabled to false when a proxy sits in front. Leave it on only when
+  # users reach the ingress directly.
+  rateLimit:
+    enabled: true
+    perSecond: 10
+  alb:
+    # ACM certificate for ingress.host, used by the HTTPS listener on 443.
+    certificateArn: arn:aws:acm:REPLACE_ME-region:123456789012:certificate/REPLACE_ME
   annotations: {}
 
 networkPolicy:

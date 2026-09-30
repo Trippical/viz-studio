@@ -170,3 +170,38 @@ def test_disruption_budget_only_with_more_than_one_replica():
     assert "  minAvailable: 1" in text
     assert 'include "viz-site.selectorLabels" .' in text
     assert text.rstrip().endswith("{{- end }}")
+
+
+def test_alb_annotations_render_only_for_the_alb_class():
+    text = _template("ingress.yaml")
+    start = text.index('{{- if eq .Values.ingress.className "alb" }}')
+    middle = text.index("{{- else }}", start)
+    alb_block, nginx_block = text[start:middle], text[middle:]
+    for line in (
+        "alb.ingress.kubernetes.io/scheme: internal",
+        "alb.ingress.kubernetes.io/target-type: ip",
+        """alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'""",
+        "alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.alb.certificateArn | quote }}",
+        "alb.ingress.kubernetes.io/healthcheck-path: /api/health",
+    ):
+        assert line in alb_block, line
+    assert "nginx.ingress.kubernetes.io" not in alb_block
+    assert "alb.ingress.kubernetes.io" not in nginx_block.split("{{- with .Values.ingress.annotations }}")[0]
+
+
+def test_nginx_rate_limit_can_be_switched_off():
+    text = _template("ingress.yaml")
+    nginx_block = text[text.index("{{- else }}"):]
+    assert "{{- if .Values.ingress.rateLimit.enabled }}" in nginx_block
+    assert "nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.rateLimit.perSecond | quote }}" in nginx_block
+    ingress = _values()["ingress"]
+    assert ingress["rateLimit"] == {"enabled": True, "perSecond": 10}
+    assert "rateLimitPerSecond" not in ingress
+    values_text = (CHART / "values.yaml").read_text(encoding="utf-8")
+    assert "SSO proxy" in values_text.split("rateLimit:")[0].rsplit("host:", 1)[1]
+
+
+def test_alb_certificate_is_a_placeholder():
+    arn = _values()["ingress"]["alb"]["certificateArn"]
+    assert arn.startswith("arn:aws:acm:REPLACE_ME-region:123456789012:certificate/")
+    assert "REPLACE_ME" in arn.rsplit("/", 1)[1]
