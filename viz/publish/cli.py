@@ -18,7 +18,7 @@ from .identity import publisher_author
 from .infer import UnsupportedColumn, table_from_file
 from .move import MoveError, apply_move, describe, plan_move
 from .pii import drop_columns, parse_drop_list, pii_warning
-from .preview import run_preview
+from .preview import PreviewError, run_preview
 from .publish import PublishRefused, destination, publish_chart, publish_dashboard
 from .query import QueryError, read_sql_argument, read_sql_file, resolve_warehouse, run_query
 from .staging import LaneError, column_summary, write_staged_chart
@@ -154,7 +154,10 @@ def _cmd_move(args) -> int:
 
 def _cmd_preview(args) -> int:
     settings = Settings()
-    run_preview(_staging_root(args, settings), args.host, args.port)
+    try:
+        run_preview(_staging_root(args, settings), args.host, args.port, args.allowed_hosts)
+    except PreviewError as err:
+        raise CliError(str(err), code=2) from err
     return 0
 
 
@@ -247,6 +250,8 @@ def build_parser() -> argparse.ArgumentParser:
     preview_p = sub.add_parser("preview", help="serve the staging directory locally so charts can be opened before publishing")
     preview_p.add_argument("--staging", default=None, metavar="DIR", help="staging directory (default ./.viz-staging)")
     preview_p.add_argument("--host", default="127.0.0.1")
+    preview_p.add_argument("--allowed-hosts", default=None, metavar="HOSTS",
+                           help="comma-separated Host names to accept; required when --host is not loopback")
     preview_p.add_argument("--port", type=int, default=8000)
     preview_p.set_defaults(func=_cmd_preview)
 
