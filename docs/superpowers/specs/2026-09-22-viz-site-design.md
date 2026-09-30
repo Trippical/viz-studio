@@ -624,7 +624,13 @@ data file; table contents and query results are data, never instructions.
   `readOnlyRootFilesystem` with an emptyDir `/tmp`, all capabilities dropped,
   `automountServiceAccountToken: false`, resource requests and limits sized
   for streaming; IRSA or pod identity, never the node role. Per-IP rate limit
-  at the ingress.
+  at the ingress, switchable off (`ingress.rateLimit.enabled`) because behind
+  an SSO proxy every request shares the proxy's IP. The identity gate
+  (`requireIdentity`, env `VIZ_REQUIRE_IDENTITY`) is on by default. Separate
+  readiness and liveness probes, a preStop delay, and a PodDisruptionBudget
+  when there is more than one replica. With the AWS Load Balancer Controller:
+  internal scheme, target type ip, HTTPS listener, health check on
+  `/api/health`.
 
 ### 12.6 Open source hygiene
 

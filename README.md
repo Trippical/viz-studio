@@ -8,6 +8,11 @@ Setting it up at work (fresh clone, AWS, Databricks, deployment):
 
 ## Trust assumptions, read these first
 
+- The site has no login of its own. It relies on the company SSO proxy in
+  front of it and, by default in the Helm chart (`requireIdentity: true`),
+  refuses with 401 every request that did not come through that proxy.
+  Anyone the proxy lets in can see every chart and dashboard: publishing is
+  sharing.
 - Publishing a chart or dashboard means sharing it with every person who can
   reach the site. There are no per-object permissions.
 - Folders are organization, not permission.
