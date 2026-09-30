@@ -129,10 +129,11 @@ describe('DashboardPage', () => {
     expect(screen.getByLabelText('Period from')).toHaveValue('2026-01-01');
   });
 
-  it('shows one error card for a missing dashboard', async () => {
+  it('shows one error card for a missing dashboard, with a link back to the dashboard list', async () => {
     mocks.fetchDashboard.mockRejectedValue(new ApiError(404, 'not found'));
     renderPage('/d/sales/nope');
     expect(await screen.findByRole('alert')).toHaveTextContent('sales/nope');
+    expect(screen.getByRole('link', { name: 'Browse all dashboards' })).toHaveAttribute('href', '/');
   });
 
   it('keeps the page up when one tile fails', async () => {

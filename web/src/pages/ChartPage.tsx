@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { fetchChart } from '../api/client';
 import type { Chart } from '../api/types';
 import { ChartTile, describeError } from '../components/ChartTile';
@@ -30,7 +30,16 @@ export function ChartPage() {
     };
   }, [id]);
 
-  if (error) return <ErrorCard id={id} reason={error} />;
+  if (error) {
+    return (
+      <div>
+        <ErrorCard id={id} reason={error} />
+        <p>
+          <Link to="/charts">Browse all charts</Link>
+        </p>
+      </div>
+    );
+  }
   if (!chart) return <div className="muted">Loading…</div>;
 
   // No refresher runs in v1, so the page names the source and nothing more

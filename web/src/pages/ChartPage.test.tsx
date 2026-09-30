@@ -86,9 +86,10 @@ describe('ChartPage', () => {
     expect(screen.queryByText('Source: Databricks SQL')).toBeNull();
   });
 
-  it('shows an error card when the chart is missing', async () => {
+  it('shows an error card when the chart is missing, with a link back to the chart list', async () => {
     mocks.fetchChart.mockRejectedValue(new Error('nope'));
     renderAt('/c/sales/x');
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: 'Browse all charts' })).toHaveAttribute('href', '/charts');
   });
 });

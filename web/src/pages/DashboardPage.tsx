@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { fetchDashboard } from '../api/client';
 import type { Dashboard, Row } from '../api/types';
 import { ChartTile, describeError } from '../components/ChartTile';
@@ -108,7 +108,16 @@ export function DashboardPage() {
     setReported((prev) => ({ ...prev, [chartId]: true }));
   }, []);
 
-  if (error) return <ErrorCard id={id} reason={error} />;
+  if (error) {
+    return (
+      <div>
+        <ErrorCard id={id} reason={error} />
+        <p>
+          <Link to="/">Browse all dashboards</Link>
+        </p>
+      </div>
+    );
+  }
   if (!dashboard) return <div className="muted">Loading…</div>;
 
   return (
