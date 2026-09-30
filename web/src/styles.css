@@ -33,8 +33,12 @@ a { color: var(--accent); }
 .tile { border: 1px solid var(--border); border-radius: 6px; padding: 10px; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
 .tile-title { font-size: 14px; font-weight: 600; margin: 0 0 6px; }
 .tile-body { flex: 1; min-height: 0; position: relative; }
-/* Two classes, so vega-embed's injected `.vega-embed { position: relative }` cannot collapse the mount. */
-.tile-body > .tile-mount { position: absolute; inset: 0; }
+/* .tile-chart (the role="img" wrapper around a Vega-Lite mount) fills
+   .tile-body exactly as .tile-mount alone used to. Two classes per
+   selector, so vega-embed's injected `.vega-embed { position: relative }`
+   (added to .tile-mount itself) cannot collapse either element. */
+.tile-body > .tile-chart { position: absolute; inset: 0; }
+.tile-chart > .tile-mount { position: absolute; inset: 0; }
 .tile-markdown { overflow: auto; }
 
 .error-card { background: var(--error-bg); border: 1px solid var(--error-border); border-radius: 6px; padding: 10px; font-size: 13px; overflow: auto; }

@@ -393,8 +393,21 @@ describe('ChartTile download, label and freshness (A10)', () => {
     const link = screen.getByRole('link', { name: 'Download data' });
     expect(link).toHaveAttribute('href', '/api/data/sales/x');
     expect(link).toHaveAttribute('download');
-    expect(screen.getByRole('img', { name: 'Revenue. Monthly revenue.' })).toBe(tile().querySelector('.tile-body'));
+    expect(screen.getByRole('img', { name: 'Revenue. Monthly revenue.' })).toBe(tile().querySelector('.tile-chart'));
     expect(screen.getByText('Data as of 2026-09-22 10:00 UTC')).toBeInTheDocument();
+  });
+
+  it('gives the accessible label to the chart wrapper only, never the tile body, the error card or a stat tile', async () => {
+    mocks.fetchChart.mockRejectedValue(new ApiError(404, 'not found'));
+    render(<ChartTile chartId="sales/nope" filters={[]} />);
+    await screen.findByRole('alert');
+    expect(tile('sales/nope').querySelector('[role="img"]')).toBeNull();
+
+    mocks.fetchChart.mockResolvedValue({ ...chart, id: 'sales/stat', renderer: 'stat', spec: { value: 'revenue', agg: 'sum' } });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/stat" filters={[]} />);
+    await waitFor(() => expect(tile('sales/stat').dataset.state).toBe('ready'));
+    expect(tile('sales/stat').querySelector('[role="img"]')).toBeNull();
   });
 
   it('uses the title alone without a description and skips an unreadable timestamp', async () => {

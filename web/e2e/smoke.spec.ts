@@ -92,8 +92,8 @@ test('a deep-linked region survives another control change, and tiles carry down
   const links = page.getByRole('link', { name: 'Download data' });
   await expect(links).toHaveCount(4);
   await expect(page.locator('[data-tile="bakeoff/vega-lite/order-lines"] a.tile-download')).toHaveAttribute('href', '/api/data/bakeoff/vega-lite/order-lines');
-  await expect(page.locator('[data-tile="bakeoff/vega-lite/order-lines"] .tile-body')).toHaveAttribute('role', 'img');
-  await expect(page.locator('[data-tile="bakeoff/vega-lite/order-lines"] .tile-body')).toHaveAttribute('aria-label', /.+/);
+  await expect(page.locator('[data-tile="bakeoff/vega-lite/order-lines"] .tile-chart')).toHaveAttribute('role', 'img');
+  await expect(page.locator('[data-tile="bakeoff/vega-lite/order-lines"] .tile-chart')).toHaveAttribute('aria-label', /.+/);
   await expect(page.getByText(/^Data as of \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/).first()).toBeVisible();
 
   expect(log.foreign, 'every request stays on the site origin').toEqual([]);
