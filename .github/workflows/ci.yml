@@ -75,13 +75,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install "pyyaml>=6"
+      # helm lint renders every template, NOTES.txt included. helm_checks.py
+      # renders the chart in several configurations and checks names, the
+      # identity gate, probes and the PodDisruptionBudget, the ingress
+      # annotations, the DNS egress rules, and that an empty egressCidrs fails
+      # with the chart's own message.
       - run: |
           helm lint deploy/helm/viz-site
-          helm template ci deploy/helm/viz-site > /tmp/rendered.yaml
-          cat /tmp/rendered.yaml
-          if helm template ci deploy/helm/viz-site --set-json 'networkPolicy.egressCidrs=[]' > /dev/null 2>&1; then
-            echo "an empty networkPolicy.egressCidrs must fail the render"; exit 1
-          fi
+          helm template ci deploy/helm/viz-site
+          python .github/scripts/helm_checks.py
 
   gitleaks:
     runs-on: ubuntu-latest

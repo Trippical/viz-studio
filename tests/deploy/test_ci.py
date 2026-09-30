@@ -84,9 +84,14 @@ def test_docker_job_always_removes_the_container():
     assert cleanup and "docker rm -f viz" in cleanup[0]["run"]
 
 
-def test_helm_job_proves_an_empty_egress_list_fails():
-    helm = _runs(_workflow()["jobs"]["helm"])
-    assert "networkPolicy.egressCidrs=[]" in helm
+def test_helm_job_runs_the_render_checks():
+    job = _workflow()["jobs"]["helm"]
+    helm = _runs(job)
+    assert 'python -m pip install "pyyaml>=6"' in helm
+    assert "python .github/scripts/helm_checks.py" in helm
+    assert any(step.get("uses", "").startswith("actions/setup-python") for step in job["steps"])
+    # A28: the old inline check passed on any failure; the script checks the message.
+    assert "> /dev/null 2>&1" not in helm
 
 
 def test_gitleaks_scans_full_history():
