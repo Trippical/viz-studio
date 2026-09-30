@@ -67,3 +67,19 @@ describe('ControlBar', () => {
     expect(onChange).toHaveBeenLastCalledWith('region', { type: 'text', text: 'na' });
   });
 });
+
+describe('ControlBar while options are still arriving (A8)', () => {
+  it('keeps a current select value listed and selected even before the options include it', () => {
+    render(
+      <ControlBar
+        controls={[controls[1]]}
+        filters={[{ controlId: 'region', column: 'region', value: { type: 'select', values: ['LATAM'] } }]}
+        options={{ region: { options: ['EMEA'], tooMany: false } }}
+        onChange={() => undefined}
+      />,
+    );
+    const region = screen.getByLabelText('Region') as HTMLSelectElement;
+    expect(Array.from(region.options).map((o) => o.value)).toEqual(['EMEA', 'LATAM']);
+    expect(Array.from(region.selectedOptions).map((o) => o.value)).toEqual(['LATAM']);
+  });
+});

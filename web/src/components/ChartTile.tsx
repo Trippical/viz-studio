@@ -22,6 +22,8 @@ export interface ChartTileProps {
   optionColumns?: string[];
   /** Called once per loaded large-lane chart with the distinct values of each declared option column. */
   onOptions?: (chartId: string, values: Record<string, string[]>) => void;
+  /** Called when the tile shows its error card, so a dashboard stops waiting for it (A8). */
+  onFailed?: (chartId: string) => void;
   showTitle?: boolean;
 }
 
@@ -60,7 +62,7 @@ class TileErrorBoundary extends Component<{ id: string; onError?: (err: unknown)
   }
 }
 
-export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, showTitle = true }: ChartTileProps) {
+export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, onFailed, showTitle = true }: ChartTileProps) {
   const [chart, setChart] = useState<Chart | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [largeRows, setLargeRows] = useState<Row[] | null>(null);
@@ -71,6 +73,8 @@ export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, 
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const onRowsRef = useRef(onRows);
   onRowsRef.current = onRows;
+  const onFailedRef = useRef(onFailed);
+  onFailedRef.current = onFailed;
   const onOptionsRef = useRef(onOptions);
   onOptionsRef.current = onOptions;
   const optionColumnsRef = useRef(optionColumns);
@@ -154,6 +158,11 @@ export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, 
       cancelled = true;
     };
   }, [chart, chartId]);
+
+  // Finding A8: a failed tile will never report rows or options; say so.
+  useEffect(() => {
+    if (error) onFailedRef.current?.(chartId);
+  }, [error, chartId]);
 
   // Mount once, then update on every filter change. Operations are serialized.
   // The cleanup below also fires on a chartId change (it is in the deps), so

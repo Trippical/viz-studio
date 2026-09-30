@@ -313,6 +313,24 @@ describe('ChartTile select options (A7)', () => {
   });
 });
 
+describe('ChartTile failure reporting (A8)', () => {
+  it('reports a failed tile through onFailed', async () => {
+    mocks.fetchChart.mockRejectedValue(new ApiError(404, 'not found'));
+    const onFailed = vi.fn();
+    render(<ChartTile chartId="sales/nope" filters={[]} onFailed={onFailed} />);
+    await waitFor(() => expect(onFailed).toHaveBeenCalledWith('sales/nope'));
+  });
+
+  it('does not call onFailed for a tile that renders', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    const onFailed = vi.fn();
+    render(<ChartTile chartId="sales/x" filters={[]} onFailed={onFailed} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(onFailed).not.toHaveBeenCalled();
+  });
+});
+
 describe('describeError', () => {
   it('maps every failure kind to a sentence', () => {
     expect(describeError(new ApiError(404, 'x'))).toBe('not found');

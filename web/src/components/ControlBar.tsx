@@ -52,7 +52,9 @@ function Widget({ control, value, opts, onChange }: { control: Control; value: F
     );
   }
   if (control.type === 'select' && value.type === 'select') {
-    const list = opts?.options ?? value.values;
+    // Finding A8: a value restored from the URL stays listed (and selected)
+    // while the tiles are still reporting their options.
+    const list = opts ? [...new Set([...opts.options, ...value.values])].sort() : value.values;
     const multi = control.multi === true;
     return (
       <div className="control">
