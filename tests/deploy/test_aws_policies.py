@@ -76,3 +76,41 @@ def test_readme_warns_about_the_key_policy_and_break_glass():
     text = (AWS / "README.md").read_text(encoding="utf-8")
     assert "key policy" in text
     assert "break-glass" in text
+
+
+def _statement(sid: str) -> dict:
+    found = [s for s in _policy("bucket-policy.json")["Statement"] if s.get("Sid") == sid]
+    assert len(found) == 1, sid
+    return found[0]
+
+
+def test_writes_are_denied_to_everyone_but_the_publisher_role():
+    deny = _statement("DenyWritesExceptThePublisherRole")
+    assert deny["Effect"] == "Deny"
+    assert deny["Principal"] == "*"
+    # DeleteObjectVersion too: the bucket is versioned, and deleting a version is a write.
+    assert sorted(deny["Action"]) == ["s3:DeleteObject", "s3:DeleteObjectVersion", "s3:PutObject"]
+    assert deny["Resource"] == "arn:aws:s3:::REPLACE_ME-viz-bucket/*"
+    assert deny["Condition"] == {
+        "ArnNotLike": {"aws:PrincipalArn": ["arn:aws:iam::123456789012:role/viz-site-publisher"]}
+    }
+
+
+def test_write_deny_exempts_the_same_publisher_as_the_read_deny():
+    write = _statement("DenyWritesExceptThePublisherRole")["Condition"]["ArnNotLike"]
+    read = _statement("DenyReadsOutsideTheVpcEndpointExceptPublishers")["Condition"]["ArnNotLike"]
+    assert write == read
+
+
+def test_readme_explains_the_write_deny_and_endpoint_order():
+    text = " ".join((AWS / "README.md").read_text(encoding="utf-8").split())
+    assert ("denies `s3:PutObject`, `s3:DeleteObject` and `s3:DeleteObjectVersion` to every principal "
+            "except the publisher role") in text
+    assert text.index("S3 gateway VPC endpoint") < text.index("**Bucket policy**")
+
+
+def test_readme_shows_the_irsa_trust_policy():
+    text = (AWS / "README.md").read_text(encoding="utf-8")
+    assert "system:serviceaccount:viz:viz-site" in text
+    assert "sts:AssumeRoleWithWebIdentity" in text
+    assert "choose the namespace and the\nHelm release name before you create the role" in text
