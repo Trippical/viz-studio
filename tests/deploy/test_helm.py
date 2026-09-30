@@ -230,3 +230,10 @@ def test_notes_say_health_does_not_touch_s3_and_to_open_the_tree():
     assert 'system:serviceaccount:{{ .Release.Namespace }}:{{ include "viz-site.serviceAccountName" . }}' in flat
     # The old text claimed an S3 or IRSA failure keeps pods unready; /api/health never reads S3.
     assert "never become ready" not in flat
+
+
+def test_region_is_set_for_boto3_and_other_sdks():
+    # C4: boto3 reads AWS_DEFAULT_REGION, not AWS_REGION; set both from bucket.region.
+    text = _template("deployment.yaml")
+    for name in ("AWS_REGION", "AWS_DEFAULT_REGION"):
+        assert f"- name: {name}\n              value: {{{{ .Values.bucket.region | quote }}}}" in text, name

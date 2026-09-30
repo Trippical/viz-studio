@@ -72,3 +72,12 @@ def test_the_guide_covers_the_hardening_steps():
     assert text.index("viz publish .viz-staging/charts/smoke/first-chart") < text.index("aws s3 rm")
     # The smoke chart lives under the scratch prefix now, never on the real site.
     assert "/c/smoke/first-chart" not in text
+
+
+def test_the_guide_exports_both_region_variables():
+    # C4: boto3 reads AWS_DEFAULT_REGION; the guide sets it next to AWS_REGION everywhere it sets a region.
+    text = _text()
+    exports = [line for line in text.splitlines() if line.startswith("export ") and "AWS_REGION=" in line]
+    assert exports
+    for line in exports:
+        assert "AWS_DEFAULT_REGION=" in line, line

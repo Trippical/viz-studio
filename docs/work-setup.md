@@ -15,7 +15,8 @@ The command snippets below use bash; on Windows PowerShell, use
 - Docker, `kubectl` and Helm 3 for the deployment.
 - A Databricks personal access token and a SQL warehouse id, for `viz query`.
 - AWS credentials that can assume the publisher role, for `viz publish`.
-- An AWS region for the bucket, set with `AWS_REGION` (or `aws configure`).
+- An AWS region for the bucket, set with both `AWS_DEFAULT_REGION` (read by
+  the `viz` CLI through boto3) and `AWS_REGION`, or with `aws configure`.
 
 ## 1. Clone and install the CLI
 
@@ -192,7 +193,7 @@ prefix `viz/_scratch/`. The publisher policy covers it, and the site never
 lists it: the site reads only `viz/charts/` and `viz/dashboards/`.
 
 ```
-export VIZ_INTEGRATION=1 VIZ_IT_S3_BUCKET=your-viz-bucket VIZ_IT_S3_PREFIX=viz/_scratch/ AWS_REGION=your-region
+export VIZ_INTEGRATION=1 VIZ_IT_S3_BUCKET=your-viz-bucket VIZ_IT_S3_PREFIX=viz/_scratch/ AWS_REGION=your-region AWS_DEFAULT_REGION=your-region
 .venv/bin/python -m pytest tests/storage/test_s3_integration.py -v
 ```
 
@@ -200,7 +201,7 @@ Then publish one real chart end to end, also under the scratch prefix, so
 nothing appears on the real site:
 
 ```
-export VIZ_STORAGE=s3 VIZ_S3_BUCKET=your-viz-bucket VIZ_ROOT_PREFIX=viz/_scratch/ AWS_REGION=your-region
+export VIZ_STORAGE=s3 VIZ_S3_BUCKET=your-viz-bucket VIZ_ROOT_PREFIX=viz/_scratch/ AWS_REGION=your-region AWS_DEFAULT_REGION=your-region
 echo "SELECT 'a' AS label, 1 AS value" > first.sql
 .venv/bin/viz query --sql-file first.sql --id smoke/first-chart
 .venv/bin/viz validate .viz-staging/charts/smoke/first-chart

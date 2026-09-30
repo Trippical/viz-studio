@@ -29,6 +29,7 @@ def test_every_check_is_registered(checks):
         "check_empty_egress_fails_with_its_message",
         "check_names",
         "check_identity_gate",
+        "check_region",
         "check_probes_and_shutdown",
         "check_ingress",
         "check_dns",
@@ -53,3 +54,7 @@ def test_one_refuses_zero_or_two_matches(checks):
 def test_chart_passes_every_check(checks, monkeypatch):
     monkeypatch.chdir(REPO)
     assert checks.main() == 0
+
+
+def test_region_env_names(checks):
+    assert checks.REGION_ENV == ("AWS_REGION", "AWS_DEFAULT_REGION")

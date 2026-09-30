@@ -14,6 +14,8 @@ import yaml
 
 CHART = "deploy/helm/viz-site"
 EGRESS_ERROR = "networkPolicy.egressCidrs must list at least one CIDR"
+# boto3 reads AWS_DEFAULT_REGION; other AWS SDKs read AWS_REGION. Both come from bucket.region.
+REGION_ENV = ("AWS_REGION", "AWS_DEFAULT_REGION")
 
 
 def render(release: str, *args: str) -> list[dict]:
@@ -93,6 +95,14 @@ def check_identity_gate() -> None:
         raise AssertionError(f"VIZ_REQUIRE_IDENTITY is {value!r} with requireIdentity=false, expected 'false'")
 
 
+def check_region() -> None:
+    """C4: AWS_REGION and AWS_DEFAULT_REGION both carry bucket.region."""
+    env = env_of(render("ci", "--set", "bucket.region=eu-west-1"))
+    for name in REGION_ENV:
+        if env.get(name) != "eu-west-1":
+            raise AssertionError(f"{name} is {env.get(name)!r} with bucket.region=eu-west-1")
+
+
 def check_probes_and_shutdown() -> None:
     """A33: grace period, preStop, separate probes with timeouts, PDB only above one replica."""
     docs = render("ci")
@@ -169,6 +179,7 @@ CHECKS = [
     check_empty_egress_fails_with_its_message,
     check_names,
     check_identity_gate,
+    check_region,
     check_probes_and_shutdown,
     check_ingress,
     check_dns,
