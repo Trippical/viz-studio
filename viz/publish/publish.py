@@ -18,6 +18,7 @@ from ..config import Settings
 from ..ids import DATA_FILE_PATTERN, chart_key, dashboard_key, data_key
 from ..storage import NotFound, PreconditionFailed, Storage
 from .validate import read_document, validate_dashboard_file, validate_staged_chart
+from .dashboards import clear_pulled_etag, read_pulled_etag
 
 MEDIA_TYPES = {"json": "application/json", "parquet": "application/octet-stream"}
 
@@ -149,6 +150,26 @@ def publish_chart(chart_dir: Path, settings: Settings, storage: Storage, force: 
     return chart_id
 
 
+PULLED_CHANGED = (
+    "dashboard '{id}' was published again by someone else after you pulled it; "
+    "ask the user before running viz pull-dashboard {id} --force, which replaces your staged edits "
+    "with the new version"
+)
+PULLED_DELETED = "dashboard '{id}' was deleted after you pulled it; ask the user before publishing it again"
+
+
+def _check_pulled_version(storage: Storage, key: str, dashboard_id: str, pulled: str) -> None:
+    """A dashboard staged by `viz pull-dashboard` may only replace the version it was
+    pulled from (finding A25). This runs after the overwrite guard; the PUT then uses the
+    pulled ETag as if_match, so a change after this check is refused by storage."""
+    try:
+        current = storage.head(key).etag
+    except NotFound as err:
+        raise PublishRefused([PULLED_DELETED.format(id=dashboard_id)]) from err
+    if current != pulled:
+        raise PublishRefused([PULLED_CHANGED.format(id=dashboard_id)])
+
+
 def publish_dashboard(path: Path, settings: Settings, storage: Storage, force: bool = False, out=None) -> str:
     out = sys.stdout if out is None else out
     path = Path(path)
@@ -159,7 +180,13 @@ def publish_dashboard(path: Path, settings: Settings, storage: Storage, force: b
     dashboard_id = doc["id"]
     key = dashboard_key(settings.root_prefix, dashboard_id)
     existing, etag = _guard_overwrite(storage, key, force, out)
+    pulled = read_pulled_etag(path)
+    if pulled is not None:
+        _check_pulled_version(storage, key, dashboard_id, pulled)
     keep_created_at(existing, path)
-    _commit(storage, key, path.read_bytes(), dashboard_id, etag)
+    # A pulled dashboard may only replace the version it was pulled from, so the
+    # commit is conditional on the pulled ETag (plan 5a's _commit passes it as if_match).
+    _commit(storage, key, path.read_bytes(), dashboard_id, pulled if pulled is not None else etag)
     print(f"published: {dashboard_id} -> {destination(settings, key)}", file=out)
+    clear_pulled_etag(path)
     return dashboard_id

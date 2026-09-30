@@ -94,5 +94,12 @@ After `viz pull-dashboard`, this refusal is expected, because the dashboard
 already exists. Still show the user who published it last and ask before
 adding `--force`.
 
+`viz pull-dashboard` also remembers which version you pulled, in a file next
+to the staged one whose name ends in `.pulled-etag`. If someone publishes the
+dashboard again before you do, `viz publish --force` refuses with
+`published again by someone else after you pulled it`. Show the user that
+line. Never delete the `.pulled-etag` file to get past it. Ask the user
+whether to pull the new version and redo the edits.
+
 The published dashboard is at `/d/<id>` on the site, for example
 `/d/sales/emea/overview`. A chart is at `/c/<id>`.

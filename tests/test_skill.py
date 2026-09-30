@@ -130,3 +130,11 @@ def test_data_guide_names_content_addressed_data_files():
     assert "`data.parquet`" not in data
     assert "data.<hash>.json" in data
     assert "Never rename or edit the data file" in data
+
+
+def test_dashboards_guide_explains_the_pulled_version_refusal():
+    from viz.publish import publish
+
+    text = _text(SKILL / "references" / "dashboards.md")
+    assert "published again by someone else after you pulled it" in text
+    assert "published again by someone else after you pulled it" in publish.PULLED_CHANGED

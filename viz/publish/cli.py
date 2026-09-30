@@ -12,7 +12,9 @@ from ..config import Settings
 from ..ids import InvalidId
 from ..storage import get_storage
 from .errors import CliError
-from .dashboards import DashboardError, new_dashboard, pulled_dashboard, write_staged_dashboard
+from .dashboards import (
+    DashboardError, clear_pulled_etag, new_dashboard, pulled_dashboard, write_pulled_etag, write_staged_dashboard,
+)
 from .skill import SkillExists, UnsafeTarget, default_destination, install_skill
 from .identity import publisher_author
 from .infer import UnsupportedColumn, table_from_file
@@ -180,6 +182,7 @@ def _cmd_new_dashboard(args) -> int:
     try:
         doc = new_dashboard(args.id, args.chart or [], args.title, author, datetime.now(timezone.utc))
         path = write_staged_dashboard(doc, _staging_root(args, settings), force=args.force)
+        clear_pulled_etag(path)
     except (InvalidId, DashboardError, ValueError) as err:
         raise CliError(str(err), code=1) from err
     print(f"staged: {path}")
@@ -191,8 +194,9 @@ def _cmd_pull_dashboard(args) -> int:
     storage = get_storage(settings)
     author = _resolve_author(settings)
     try:
-        doc = pulled_dashboard(args.id, settings, storage, author, datetime.now(timezone.utc))
+        doc, etag = pulled_dashboard(args.id, settings, storage, author, datetime.now(timezone.utc))
         path = write_staged_dashboard(doc, _staging_root(args, settings), force=args.force)
+        write_pulled_etag(path, etag)
     except (InvalidId, DashboardError, ValueError) as err:
         raise CliError(str(err), code=1) from err
     print(f"staged: {path}")
