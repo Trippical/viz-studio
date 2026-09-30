@@ -251,7 +251,7 @@ export function ChartTile({ chartId, chart: preloadedChart, filters, onRows, opt
   return (
     <div className="tile" data-tile={chartId} data-state={state} data-rows={filtered ? filtered.length : 0}>
       {showTitle && <h3 className="tile-title">{chart?.title ?? chartId}</h3>}
-      <div className="tile-body">
+      <div className="tile-body" role="img" aria-label={ariaLabel}>
         {error ? (
           <ErrorCard id={chartId} reason={error} />
         ) : chart && filtered && chart.renderer === 'stat' ? (
@@ -265,7 +265,7 @@ export function ChartTile({ chartId, chart: preloadedChart, filters, onRows, opt
             <StatTile spec={chart.spec} rows={filtered} columns={columnNames} />
           </TileErrorBoundary>
         ) : (
-          <div className="tile-mount" ref={mountRef} role="img" aria-label={ariaLabel} />
+          <div className="tile-mount" ref={mountRef} />
         )}
         {!error && !rendered && <div className="muted tile-loading">Loading…</div>}
         {empty && <div className="tile-empty muted">{appliedCount > 0 ? 'No rows match the filters' : 'No rows'}</div>}

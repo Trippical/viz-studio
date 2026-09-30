@@ -393,7 +393,7 @@ describe('ChartTile download, label and freshness (A10)', () => {
     const link = screen.getByRole('link', { name: 'Download data' });
     expect(link).toHaveAttribute('href', '/api/data/sales/x');
     expect(link).toHaveAttribute('download');
-    expect(screen.getByRole('img', { name: 'Revenue. Monthly revenue.' })).toBe(tile().querySelector('.tile-mount'));
+    expect(screen.getByRole('img', { name: 'Revenue. Monthly revenue.' })).toBe(tile().querySelector('.tile-body'));
     expect(screen.getByText('Data as of 2026-09-22 10:00 UTC')).toBeInTheDocument();
   });
 
