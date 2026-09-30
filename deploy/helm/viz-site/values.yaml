@@ -20,7 +20,11 @@ allowedHosts: viz.internal.example.com
 authHeader: X-Forwarded-Email
 
 serviceAccount:
-  name: viz-site
+  # Empty: use the release's full name, which is the release name itself when
+  # it contains "viz-site" (helm install viz-site ... gives viz-site) and
+  # "<release>-viz-site" otherwise. The IRSA trust policy must name this
+  # service account: system:serviceaccount:<namespace>:<name>.
+  name: ""
   # IRSA: the IAM role the pods assume (deploy/aws/server-policy.json).
   # Never grant these permissions to the node role.
   roleArn: arn:aws:iam::123456789012:role/viz-site-server

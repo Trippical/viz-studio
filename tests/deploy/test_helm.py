@@ -107,3 +107,21 @@ def test_values_explain_gateway_endpoints_and_policy_enforcement():
 def test_ingress_cidrs_are_supported_for_alb():
     assert "ingressCidrs" in (CHART / "values.yaml").read_text(encoding="utf-8")
     assert "ingressCidrs" in _template("networkpolicy.yaml")
+
+
+def test_fullname_is_the_release_name_when_it_contains_the_chart_name():
+    text = _template("_helpers.tpl")
+    assert "contains .Chart.Name .Release.Name" in text
+    assert '{{- .Release.Name | trunc 63 | trimSuffix "-" -}}' in text
+    assert '{{- printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" -}}' in text
+
+
+def test_service_account_name_defaults_to_the_fullname():
+    helpers = _template("_helpers.tpl")
+    assert 'define "viz-site.serviceAccountName"' in helpers
+    assert 'default (include "viz-site.fullname" .) .Values.serviceAccount.name' in helpers
+    assert _values()["serviceAccount"]["name"] == ""
+    assert 'name: {{ include "viz-site.serviceAccountName" . }}' in _template("serviceaccount.yaml")
+    assert 'serviceAccountName: {{ include "viz-site.serviceAccountName" . }}' in _template("deployment.yaml")
+    for name in ("serviceaccount.yaml", "deployment.yaml"):
+        assert ".Values.serviceAccount.name" not in _template(name), name

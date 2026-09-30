@@ -14,7 +14,7 @@ spec:
       labels:
         {{- include "viz-site.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "viz-site.serviceAccountName" . }}
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
