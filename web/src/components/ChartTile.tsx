@@ -27,6 +27,8 @@ export interface ChartTileProps {
   onFailed?: (chartId: string) => void;
   /** Control labels by control id, for the "not filtered by" badges (A9). */
   controlLabels?: Record<string, string>;
+  /** A chart document the caller already fetched; the tile then skips its own fetch (A12). */
+  chart?: Chart;
   showTitle?: boolean;
 }
 
@@ -65,7 +67,7 @@ class TileErrorBoundary extends Component<{ id: string; onError?: (err: unknown)
   }
 }
 
-export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, onFailed, controlLabels, showTitle = true }: ChartTileProps) {
+export function ChartTile({ chartId, chart: preloadedChart, filters, onRows, optionColumns, onOptions, onFailed, controlLabels, showTitle = true }: ChartTileProps) {
   const [chart, setChart] = useState<Chart | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [largeRows, setLargeRows] = useState<Row[] | null>(null);
@@ -76,6 +78,8 @@ export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, 
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const onRowsRef = useRef(onRows);
   onRowsRef.current = onRows;
+  const preloadedRef = useRef(preloadedChart);
+  preloadedRef.current = preloadedChart;
   const onFailedRef = useRef(onFailed);
   onFailedRef.current = onFailed;
   const onOptionsRef = useRef(onOptions);
@@ -94,7 +98,8 @@ export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, 
     setRendered(false);
     (async () => {
       try {
-        const doc = await fetchChart(chartId);
+        const preloaded = preloadedRef.current;
+        const doc = preloaded && preloaded.id === chartId ? preloaded : await fetchChart(chartId);
         if (doc.data.lane === 'large') {
           if (!cancelled) setChart(doc);
           return;

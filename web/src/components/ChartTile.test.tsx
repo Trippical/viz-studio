@@ -424,6 +424,24 @@ describe('ChartTile download, label and freshness (A10)', () => {
   });
 });
 
+describe('ChartTile with a preloaded chart (A12)', () => {
+  it('does not fetch the chart document again', async () => {
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" chart={chart} filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(mocks.fetchChart).not.toHaveBeenCalled();
+    expect(mocks.fetchRows).toHaveBeenCalledWith('sales/x');
+  });
+
+  it('ignores a preloaded document for a different id', async () => {
+    mocks.fetchChart.mockResolvedValue({ ...chart, id: 'sales/y' });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/y" chart={chart} filters={[]} />);
+    await waitFor(() => expect(tile('sales/y').dataset.state).toBe('ready'));
+    expect(mocks.fetchChart).toHaveBeenCalledWith('sales/y');
+  });
+});
+
 describe('describeError', () => {
   it('maps every failure kind to a sentence', () => {
     expect(describeError(new ApiError(404, 'x'))).toBe('not found');
