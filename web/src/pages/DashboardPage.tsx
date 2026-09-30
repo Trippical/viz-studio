@@ -43,6 +43,7 @@ export function DashboardPage() {
 
   const controls = useMemo(() => dashboard?.controls ?? [], [dashboard]);
   const selectColumns = useMemo(() => controls.filter((c) => c.type === 'select').map((c) => c.column), [controls]);
+  const controlLabels = useMemo(() => Object.fromEntries(controls.map((c) => [c.id, c.label])), [controls]);
   const chartIds = useMemo(() => {
     const ids: string[] = [];
     for (const tile of dashboard?.layout ?? []) if ('chart' in tile && !ids.includes(tile.chart)) ids.push(tile.chart);
@@ -129,7 +130,15 @@ export function DashboardPage() {
           }
           return (
             <div key={`${tile.chart}-${i}`} className="grid-cell" style={style}>
-              <ChartTile chartId={tile.chart} filters={filters} onRows={onRows} onOptions={onOptions} onFailed={onFailed} optionColumns={selectColumns} />
+              <ChartTile
+                chartId={tile.chart}
+                filters={filters}
+                onRows={onRows}
+                onOptions={onOptions}
+                onFailed={onFailed}
+                optionColumns={selectColumns}
+                controlLabels={controlLabels}
+              />
             </div>
           );
         })}

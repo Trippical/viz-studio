@@ -1,7 +1,7 @@
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ApiError, DataTooLarge, fetchChart, fetchRows } from '../api/client';
 import type { Chart, Row } from '../api/types';
-import { applyFilters, filterKey, type Filter } from '../data/filters';
+import { applyFilters, filterKey, isActive, type Filter } from '../data/filters';
 import { getAdapter } from '../renderers';
 import type { Adapter } from '../renderers/adapter';
 import { SanitizeError, isPlainObject } from '../renderers/common';
@@ -24,6 +24,8 @@ export interface ChartTileProps {
   onOptions?: (chartId: string, values: Record<string, string[]>) => void;
   /** Called when the tile shows its error card, so a dashboard stops waiting for it (A8). */
   onFailed?: (chartId: string) => void;
+  /** Control labels by control id, for the "not filtered by" badges (A9). */
+  controlLabels?: Record<string, string>;
   showTitle?: boolean;
 }
 
@@ -62,7 +64,7 @@ class TileErrorBoundary extends Component<{ id: string; onError?: (err: unknown)
   }
 }
 
-export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, onFailed, showTitle = true }: ChartTileProps) {
+export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, onFailed, controlLabels, showTitle = true }: ChartTileProps) {
   const [chart, setChart] = useState<Chart | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [largeRows, setLargeRows] = useState<Row[] | null>(null);
@@ -224,6 +226,14 @@ export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, 
     [chartId],
   );
 
+  // Finding A9: an empty result says so, and the tile names every active
+  // control it ignores because it does not declare that control's column.
+  const declared = new Set(chart ? chart.data.columns.map((c) => c.name) : []);
+  const activeFilters = chart ? filters.filter((f) => isActive(f.value)) : [];
+  const ignored = activeFilters.filter((f) => !declared.has(f.column));
+  const appliedCount = activeFilters.length - ignored.length;
+  const empty = !error && rendered && filtered !== null && filtered.length === 0;
+
   const state = error ? 'error' : rendered ? 'ready' : 'loading';
   const columnNames = chart ? chart.data.columns.map((c) => c.name) : [];
 
@@ -247,6 +257,12 @@ export function ChartTile({ chartId, filters, onRows, optionColumns, onOptions, 
           <div className="tile-mount" ref={mountRef} />
         )}
         {!error && !rendered && <div className="muted tile-loading">Loading…</div>}
+        {empty && <div className="tile-empty muted">{appliedCount > 0 ? 'No rows match the filters' : 'No rows'}</div>}
+      </div>
+      <div className="tile-footer">
+        {ignored.map((f) => (
+          <span key={f.controlId} className="badge tile-badge">{`not filtered by ${controlLabels?.[f.controlId] ?? f.controlId}`}</span>
+        ))}
       </div>
     </div>
   );

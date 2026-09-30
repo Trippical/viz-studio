@@ -210,3 +210,14 @@ describe('DashboardPage select options and deep links (A7, A8)', () => {
     await waitFor(() => expect(document.querySelector('[data-tile="sales/revenue"]')?.getAttribute('data-rows')).toBe('2'));
   });
 });
+
+describe('DashboardPage badges (A9)', () => {
+  it('labels the badge of a tile that ignores an active control', async () => {
+    const noMonth: Chart = { ...stat, data: { ...stat.data, columns: columns.filter((c) => c.name !== 'month') } };
+    mocks.fetchChart.mockImplementation(async (id: string) => (id === 'sales/total' ? noMonth : chart));
+    renderPage('/d/sales/overview?period=2026-01-01..2026-12-31');
+    await waitFor(() => expect(document.querySelectorAll('[data-tile][data-state="ready"]')).toHaveLength(2));
+    expect(screen.getByText('not filtered by Period')).toBeInTheDocument();
+    expect(screen.getAllByText(/^not filtered by/)).toHaveLength(1);
+  });
+});

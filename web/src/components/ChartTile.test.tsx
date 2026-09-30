@@ -331,6 +331,57 @@ describe('ChartTile failure reporting (A8)', () => {
   });
 });
 
+describe('ChartTile empty state and badges (A9)', () => {
+  const periodOn = { controlId: 'period', column: 'month', value: { type: 'date-range' as const, from: '2026-01-01', to: null } };
+  const daysOff = { controlId: 'days', column: 'day', value: { type: 'date-range' as const, from: null, to: null } };
+  const regionNA = { controlId: 'r', column: 'region', value: { type: 'select' as const, values: ['NA'] } };
+  const regionAPAC = { controlId: 'r', column: 'region', value: { type: 'select' as const, values: ['APAC'] } };
+
+  it('says so when the filters leave no rows', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[regionAPAC]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(tile().dataset.rows).toBe('0');
+    expect(screen.getByText('No rows match the filters')).toBeInTheDocument();
+  });
+
+  it('says "No rows" when the chart has no rows and no filter applies', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue([]);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByText('No rows')).toBeInTheDocument();
+    expect(screen.queryByText('No rows match the filters')).toBeNull();
+  });
+
+  it('shows no empty state while rows remain', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[regionNA]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.queryByText('No rows match the filters')).toBeNull();
+  });
+
+  it('badges each active control whose column the chart does not declare', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[periodOn, daysOff, regionNA]} controlLabels={{ period: 'Period', days: 'Days', r: 'Region' }} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByText('not filtered by Period')).toBeInTheDocument();
+    expect(screen.queryByText('not filtered by Days')).toBeNull();
+    expect(screen.queryByText('not filtered by Region')).toBeNull();
+  });
+
+  it('falls back to the control id without labels', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[periodOn]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByText('not filtered by period')).toBeInTheDocument();
+  });
+});
+
 describe('describeError', () => {
   it('maps every failure kind to a sentence', () => {
     expect(describeError(new ApiError(404, 'x'))).toBe('not found');
