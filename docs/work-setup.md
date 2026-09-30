@@ -43,8 +43,8 @@ share the `VIZ_*` ones.
 | `VIZ_LOCAL_DIR` | `./sample-bucket` | both | Folder used when `VIZ_STORAGE=local` |
 | `VIZ_TREE_TTL_SECONDS` | `60` | server | How long the folder tree is cached |
 | `VIZ_ALLOWED_HOSTS` | `localhost,127.0.0.1` | server | Host names the site answers to; anything else gets 400, except `GET` and `HEAD /api/health` (load balancer checks send the pod IP). Must be set in deployment |
-| `VIZ_AUTH_HEADER` | `X-Forwarded-Email` | server | Identity header from the SSO proxy. Logged with every request; required when `VIZ_REQUIRE_IDENTITY` is true |
-| `VIZ_REQUIRE_IDENTITY` | `false` | server | When `true`, every request except `GET` and `HEAD /api/health` without a non-empty `VIZ_AUTH_HEADER` gets 401. Turn it on in deployment, behind the SSO proxy |
+| `VIZ_AUTH_HEADER` | `X-Forwarded-Email` | server | Identity header set by the SSO proxy. Logged with every request; required on every request when `VIZ_REQUIRE_IDENTITY` is true |
+| `VIZ_REQUIRE_IDENTITY` | `false` | server | When true, every request except `GET` and `HEAD /api/health` without the `VIZ_AUTH_HEADER` header gets 401. The Helm chart sets it to true (value `requireIdentity`); local runs and `viz preview` leave it off |
 | `VIZ_MAX_DOCUMENT_BYTES` | `1048576` | server | Largest chart.json or dashboard file served |
 | `VIZ_WEB_DIST` | `./web/dist` | server | Built front end |
 | `VIZ_HOST` | `127.0.0.1` | server | Bind address (`0.0.0.0` in the container) |
@@ -122,31 +122,57 @@ below; its source is `skills/publish-viz/SKILL.md`.
 
 ## 5. Create the AWS resources
 
-Create the bucket, roles and policies: `deploy/aws/README.md`. That covers
-the bucket baseline, the KMS key policy, and the `viz-site-server` and
-`viz-site-publisher` IAM roles. Do this before the next step, which proves
-the real integrations against those resources.
+Do these in order: later items need values from earlier ones.
 
-To run `viz publish` and `viz move` from your laptop, act as the
-`viz-site-publisher` role. Add a profile that assumes it, with a fixed
-`role_session_name` (see "Author on S3" in step 2 for why a fixed session
-name matters):
+1. **Choose the namespace and the Helm release name.** The IRSA trust policy
+   names the pods' service account as
+   `system:serviceaccount:<namespace>:<service account>`, so both must be
+   fixed before you create the server role. This guide uses the namespace
+   `viz` and the release `viz-site`, which gives the service account
+   `viz-site` (another release name `x` gives `x-viz-site`; the Helm value
+   `serviceAccount.name` overrides it). Create the namespace now:
+   `kubectl create namespace viz`
+2. **Create the S3 gateway VPC endpoint** in the cluster's VPC, attached to
+   the route tables of the subnets the nodes run in, and write down its id
+   (`vpce-...`). The pods reach S3 through it, and the bucket policy in the
+   next item needs the id.
 
-```
-# ~/.aws/config
-[profile viz-publisher]
-role_arn = arn:aws:iam::123456789012:role/viz-site-publisher
-source_profile = default
-role_session_name = viz-publisher
-region = your-region
-```
+   ```
+   aws ec2 create-vpc-endpoint --vpc-endpoint-type Gateway \
+     --vpc-id <cluster vpc id> --service-name com.amazonaws.<region>.s3 \
+     --route-table-ids <route table ids of the node subnets> \
+     --query VpcEndpoint.VpcEndpointId --output text
+   ```
 
-Then `export AWS_PROFILE=viz-publisher` before running publisher commands.
+   If the VPC already has an S3 gateway endpoint, use its id instead:
+   `aws ec2 describe-vpc-endpoints --filters Name=service-name,Values=com.amazonaws.<region>.s3`
+3. **Create the bucket, roles and policies**: `deploy/aws/README.md`. That
+   covers the bucket baseline, the bucket policy (put the id from item 2 in
+   place of `vpce-REPLACE_ME`), the KMS key policy, the `viz-site-server`
+   role with its IRSA trust policy (use the namespace and service account
+   from item 1), and the `viz-site-publisher` role.
+4. **Act as the publisher role on your laptop.** To run `viz publish` and
+   `viz move`, add a profile that assumes `viz-site-publisher`, with a fixed
+   `role_session_name`. A fixed session name keeps your AWS identity, and so
+   the author stamped on charts you stage from files, the same from one
+   command to the next.
 
-If your company signs in with AWS SSO, the SSO role is not
-`viz-site-publisher`; either assume the publisher role from it as above, or
-add your SSO role's ARN to the publisher exemption in
-`deploy/aws/bucket-policy.json`.
+   ```
+   # ~/.aws/config
+   [profile viz-publisher]
+   role_arn = arn:aws:iam::123456789012:role/viz-site-publisher
+   source_profile = default
+   role_session_name = viz-publisher
+   region = your-region
+   ```
+
+   Then `export AWS_PROFILE=viz-publisher` before running publisher commands.
+
+   If your company signs in with AWS SSO, the SSO role is not
+   `viz-site-publisher`; either assume the publisher role from it as above,
+   or add your SSO role's ARN to both publisher exemptions in
+   `deploy/aws/bucket-policy.json` (the read Deny and the write Deny). Only
+   the publisher role can write to the bucket.
 
 ## 6. Prove the real integrations
 
@@ -161,26 +187,44 @@ export VIZ_INTEGRATION=1 DATABRICKS_HOST=... DATABRICKS_TOKEN=... DATABRICKS_WAR
 ```
 
 S3 (writes, reads, copies and deletes two small objects under a throwaway
-prefix; needs the publisher role's credentials). It writes under `viz/`
-unless you set `VIZ_IT_S3_PREFIX`.
+prefix; needs the publisher role's credentials). Point it at the scratch
+prefix `viz/_scratch/`. The publisher policy covers it, and the site never
+lists it: the site reads only `viz/charts/` and `viz/dashboards/`.
 
 ```
-export VIZ_INTEGRATION=1 VIZ_IT_S3_BUCKET=your-viz-bucket AWS_REGION=your-region
+export VIZ_INTEGRATION=1 VIZ_IT_S3_BUCKET=your-viz-bucket VIZ_IT_S3_PREFIX=viz/_scratch/ AWS_REGION=your-region
 .venv/bin/python -m pytest tests/storage/test_s3_integration.py -v
 ```
 
-Then publish one real chart end to end:
+Then publish one real chart end to end, also under the scratch prefix, so
+nothing appears on the real site:
 
 ```
-export VIZ_STORAGE=s3 VIZ_S3_BUCKET=your-viz-bucket AWS_REGION=your-region
+export VIZ_STORAGE=s3 VIZ_S3_BUCKET=your-viz-bucket VIZ_ROOT_PREFIX=viz/_scratch/ AWS_REGION=your-region
 echo "SELECT 'a' AS label, 1 AS value" > first.sql
 .venv/bin/viz query --sql-file first.sql --id smoke/first-chart
 .venv/bin/viz validate .viz-staging/charts/smoke/first-chart
 .venv/bin/viz publish .viz-staging/charts/smoke/first-chart
+aws s3 ls s3://your-viz-bucket/viz/_scratch/charts/smoke/first-chart/
 ```
 
-Publishing the same id again is refused with the current author and date;
-add `--force` to `viz publish` only when you mean to replace it.
+The listing shows `chart.json` and one data file named
+`data.<16 hex characters>.<format>`. Publishing the same id again is
+refused with the current author and date; add `--force` to `viz publish`
+only when you mean to replace it.
+
+Clean up when you are done, and clear the scratch prefix before you publish
+anything real:
+
+```
+aws s3 rm s3://your-viz-bucket/viz/_scratch/ --recursive
+rm -rf .viz-staging/charts/smoke first.sql
+unset VIZ_ROOT_PREFIX VIZ_IT_S3_PREFIX
+```
+
+Versioning keeps the deleted objects as noncurrent versions for 30 days (see
+`deploy/aws/README.md`); that is expected. On PowerShell, clear a variable
+with `Remove-Item Env:VIZ_ROOT_PREFIX`.
 
 ## 7. Deploy
 
@@ -191,18 +235,45 @@ add `--force` to `viz publish` only when you mean to replace it.
    of it.
 2. Copy `deploy/helm/viz-site/values.yaml`, fill in every `REPLACE_ME`,
    `example.com` and `123456789012` value (including
-   `networkPolicy.egressCidrs`), and install:
-   `helm install viz-site deploy/helm/viz-site -f my-values.yaml -n viz --create-namespace`.
-3. Put the site behind the company SSO proxy and check
-   `https://<your host>/api/health`, then open `/c/smoke/first-chart`.
+   `networkPolicy.egressCidrs`, and `ingress.alb.certificateArn` if you set
+   `ingress.className: alb`), and install into the namespace from step 5:
+   `helm install viz-site deploy/helm/viz-site -f my-values.yaml -n viz`
+3. Rate limit. With ingress-nginx the chart limits each client IP to
+   `ingress.rateLimit.perSecond` requests per second. Behind the company SSO
+   proxy every request arrives from the proxy's IP, so all users share that
+   one limit and the site starts refusing everyone under normal use. Set
+   `ingress.rateLimit.enabled: false` when a proxy sits in front of the
+   ingress. On ALB the value does nothing; use a WAF rate-based rule there.
+4. Identity. The site has no login of its own. With `requireIdentity: true`
+   (the default), every request except `/api/health` that lacks the
+   `authHeader` header (`X-Forwarded-Email` by default) gets 401, so until
+   the SSO proxy is in front of the site every page returns 401. For a first
+   smoke test before the proxy exists, send the header yourself through a
+   port forward (use a host from your `allowedHosts`):
+
+   ```
+   kubectl port-forward svc/viz-site 8080:80 -n viz
+   curl -H "Host: viz.internal.example.com" -H "X-Forwarded-Email: you@example.com" http://127.0.0.1:8080/api/tree
+   ```
+
+   Or install once with `--set requireIdentity=false` added to the
+   `helm install` line, check, and run
+   `helm upgrade viz-site deploy/helm/viz-site -f my-values.yaml -n viz`
+   as soon as the proxy is in place to turn the gate back on. Never leave it
+   off: without it anyone who can reach the load balancer sees every chart.
+5. Put the site behind the company SSO proxy. Check
+   `https://<your host>/api/health`; it returns `{"status": "ok"}` but does
+   not touch S3, so it only says the pods are running. Then open
+   `https://<your host>/` and check that the folder tree loads.
 
 ## Troubleshooting
 
 | Symptom | Cause |
 |---|---|
 | Every request returns 400 | The host is not in `VIZ_ALLOWED_HOSTS` (Helm: `allowedHosts`) |
-| Pods never become ready | The probe Host is not in `allowedHosts` (or the policy engine blocks kubelet probes) |
-| Pods are Ready but pages show errors or an empty tree | The pods cannot reach S3, STS or KMS: check `networkPolicy.egressCidrs`, the IRSA role and the KMS key policy. `/api/health` does not touch S3 |
+| Every page returns 401 | `requireIdentity` is on and the request did not come through the SSO proxy (no `X-Forwarded-Email` header). See step 7 |
+| Pods never become ready | The container exits at start (`kubectl logs`), or the cluster's NetworkPolicy engine blocks the kubelet's probes. `/api/health` needs neither S3 nor an allowed Host header |
+| Pods are Ready but pages show errors or an empty tree | The pods cannot read the bucket: check `networkPolicy.egressCidrs` (S3 and STS), the IRSA role and its trust policy, and the KMS key policy. Pods never call KMS themselves; S3 calls KMS on their behalf, so no egress rule for KMS is needed, but the key policy must allow the `viz-site-server` role `kms:Decrypt` |
 | Large-data charts fail to load | `web/dist/duckdb/` is missing from the build; the DuckDB parquet extension is self-hosted and pinned to DuckDB v1.4.3, so re-pin it when upgrading `@duckdb/duckdb-wasm` |
 | `viz validate` says the author does not match (Databricks) | The CLI uses the Databricks login only when `DATABRICKS_HOST`, `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are all set. Set all three, or set `VIZ_AUTHOR` to your Databricks login |
 | `viz validate` says the author does not match (not all Databricks variables set) | The AWS identity changed between commands. Set `VIZ_AUTHOR` to your email, or use a fixed `role_session_name` in your AWS profile |

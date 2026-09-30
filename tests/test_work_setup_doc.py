@@ -46,3 +46,29 @@ def test_the_guide_covers_the_real_infrastructure_checks():
                    "AWS_REGION", "docker push <registry>/viz-site:0.1.0", "123456789012", "VIZ_IT_S3_PREFIX",
                    "AWS_PROFILE", "role_session_name", "egressCidrs", "VIZ_AUTHOR"):
         assert phrase in text, phrase
+
+
+def test_the_guide_covers_the_hardening_steps():
+    text = _text()
+    for phrase in (
+        "kubectl create namespace viz",
+        "create-vpc-endpoint",
+        "system:serviceaccount:",
+        "VIZ_IT_S3_PREFIX=viz/_scratch/",
+        "VIZ_ROOT_PREFIX=viz/_scratch/",
+        "aws s3 rm s3://your-viz-bucket/viz/_scratch/ --recursive",
+        "VIZ_REQUIRE_IDENTITY",
+        "requireIdentity",
+        "401",
+        "ingress.rateLimit.enabled",
+        "Pods never call KMS",
+        "helm install viz-site deploy/helm/viz-site -f my-values.yaml -n viz",
+        "check that the folder tree loads",
+    ):
+        assert phrase in text, phrase
+    # A35: the dead cross-reference is gone, and the steps are in dependency order.
+    assert "Author on S3" not in text
+    assert text.index("kubectl create namespace viz") < text.index("create-vpc-endpoint") < text.index("vpce-REPLACE_ME")
+    assert text.index("viz publish .viz-staging/charts/smoke/first-chart") < text.index("aws s3 rm")
+    # The smoke chart lives under the scratch prefix now, never on the real site.
+    assert "/c/smoke/first-chart" not in text
