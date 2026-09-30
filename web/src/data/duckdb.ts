@@ -9,12 +9,29 @@ export const ROW_LIMIT = 50000;
 export const DEFAULT_TIMEOUT_MS = 15000;
 export const LARGE_LANE_MAX_BYTES = 209715200;
 
+/**
+ * Every data file is registered inside this one directory. Finding A4: with
+ * `enable_external_access=false` DuckDB refuses to read any file, registered
+ * buffers included, unless it sits under `allowed_directories`. Buffers are
+ * registered lazily, after the configuration is locked, so the directory is
+ * allowed up front and nothing else is. Verified against duckdb-wasm 1.32
+ * (DuckDB v1.4.3) by `duckdbNode.test.ts`.
+ */
+export const DATA_DIR = '/viz-data/';
+
 export const INIT_STATEMENTS: readonly string[] = [
   'SET autoinstall_known_extensions=false',
   'SET autoload_known_extensions=false',
   "SET memory_limit='512MB'",
+  `SET allowed_directories=['${DATA_DIR}']`,
+  'SET enable_external_access=false',
   'SET lock_configuration=true',
 ];
+
+/** The name a chart's data buffer is registered under, inside DATA_DIR. */
+export function registeredFileName(chartId: string): string {
+  return `${DATA_DIR}${tableName(chartId)}.parquet`;
+}
 
 /**
  * The parquet extension isn't statically linked into the bundled wasm build:
@@ -229,7 +246,7 @@ async function ensureLoaded(rt: Runtime, chartId: string): Promise<void> {
   if (Number.isFinite(declared) && declared > LARGE_LANE_MAX_BYTES) throw new DuckDbError(`data file is ${declared} bytes, above the large-lane cap`);
   const buffer = new Uint8Array(await res.arrayBuffer());
   if (buffer.byteLength > LARGE_LANE_MAX_BYTES) throw new DuckDbError(`data file is ${buffer.byteLength} bytes, above the large-lane cap`);
-  const file = `${tableName(chartId)}.parquet`;
+  const file = registeredFileName(chartId);
   await rt.db.registerFileBuffer(file, buffer);
   try {
     await rt.conn.query(`CREATE TABLE "${tableName(chartId)}" AS SELECT * FROM read_parquet('${file}')`);

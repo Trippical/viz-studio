@@ -3,6 +3,7 @@ import type { Column } from '../api/types';
 import type { Filter } from './filters';
 import {
   DuckDbError,
+  DATA_DIR,
   INIT_STATEMENTS,
   ROW_LIMIT,
   arrowRowsToRows,
@@ -10,6 +11,7 @@ import {
   buildPreloadStatements,
   checkSingleSelectSyntax,
   parseSerializedSql,
+  registeredFileName,
   tableName,
   withTempTables,
 } from './duckdb';
@@ -21,13 +23,22 @@ const columns: Column[] = [
 ];
 
 describe('init statements', () => {
-  it('are the spec 12.3 sequence, locked last', () => {
+  it('are the spec 12.3 sequence plus the A4 external-access lockdown, locked last', () => {
     expect(INIT_STATEMENTS).toEqual([
       'SET autoinstall_known_extensions=false',
       'SET autoload_known_extensions=false',
       "SET memory_limit='512MB'",
+      "SET allowed_directories=['/viz-data/']",
+      'SET enable_external_access=false',
       'SET lock_configuration=true',
     ]);
+  });
+});
+
+describe('registeredFileName', () => {
+  it('puts every data file inside the one directory the lockdown allows', () => {
+    expect(DATA_DIR).toBe('/viz-data/');
+    expect(registeredFileName('bakeoff/vega-lite/order-lines')).toBe('/viz-data/raw_bakeoff_vega_lite_order_lines.parquet');
   });
 });
 
