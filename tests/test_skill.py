@@ -138,3 +138,7 @@ def test_dashboards_guide_explains_the_pulled_version_refusal():
     text = _text(SKILL / "references" / "dashboards.md")
     assert "published again by someone else after you pulled it" in text
     assert "published again by someone else after you pulled it" in publish.PULLED_CHANGED
+
+
+def test_skill_teaches_move_kind():
+    assert "--kind" in _text(SKILL / "SKILL.md")

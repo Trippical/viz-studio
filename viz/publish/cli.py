@@ -139,7 +139,7 @@ def _cmd_move(args) -> int:
     settings = Settings()
     storage = get_storage(settings)
     try:
-        plan = plan_move(args.old_id, args.new_id, settings, storage)
+        plan = plan_move(args.old_id, args.new_id, settings, storage, kind=args.kind)
     except (MoveError, InvalidId) as err:
         raise CliError(str(err), code=1) from err
     print(describe(plan))
@@ -249,6 +249,8 @@ def build_parser() -> argparse.ArgumentParser:
     move_p.add_argument("old_id", metavar="OLD_ID")
     move_p.add_argument("new_id", metavar="NEW_ID")
     move_p.add_argument("--yes", action="store_true", help="apply the move (without it, only the plan is printed)")
+    move_p.add_argument("--kind", choices=["chart", "dashboard"], default=None,
+                        help="which one to move when the id is both a chart and a dashboard")
     move_p.set_defaults(func=_cmd_move)
 
     preview_p = sub.add_parser("preview", help="serve the staging directory locally so charts can be opened before publishing")

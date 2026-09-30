@@ -86,7 +86,9 @@ data, checks it and uploads it. The site never runs SQL.
   who published it and when. Show the user that line and ask.
 - `--yes` on `viz move`: run `viz move <old> <new>` without it first, show
   the user the printed plan (which dashboards change), and add `--yes` only
-  after they agree.
+  after they agree. If `viz move` says the id is both a chart and a
+  dashboard, ask the user which one they mean and add `--kind chart` or
+  `--kind dashboard`.
 - `--allow-row-level`: a large-lane chart shares every row. Ask whether the
   row-level data may be shared, or rewrite the SQL to aggregate.
 - `VIZ_STORAGE` is not set: `viz publish` and `viz move` refuse to run.

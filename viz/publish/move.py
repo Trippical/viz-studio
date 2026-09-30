@@ -90,14 +90,39 @@ def _validate_dashboard_reference(key: str, doc: dict, old_id: str, new_id: str)
         raise MoveError(f"{key}: {'; '.join(err.errors)}") from err
 
 
-def plan_move(old_id: str, new_id: str, settings: Settings, storage: Storage) -> MovePlan:
+def _pick_kind(storage: Storage, root: str, old_id: str, kind: str | None) -> str:
+    """Which object to move. An id can be both a chart and a dashboard; then the caller
+    must say which with --kind (finding A26)."""
+    is_chart = _exists(storage, chart_key(root, old_id))
+    is_dashboard = _exists(storage, dashboard_key(root, old_id))
+    if kind == "chart":
+        if not is_chart:
+            raise MoveError(f"no chart with id '{old_id}'")
+        return "chart"
+    if kind == "dashboard":
+        if not is_dashboard:
+            raise MoveError(f"no dashboard with id '{old_id}'")
+        return "dashboard"
+    if kind is not None:
+        raise MoveError(f"unknown kind '{kind}'; use chart or dashboard")
+    if is_chart and is_dashboard:
+        raise MoveError(f"'{old_id}' is both a chart and a dashboard; pass --kind chart or --kind dashboard")
+    if is_chart:
+        return "chart"
+    if is_dashboard:
+        return "dashboard"
+    raise MoveError(f"no chart or dashboard with id '{old_id}'")
+
+
+def plan_move(old_id: str, new_id: str, settings: Settings, storage: Storage, kind: str | None = None) -> MovePlan:
     validate_id(old_id)
     validate_id(new_id)
     if old_id == new_id:
         raise MoveError("old and new id are the same")
     root = settings.root_prefix
+    kind = _pick_kind(storage, root, old_id, kind)
 
-    if _exists(storage, chart_key(root, old_id)):
+    if kind == "chart":
         if _exists(storage, chart_key(root, new_id)):
             raise MoveError(f"chart '{new_id}' already exists")
         others = [e for e in existing_chart_ids(storage, root) if e != old_id]
@@ -121,7 +146,7 @@ def plan_move(old_id: str, new_id: str, settings: Settings, storage: Storage) ->
         affected = sorted(did for did, doc in affected_docs)
         return MovePlan("chart", old_id, new_id, keys, affected)
 
-    if _exists(storage, dashboard_key(root, old_id)):
+    if kind == "dashboard":
         if _exists(storage, dashboard_key(root, new_id)):
             raise MoveError(f"dashboard '{new_id}' already exists")
         old_key = dashboard_key(root, old_id)
