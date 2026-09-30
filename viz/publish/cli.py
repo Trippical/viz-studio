@@ -115,6 +115,14 @@ def _require_explicit_storage() -> None:
             "VIZ_LOCAL_DIR for a folder on this machine.",
             code=2,
         )
+    # VIZ_STORAGE=local alone would fall back to local_dir's default, ./sample-bucket,
+    # which is the repo's synthetic bucket when run from the repo (adopter fix A5).
+    if os.environ["VIZ_STORAGE"].strip() == "local" and not os.environ.get("VIZ_LOCAL_DIR", "").strip():
+        raise CliError(
+            "VIZ_LOCAL_DIR is not set; publish and move will not write to the default ./sample-bucket; "
+            "ask the user where to publish",
+            code=2,
+        )
 
 
 def _cmd_publish(args) -> int:
