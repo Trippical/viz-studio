@@ -71,10 +71,12 @@ networkPolicy:
   # - S3 through an interface endpoint: its subnet CIDRs.
   # NetworkPolicy is only enforced if the cluster runs a policy engine
   # (EKS VPC CNI with enableNetworkPolicy=true, Calico or Cilium).
-  # NodeLocal DNSCache (169.254.20.10) is not allowed by the DNS rule; add it
-  # if your cluster uses it.
   egressCidrs:
     - 192.0.2.0/24  # REPLACE_ME: see the comment above
+  # Extra DNS resolvers outside kube-system, allowed on UDP and TCP 53. With
+  # NodeLocal DNSCache add its address, for example ["169.254.20.10/32"].
+  # The rule for kube-dns in kube-system stays in place either way.
+  dnsCidrs: []
   # With the AWS Load Balancer Controller (target type ip), traffic comes from
   # the ALB's subnets, not a namespace: list those subnet CIDRs here. On ALB the
   # nginx rate-limit annotation does nothing; use a WAF rate-based rule instead.

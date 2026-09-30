@@ -205,3 +205,17 @@ def test_alb_certificate_is_a_placeholder():
     arn = _values()["ingress"]["alb"]["certificateArn"]
     assert arn.startswith("arn:aws:acm:REPLACE_ME-region:123456789012:certificate/")
     assert "REPLACE_ME" in arn.rsplit("/", 1)[1]
+
+
+def test_extra_dns_resolvers_are_allowed_on_udp_and_tcp_53():
+    assert _values()["networkPolicy"]["dnsCidrs"] == []
+    text = _template("networkpolicy.yaml")
+    # The block runs from the `with` to the S3 rule's comment (its first `{{- end }}` closes the inner range).
+    block = text.split("{{- with .Values.networkPolicy.dnsCidrs }}", 1)[1].split("# S3 and STS over HTTPS only.", 1)[0]
+    assert "- ipBlock:\n            cidr: {{ . }}" in block
+    assert "- port: 53\n          protocol: UDP\n        - port: 53\n          protocol: TCP" in block
+    # The kube-dns rule is still there.
+    assert "kubernetes.io/metadata.name: kube-system" in text
+    assert text.count("port: 53") == 4
+    values_text = (CHART / "values.yaml").read_text(encoding="utf-8")
+    assert "NodeLocal DNSCache" in values_text.split("dnsCidrs:")[0].rsplit("egressCidrs:", 1)[1]
