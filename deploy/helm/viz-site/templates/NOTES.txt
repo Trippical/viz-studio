@@ -1,8 +1,23 @@
-viz-site is installed as {{ include "viz-site.fullname" . }}.
+viz-site is installed as {{ include "viz-site.fullname" . }} in namespace {{ .Release.Namespace }}.
+Its service account is {{ include "viz-site.serviceAccountName" . }}; the IRSA trust policy of
+{{ .Values.serviceAccount.roleArn }} must name
+system:serviceaccount:{{ .Release.Namespace }}:{{ include "viz-site.serviceAccountName" . }}.
 
 It answers only to: {{ .Values.allowedHosts }}
-Check it through the ingress: https://{{ .Values.ingress.host }}/api/health
+{{- if .Values.requireIdentity }}
 
-If pods never become ready, check that allowedHosts includes the host the
-probes send ({{ include "viz-site.probeHost" . }}) and that the IRSA role
-{{ .Values.serviceAccount.roleArn }} can read s3://{{ .Values.bucket.name }}/{{ .Values.bucket.rootPrefix }}.
+requireIdentity is on: every request except /api/health that does not carry
+the {{ .Values.authHeader }} header gets 401. Open the site through the
+company SSO proxy, which sets that header.
+{{- end }}
+
+Check the install in two steps:
+
+1. https://{{ .Values.ingress.host }}/api/health returns {"status": "ok"}.
+   This only says the pods are running. It does not touch S3, so it stays
+   green when the bucket, the IRSA role or the KMS key policy is wrong.
+
+2. Open https://{{ .Values.ingress.host }}/ and check that the folder tree loads.
+   An empty tree or error markers mean the pods cannot read
+   s3://{{ .Values.bucket.name }}/{{ .Values.bucket.rootPrefix }}: check the IRSA role above,
+   networkPolicy.egressCidrs (S3 and STS) and the KMS key policy.

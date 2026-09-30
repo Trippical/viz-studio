@@ -219,3 +219,14 @@ def test_extra_dns_resolvers_are_allowed_on_udp_and_tcp_53():
     assert text.count("port: 53") == 4
     values_text = (CHART / "values.yaml").read_text(encoding="utf-8")
     assert "NodeLocal DNSCache" in values_text.split("dnsCidrs:")[0].rsplit("egressCidrs:", 1)[1]
+
+
+def test_notes_say_health_does_not_touch_s3_and_to_open_the_tree():
+    text = _template("NOTES.txt")
+    flat = " ".join(text.split())
+    assert "It does not touch S3" in flat
+    assert "Open https://{{ .Values.ingress.host }}/ and check that the folder tree loads" in flat
+    assert "{{- if .Values.requireIdentity }}" in text
+    assert 'system:serviceaccount:{{ .Release.Namespace }}:{{ include "viz-site.serviceAccountName" . }}' in flat
+    # The old text claimed an S3 or IRSA failure keeps pods unready; /api/health never reads S3.
+    assert "never become ready" not in flat
