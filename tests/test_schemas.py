@@ -94,6 +94,14 @@ CHART_CASES = [
     ("vega-lite image mark", "chart-vegalite.json", _set("spec.mark", "image"), "image"),
     ("vega-lite image mark object", "chart-vegalite.json", _set("spec.mark", {"type": "image"}), "image"),
     ("vega-lite missing top-level data", "chart-vegalite.json", _delete("spec.data"), "top-level data"),
+    ("vega-lite nested data", "chart-vegalite.json",
+     _set("spec.layer", [{"data": {"name": "data"}, "mark": "point"}]), "only allowed at the top level"),
+    ("vega-lite nested sequence", "chart-vegalite.json",
+     _set("spec.layer", [{"data": {"sequence": {"start": 0, "stop": 1000000000}}, "mark": "point"}]), "sequence"),
+    ("vega-lite graticule", "chart-vegalite.json", _set("spec.transform", [{"graticule": True}]), "graticule"),
+    ("vega-lite sphere", "chart-vegalite.json", _set("spec.transform", [{"sphere": True}]), "sphere"),
+    ("vega-lite bind element", "chart-vegalite.json",
+     _set("spec.params", [{"name": "p", "value": 1, "bind": {"input": "range", "element": "#x"}}]), "bind.element"),
     ("plotly renderer retired", "chart-vegalite.json", _set("renderer", "plotly"), "renderer"),
     ("echarts renderer retired", "chart-vegalite.json", _set("renderer", "echarts"), "renderer"),
     ("stat unknown column", "chart-stat.json", _set("spec.value", "nope"), "nope"),
@@ -164,3 +172,15 @@ def test_unhashable_renderer_is_schema_error_not_crash():
     doc["renderer"] = ["vega-lite"]
     with pytest.raises(schemas.SchemaError):
         schemas.validate_chart(doc)
+
+
+def test_vegalite_bind_without_element_passes():
+    doc = copy.deepcopy(load("chart-vegalite.json"))
+    doc["spec"]["params"] = [{"name": "p", "value": 1, "bind": {"input": "range", "min": 0, "max": 10}}]
+    assert schemas.validate_chart(doc) is doc
+
+
+def test_vegalite_layer_without_its_own_data_passes():
+    doc = copy.deepcopy(load("chart-vegalite.json"))
+    doc["spec"]["layer"] = [{"mark": "line"}, {"mark": "rule"}]
+    assert schemas.validate_chart(doc) is doc

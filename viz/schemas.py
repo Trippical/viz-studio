@@ -92,8 +92,13 @@ def _check_vegalite(spec: dict, columns: set[str]) -> list[str]:
     if spec.get("data") != {"name": "data"}:
         errors.append("spec/data: top-level data must be exactly {\"name\": \"data\"}")
     for path, key, value in _walk(spec):
-        if key == "data" and value != {"name": "data"}:
-            errors.append(f"{path}: vega-lite data must be exactly {{\"name\": \"data\"}}")
+        # Same rules as web/src/renderers/vegaLiteSanitize.ts (plan 5c, A5 and A6).
+        if key == "data" and path != "spec/data":
+            errors.append(f"{path}: data is only allowed at the top level")
+        if key in ("sequence", "graticule", "sphere"):
+            errors.append(f"{path}: data generator \"{key}\" is not allowed")
+        if key == "bind" and isinstance(value, dict) and "element" in value:
+            errors.append(f"{path}: bind.element is not allowed")
         if key == "values":
             errors.append(f"{path}: inline values are not allowed")
         if key == "datasets":
