@@ -41,6 +41,8 @@ spec:
               value: {{ .Values.allowedHosts | quote }}
             - name: VIZ_AUTH_HEADER
               value: {{ .Values.authHeader | quote }}
+            - name: VIZ_REQUIRE_IDENTITY
+              value: {{ .Values.requireIdentity | quote }}
             - name: AWS_REGION
               value: {{ .Values.bucket.region | quote }}
             - name: AWS_STS_REGIONAL_ENDPOINTS

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import yaml
+from viz.config import Settings
 
 CHART = Path(__file__).resolve().parents[2] / "deploy" / "helm" / "viz-site"
 
@@ -125,3 +126,15 @@ def test_service_account_name_defaults_to_the_fullname():
     assert 'serviceAccountName: {{ include "viz-site.serviceAccountName" . }}' in _template("deployment.yaml")
     for name in ("serviceaccount.yaml", "deployment.yaml"):
         assert ".Values.serviceAccount.name" not in _template(name), name
+
+
+def test_identity_gate_is_on_by_default():
+    assert _values()["requireIdentity"] is True
+    text = _template("deployment.yaml")
+    assert "- name: VIZ_REQUIRE_IDENTITY\n              value: {{ .Values.requireIdentity | quote }}" in text
+
+
+def test_require_identity_env_matches_a_setting():
+    # The env var only works if it maps to a real field (plan 5a adds require_identity).
+    assert "require_identity" in Settings.model_fields
+    assert Settings(require_identity="true").require_identity is True

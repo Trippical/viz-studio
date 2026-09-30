@@ -16,8 +16,16 @@ bucket:
 # other Host header get 400. The first entry is also sent by the probes.
 allowedHosts: viz.internal.example.com
 
-# Header the company SSO proxy sets with the signed-in user (logged only).
+# Header the company SSO proxy sets with the signed-in user. Logged with every
+# request, and required on every request when requireIdentity is true.
 authHeader: X-Forwarded-Email
+
+# VIZ_REQUIRE_IDENTITY. The site has no login of its own. When true, every
+# request except /api/health that does not carry the authHeader header gets
+# 401, so the site refuses traffic that did not come through the SSO proxy.
+# Set it to false only for a first smoke test before the proxy is in place
+# (docs/work-setup.md, step 7), and turn it back on afterwards.
+requireIdentity: true
 
 serviceAccount:
   # Empty: use the release's full name, which is the release name itself when
