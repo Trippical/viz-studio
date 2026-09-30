@@ -21,6 +21,8 @@ SOURCE_CIDR_ANNOTATIONS = {
     "nginx": "nginx.ingress.kubernetes.io/whitelist-source-range",
     "alb": "alb.ingress.kubernetes.io/inbound-cidrs",
 }
+# A subnet CIDR standing in for the ALB's subnets in check_alb_ingress_cidrs.
+ALB_SUBNET_CIDR = "10.0.1.0/24"
 
 
 def render(release: str, *args: str) -> list[dict]:
@@ -179,6 +181,23 @@ def check_source_cidrs() -> None:
             raise AssertionError(f"className {class_name}: {other} is rendered too")
 
 
+def check_alb_ingress_cidrs() -> None:
+    """C2: on ALB, networkPolicy.ingressCidrs lets the ALB subnets reach the pods on 8000."""
+    docs = render(
+        "ci", "--set", "ingress.className=alb", "--set-json", f'networkPolicy.ingressCidrs=["{ALB_SUBNET_CIDR}"]'
+    )
+    rules = one(docs, "NetworkPolicy")["spec"]["ingress"]
+    allowed = [
+        rule for rule in rules
+        if any(peer.get("ipBlock", {}).get("cidr") == ALB_SUBNET_CIDR for peer in rule.get("from", []))
+    ]
+    if len(allowed) != 1:
+        raise AssertionError(f"no ingress rule with an ipBlock for {ALB_SUBNET_CIDR}: {rules}")
+    ports = [(port["protocol"], port["port"]) for port in allowed[0].get("ports", [])]
+    if ports != [("TCP", 8000)]:
+        raise AssertionError(f"the ipBlock ingress rule allows {ports}, expected TCP 8000 only")
+
+
 def check_dns() -> None:
     """A32: dnsCidrs adds an ipBlock rule on UDP and TCP 53; the kube-dns rule stays."""
     rules = one(render("ci"), "NetworkPolicy")["spec"]["egress"]
@@ -205,6 +224,7 @@ CHECKS = [
     check_probes_and_shutdown,
     check_ingress,
     check_source_cidrs,
+    check_alb_ingress_cidrs,
     check_dns,
 ]
 

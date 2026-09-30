@@ -234,38 +234,129 @@ with `Remove-Item Env:VIZ_ROOT_PREFIX`.
    `docker push <registry>/viz-site:0.1.0`. The chart has no `tls` block;
    TLS is terminated by the load balancer or the company SSO proxy in front
    of it.
-2. Copy `deploy/helm/viz-site/values.yaml`, fill in every `REPLACE_ME`,
-   `example.com` and `123456789012` value (including
-   `networkPolicy.egressCidrs`, and `ingress.alb.certificateArn` if you set
-   `ingress.className: alb`), and install into the namespace from step 5:
-   `helm install viz-site deploy/helm/viz-site -f my-values.yaml -n viz`
-3. Rate limit. With ingress-nginx the chart limits each client IP to
-   `ingress.rateLimit.perSecond` requests per second. Behind the company SSO
-   proxy every request arrives from the proxy's IP, so all users share that
-   one limit and the site starts refusing everyone under normal use. Set
-   `ingress.rateLimit.enabled: false` when a proxy sits in front of the
-   ingress. On ALB the value does nothing; use a WAF rate-based rule there.
-4. Identity. The site has no login of its own. With `requireIdentity: true`
-   (the default), every request except `/api/health` that lacks the
-   `authHeader` header (`X-Forwarded-Email` by default) gets 401, so until
-   the SSO proxy is in front of the site every page returns 401. For a first
-   smoke test before the proxy exists, send the header yourself through a
-   port forward (use a host from your `allowedHosts`):
+2. **Fill in your values and install.** Copy
+   `deploy/helm/viz-site/values.yaml` to `my-values.yaml` at the repo root
+   (never commit the filled copy). Fill in every `REPLACE_ME`, `example.com`
+   and `123456789012` value, including `networkPolicy.egressCidrs`, and
+   `ingress.alb.certificateArn` if you set `ingress.className: alb`. Then
+   make these three decisions in `my-values.yaml` before you install:
+
+   a. **Who may reach the pods.** The chart's NetworkPolicy lets only the
+      ingress controller reach the pods; with the wrong setting it drops
+      every request.
+      - `ingress.className: nginx`: traffic comes from the ingress-nginx
+        namespace. The default is `ingress-nginx`. If the controller runs in
+        another namespace, set `networkPolicy.ingressControllerNamespace` to
+        that namespace. This command shows it in the first column:
+        `kubectl get pods -A -l app.kubernetes.io/name=ingress-nginx`
+      - `ingress.className: alb`: the ALB sends traffic straight to the pod
+        IPs from its own subnets, not from a namespace. Set
+        `networkPolicy.ingressCidrs` to the CIDRs of the subnets an internal
+        ALB uses, the ones tagged `kubernetes.io/role/internal-elb`:
+
+        ```
+        aws ec2 describe-subnets \
+          --filters Name=vpc-id,Values=<cluster vpc id> Name=tag:kubernetes.io/role/internal-elb,Values=1 \
+          --query "Subnets[].CidrBlock" --output text
+        ```
+
+        ```
+        networkPolicy:
+          ingressCidrs: ["10.0.1.0/24", "10.0.2.0/24"]
+        ```
+
+   b. **Rate limit.** With ingress-nginx the chart limits each client IP to
+      `ingress.rateLimit.perSecond` requests per second. Behind the company
+      SSO proxy every request arrives from the proxy's IP, so all users share
+      that one limit and the site starts refusing everyone under normal use.
+      Set `ingress.rateLimit.enabled: false` when a proxy sits in front of
+      the ingress. On ALB the value does nothing; use a WAF rate-based rule
+      there.
+
+   c. **The first smoke test.** The site has no login of its own. With
+      `requireIdentity: true` (the default), every request except
+      `/api/health` that lacks the `authHeader` header (`X-Forwarded-Email`
+      by default) gets 401, so until the SSO proxy is in front of the site
+      every page returns 401. Keep it on: step 3 sends the header yourself
+      through a port forward. Only if you cannot do that, set
+      `requireIdentity: false` for the first install; step 5 turns it back
+      on. Never leave it off: without it anyone who can reach the load
+      balancer sees every chart.
+
+   Install into the namespace from step 5:
+
+   ```
+   helm install viz-site deploy/helm/viz-site -f my-values.yaml -n viz
+   ```
+
+   From here on, change `my-values.yaml` and run `helm upgrade` with the
+   same `-f my-values.yaml`; never run the install command again.
+3. **First smoke test.** Open a port forward in one terminal:
 
    ```
    kubectl port-forward svc/viz-site 8080:80 -n viz
+   ```
+
+   In a second terminal, send a request with a host from your
+   `allowedHosts` and the identity header:
+
+   ```
    curl -H "Host: viz.internal.example.com" -H "X-Forwarded-Email: you@example.com" http://127.0.0.1:8080/api/tree
    ```
 
-   Or install once with `--set requireIdentity=false` added to the
-   `helm install` line, check, and run
-   `helm upgrade viz-site deploy/helm/viz-site -f my-values.yaml -n viz`
-   as soon as the proxy is in place to turn the gate back on. Never leave it
-   off: without it anyone who can reach the load balancer sees every chart.
-5. Put the site behind the company SSO proxy. Check
-   `https://<your host>/api/health`; it returns `{"status": "ok"}` but does
-   not touch S3, so it only says the pods are running. Then open
-   `https://<your host>/` and check that the folder tree loads.
+   It returns the folder tree as JSON. Stop the port forward with Ctrl+C.
+4. **Let only the SSO proxy reach the site (required before step 5).** The
+   identity gate trusts the `authHeader` header. Anyone who can reach the
+   load balancer can send that header themselves and pass as any user. So
+   both of these must hold:
+   - Only the SSO proxy can reach the load balancer.
+   - The proxy overwrites the header on every request (it sets it, it never
+     appends to it or passes through a value the user sent).
+
+   Layout 1, the default: the company SSO proxy in front of an internal
+   load balancer. Users reach the proxy, and the proxy reaches the load
+   balancer. Set `ingress.allowedSourceCidrs` in `my-values.yaml` to the
+   proxy's CIDRs:
+
+   ```
+   ingress:
+     allowedSourceCidrs: ["10.20.30.0/24"]
+   ```
+
+   The chart turns this into `nginx.ingress.kubernetes.io/whitelist-source-range`
+   (className nginx) or `alb.ingress.kubernetes.io/inbound-cidrs` (className
+   alb). ingress-nginx can only check the proxy's address if it sees it:
+   the controller's Service needs `externalTrafficPolicy: Local`. If you
+   cannot change that, leave `allowedSourceCidrs` empty and instead limit
+   the load balancer's security group to inbound 443 from the proxy's CIDRs.
+
+   Layout 2: ingress-nginx asks oauth2-proxy about every request
+   (`nginx.ingress.kubernetes.io/auth-url` and
+   `nginx.ingress.kubernetes.io/auth-signin`) and copies the signed-in
+   user's header from its answer onto the request
+   (`nginx.ingress.kubernetes.io/auth-response-headers`), replacing any value
+   the user sent. Put the three annotations in `ingress.annotations`, run
+   oauth2-proxy with `--set-xauthrequest`, and set `authHeader` to the header
+   you pass through, for example `X-Auth-Request-Email`; any other header
+   name could still be forged. Users reach the ingress directly here, so
+   leave `allowedSourceCidrs` empty and the rate limit on.
+5. **Turn the identity gate on.** In `my-values.yaml`, make sure
+   `requireIdentity: true` is set (change it back if you set it to false in
+   step 2), then apply it together with the changes from step 4:
+
+   ```
+   helm upgrade viz-site deploy/helm/viz-site -f my-values.yaml -n viz
+   ```
+
+6. **Check through the SSO proxy.** Check `https://<your host>/api/health`
+   through the proxy; it returns `{"status": "ok"}` but does not touch S3,
+   so it only says the pods are running. Then open `https://<your host>/`
+   and check that the folder tree loads. Finally, from a machine that is not
+   the proxy, send a request with a made-up `authHeader` header straight to the
+   load balancer:
+   `curl -H "X-Forwarded-Email: someone@example.com" https://<load balancer host>/api/tree`.
+   It must fail (403, or no connection at all); if it returns the tree,
+   go back to step 4.
 
 ## Troubleshooting
 
@@ -274,6 +365,7 @@ with `Remove-Item Env:VIZ_ROOT_PREFIX`.
 | Every request returns 400 | The host is not in `VIZ_ALLOWED_HOSTS` (Helm: `allowedHosts`) |
 | Every page returns 401 | `requireIdentity` is on and the request did not come through the SSO proxy (no `X-Forwarded-Email` header). See step 7 |
 | Pods never become ready | The container exits at start (`kubectl logs`), or the cluster's NetworkPolicy engine blocks the kubelet's probes. `/api/health` needs neither S3 nor an allowed Host header |
+| Pods are Ready but every request through the load balancer times out or gets 502/504 | The NetworkPolicy does not let the ingress controller in. On ALB set `networkPolicy.ingressCidrs` to the ALB subnets' CIDRs; with ingress-nginx in another namespace set `networkPolicy.ingressControllerNamespace`. See step 7, item 2 |
 | Pods are Ready but pages show errors or an empty tree | The pods cannot read the bucket: check `networkPolicy.egressCidrs` (S3 and STS), the IRSA role and its trust policy, and the KMS key policy. Pods never call KMS themselves; S3 calls KMS on their behalf, so no egress rule for KMS is needed, but the key policy must allow the `viz-site-server` role `kms:Decrypt` |
 | Large-data charts fail to load | `web/dist/duckdb/` is missing from the build; the DuckDB parquet extension is self-hosted and pinned to DuckDB v1.4.3, so re-pin it when upgrading `@duckdb/duckdb-wasm` |
 | `viz validate` says the author does not match (Databricks) | The CLI uses the Databricks login only when `DATABRICKS_HOST`, `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are all set. Set all three, or set `VIZ_AUTHOR` to your Databricks login |

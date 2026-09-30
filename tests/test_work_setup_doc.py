@@ -81,3 +81,46 @@ def test_the_guide_exports_both_region_variables():
     assert exports
     for line in exports:
         assert "AWS_DEFAULT_REGION=" in line, line
+
+
+def _section(text: str, heading: str) -> str:
+    """The body of one "## " section, up to the next "## " heading."""
+    start = text.index(f"\n## {heading}\n")
+    end = text.find("\n## ", start + 1)
+    return text[start:] if end == -1 else text[start:end]
+
+
+def test_deploy_decides_every_setting_before_the_install():
+    # C2 and C3: everything the install needs is decided in the step that runs it; later steps upgrade with -f.
+    deploy = _section(_text(), "7. Deploy")
+    install = deploy.index("helm install viz-site deploy/helm/viz-site -f my-values.yaml -n viz")
+    for phrase in (
+        "networkPolicy.ingressCidrs",
+        "kubernetes.io/role/internal-elb",
+        "networkPolicy.ingressControllerNamespace",
+        "ingress.rateLimit.enabled: false",
+        "requireIdentity: false",
+    ):
+        assert phrase in deploy[:install], phrase
+    assert "--set requireIdentity=false" not in deploy
+    upgrade = deploy.index("helm upgrade viz-site deploy/helm/viz-site -f my-values.yaml -n viz")
+    assert install < upgrade
+    assert deploy.count("helm install") == 1
+
+
+def test_deploy_locks_the_load_balancer_before_the_identity_gate():
+    # C1: a forged identity header is only stopped if nobody but the SSO proxy reaches the load balancer.
+    deploy = _section(_text(), "7. Deploy")
+    lock = deploy.index("ingress.allowedSourceCidrs", deploy.index("helm install"))
+    gate_on = deploy.index("requireIdentity: true", lock)
+    assert lock < gate_on < deploy.index("helm upgrade viz-site deploy/helm/viz-site -f my-values.yaml -n viz")
+    flat = " ".join(deploy.split())
+    for phrase in (
+        "overwrite",
+        "internal load balancer",
+        "nginx.ingress.kubernetes.io/auth-url",
+        "nginx.ingress.kubernetes.io/auth-response-headers",
+        "oauth2-proxy",
+        "security group",
+    ):
+        assert phrase in flat, phrase

@@ -33,6 +33,7 @@ def test_every_check_is_registered(checks):
         "check_probes_and_shutdown",
         "check_ingress",
         "check_source_cidrs",
+        "check_alb_ingress_cidrs",
         "check_dns",
     ]
 
@@ -66,3 +67,7 @@ def test_source_cidr_annotations(checks):
         "nginx": "nginx.ingress.kubernetes.io/whitelist-source-range",
         "alb": "alb.ingress.kubernetes.io/inbound-cidrs",
     }
+
+
+def test_alb_subnet_cidr_is_a_private_range(checks):
+    assert checks.ALB_SUBNET_CIDR == "10.0.1.0/24"
