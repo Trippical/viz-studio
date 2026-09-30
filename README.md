@@ -50,13 +50,22 @@ the real server pointed at it. `viz query` needs `pip install -e ".[databricks]"
 else in the package reads them. Publisher settings: `VIZ_AUTHOR` (used unless
 `DATABRICKS_HOST`, `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are all set;
 with all three, every command stamps the Databricks login and `viz validate`
-confirms it; without `VIZ_AUTHOR` the AWS caller identity is the fallback;
-author is attribution, not authentication), `VIZ_QUERY_DENY` (comma-separated
-catalogs or `catalog.schema` that `viz query` refuses), `VIZ_PII_PATTERN`,
-`VIZ_STAGING_DIR`. `--force` and `--yes` are flags only. `viz publish` and
-`viz move` refuse to run unless `VIZ_STORAGE` is set in the environment, so a
-missing setting never publishes into `./sample-bucket`; on success they print
-where the document went (`s3://<bucket>/<key>` or a local path).
+confirms it; without `VIZ_AUTHOR` the fallback is the AWS caller identity
+when `VIZ_STORAGE=s3`, and `<user>@local` (your operating system login) when
+`VIZ_STORAGE=local`; author is attribution, not authentication),
+`VIZ_QUERY_DENY` (comma-separated catalogs or `catalog.schema` that
+`viz query` refuses), `VIZ_PII_PATTERN`, `VIZ_STAGING_DIR`. `--force` and
+`--yes` are flags only. `viz publish` and `viz move` refuse to run unless
+`VIZ_STORAGE` is set in the environment, so a missing setting never publishes
+into `./sample-bucket`: `VIZ_STORAGE=s3` needs `VIZ_S3_BUCKET`, and
+`VIZ_STORAGE=local` needs `VIZ_LOCAL_DIR`, the folder to publish into. On
+success they print where the document went (`s3://<bucket>/<key>` or a local
+path).
+
+`viz-server` takes no options; it reads the same `VIZ_STORAGE`,
+`VIZ_LOCAL_DIR` (default `./sample-bucket`) and `VIZ_S3_BUCKET`, plus
+`VIZ_HOST` (default `127.0.0.1`) and `VIZ_PORT` (default `8000`) for the
+address it listens on. `viz-server --help` lists every variable it reads.
 
 The `publish-viz` Claude skill (`skills/publish-viz/`) teaches an agent this
 whole path, with a Vega-Lite authoring guide. Every chart form in the guide
