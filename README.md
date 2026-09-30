@@ -47,7 +47,10 @@ AWS caller identity when set; the Databricks user from `viz query` always wins,
 and `viz validate` confirms it with Databricks when the `DATABRICKS_*` variables
 are set; author is attribution, not authentication), `VIZ_QUERY_DENY` (comma-separated
 catalogs or `catalog.schema` that `viz query` refuses), `VIZ_PII_PATTERN`,
-`VIZ_STAGING_DIR`. `--force` and `--yes` are flags only.
+`VIZ_STAGING_DIR`. `--force` and `--yes` are flags only. `viz publish` and
+`viz move` refuse to run unless `VIZ_STORAGE` is set in the environment, so a
+missing setting never publishes into `./sample-bucket`; on success they print
+where the document went (`s3://<bucket>/<key>` or a local path).
 
 The `publish-viz` Claude skill (`skills/publish-viz/`) teaches an agent this
 whole path, with a Vega-Lite authoring guide. Every chart form in the guide

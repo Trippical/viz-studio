@@ -90,6 +90,13 @@ def _delete_other_data_files(storage: Storage, root: str, chart_id: str, keep: s
         storage.delete(info.key)
 
 
+def destination(settings: Settings, key: str) -> str:
+    """Where a key lives, for the success line: s3://<bucket>/<key>, or a local file path."""
+    if settings.storage == "s3":
+        return f"s3://{settings.s3_bucket}/{key}"
+    return str((Path(settings.local_dir) / key).resolve())
+
+
 def publish_chart(chart_dir: Path, settings: Settings, storage: Storage, force: bool = False,
                   allow_row_level: bool = False, out=None) -> str:
     out = sys.stdout if out is None else out
@@ -112,7 +119,7 @@ def publish_chart(chart_dir: Path, settings: Settings, storage: Storage, force: 
     if previous is not None:
         keep.add(previous)
     _delete_other_data_files(storage, root, chart_id, keep)
-    print(f"published: {chart_id}", file=out)
+    print(f"published: {chart_id} -> {destination(settings, key)}", file=out)
     return chart_id
 
 
@@ -127,5 +134,5 @@ def publish_dashboard(path: Path, settings: Settings, storage: Storage, force: b
     key = dashboard_key(settings.root_prefix, dashboard_id)
     _existing_doc, etag = _guard_overwrite(storage, key, force, out)
     _commit(storage, key, path.read_bytes(), dashboard_id, etag)
-    print(f"published: {dashboard_id}", file=out)
+    print(f"published: {dashboard_id} -> {destination(settings, key)}", file=out)
     return dashboard_id

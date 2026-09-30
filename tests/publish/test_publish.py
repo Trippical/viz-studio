@@ -75,7 +75,7 @@ def test_publish_chart_puts_data_then_document(settings, bucket, staging_root, c
     assert storage.puts == [data_key, "viz/charts/sales/new-chart/chart.json"]
     assert json.loads(storage.get("viz/charts/sales/new-chart/chart.json")) == staged.doc
     assert storage.get(data_key) == staged.data_path.read_bytes()
-    assert capsys.readouterr().out.strip() == "published: sales/new-chart"
+    assert capsys.readouterr().out.strip().startswith("published: sales/new-chart -> ")
 
     r = TestClient(create_app(settings)).get("/api/charts/sales/new-chart")
     assert r.status_code == 200 and r.json()["title"] == "New chart"
@@ -131,7 +131,7 @@ def test_publish_dashboard(settings, storage, staging_root, capsys):
 def test_publish_command(env, staging_root, capsys, monkeypatch):
     staged = _staged(staging_root)
     assert main(["publish", str(staged.dir)]) == 0
-    assert capsys.readouterr().out.strip() == "published: sales/new-chart"
+    assert capsys.readouterr().out.strip().startswith("published: sales/new-chart -> ")
 
     assert main(["publish", str(staged.dir)]) == 1
     assert capsys.readouterr().err.startswith("error: id exists: author tester@example.com")

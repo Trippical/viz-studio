@@ -1,5 +1,6 @@
 """The viz command line. Every subcommand is a thin function that calls one module."""
 import argparse
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +19,7 @@ from .infer import UnsupportedColumn, table_from_file
 from .move import MoveError, apply_move, describe, plan_move
 from .pii import drop_columns, parse_drop_list, pii_warning
 from .preview import run_preview
-from .publish import PublishRefused, publish_chart, publish_dashboard
+from .publish import PublishRefused, destination, publish_chart, publish_dashboard
 from .query import QueryError, read_sql_argument, resolve_warehouse, run_query
 from .staging import LaneError, column_summary, write_staged_chart
 from .validate import validate_dashboard_file, validate_staged_chart
@@ -102,7 +103,20 @@ def _cmd_validate(args) -> int:
     return 0
 
 
+def _require_explicit_storage() -> None:
+    """publish and move write to the bucket. They never fall back to the default local
+    folder: VIZ_STORAGE must be set in the environment (finding A13)."""
+    if not os.environ.get("VIZ_STORAGE", "").strip():
+        raise CliError(
+            "VIZ_STORAGE is not set, so there is nowhere to write; ask the user where to publish: "
+            "VIZ_STORAGE=s3 with VIZ_S3_BUCKET for the shared bucket, or VIZ_STORAGE=local with "
+            "VIZ_LOCAL_DIR for a folder on this machine.",
+            code=2,
+        )
+
+
 def _cmd_publish(args) -> int:
+    _require_explicit_storage()
     settings = Settings()
     storage = get_storage(settings)
     path = Path(args.path)
@@ -119,6 +133,7 @@ def _cmd_publish(args) -> int:
 
 
 def _cmd_move(args) -> int:
+    _require_explicit_storage()
     settings = Settings()
     storage = get_storage(settings)
     try:
@@ -133,7 +148,7 @@ def _cmd_move(args) -> int:
         apply_move(plan, settings, storage)
     except MoveError as err:
         raise CliError(str(err), code=1) from err
-    print(f"moved: {plan.old_id} -> {plan.new_id}")
+    print(f"moved: {plan.old_id} -> {plan.new_id} in {destination(settings, settings.root_prefix)}")
     return 0
 
 

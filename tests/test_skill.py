@@ -87,3 +87,8 @@ def test_skill_teaches_editing_the_large_lane_aggregate():
     assert "SELECT * FROM data LIMIT 1000" in data
     assert LARGE_DEFAULT_AGGREGATE in data
     assert "SELECT * FROM data LIMIT 1000" == LARGE_DEFAULT_AGGREGATE
+
+
+def test_skill_says_to_ask_when_viz_storage_is_not_set():
+    text = _text(SKILL / "SKILL.md")
+    assert "`VIZ_STORAGE` is not set" in text

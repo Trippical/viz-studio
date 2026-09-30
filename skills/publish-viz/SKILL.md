@@ -82,6 +82,8 @@ data, checks it and uploads it. The site never runs SQL.
   after they agree.
 - `--allow-row-level`: a large-lane chart shares every row. Ask whether the
   row-level data may be shared, or rewrite the SQL to aggregate.
+- `VIZ_STORAGE` is not set: `viz publish` and `viz move` refuse to run.
+  Ask the user which bucket to publish to. Do not pick one yourself.
 - Selecting an identifier or free-text column the user did not name.
 
 ## Never

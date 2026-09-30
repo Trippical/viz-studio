@@ -37,7 +37,7 @@ share the `VIZ_*` ones.
 
 | Variable | Default | Used by | What it does |
 |---|---|---|---|
-| `VIZ_STORAGE` | `local` | both | `local` (a folder) or `s3` |
+| `VIZ_STORAGE` | `local` | both | `local` (a folder) or `s3`. `viz publish` and `viz move` refuse to run unless it is set explicitly |
 | `VIZ_S3_BUCKET` | none | both | Bucket name when `VIZ_STORAGE=s3` |
 | `VIZ_ROOT_PREFIX` | `viz/` | both | Key prefix everything lives under |
 | `VIZ_LOCAL_DIR` | `./sample-bucket` | both | Folder used when `VIZ_STORAGE=local` |
