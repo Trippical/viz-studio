@@ -195,3 +195,50 @@ def test_vegalite_layer_without_its_own_data_passes():
     doc = copy.deepcopy(load("chart-vegalite.json"))
     doc["spec"]["layer"] = [{"mark": "line"}, {"mark": "rule"}]
     assert schemas.validate_chart(doc) is doc
+
+
+def _append_newline(doc: dict, path: str) -> None:
+    parts = path.split(".")
+    target = doc
+    for part in parts[:-1]:
+        target = target[int(part)] if part.isdigit() else target[part]
+    last = int(parts[-1]) if parts[-1].isdigit() else parts[-1]
+    target[last] = target[last] + "\n"
+
+
+# Adopter fix A3: every id, slug and column name must match its pattern in full.
+# jsonschema applies "pattern" with re.search, so "$" also matches before a trailing newline.
+@pytest.mark.parametrize("path", ["id", "controls.0.id", "controls.0.column", "layout.0.chart"])
+def test_dashboard_trailing_newline_is_rejected(path):
+    doc = copy.deepcopy(load("dashboard.json"))
+    _append_newline(doc, path)
+    with pytest.raises(schemas.SchemaError) as excinfo:
+        schemas.validate_dashboard(doc)
+    slash_path = path.replace(".", "/")
+    matching = [e for e in excinfo.value.errors if e.startswith(f"{slash_path}:")]
+    assert len(matching) == 1
+    assert matching[0].startswith(f"{slash_path}: must match ^")
+
+
+@pytest.mark.parametrize("fixture,path", [
+    ("chart-vegalite.json", "id"),
+    ("chart-vegalite.json", "data.columns.0.name"),
+    ("chart-stat.json", "spec.value"),
+    ("chart-stat.json", "spec.compare.column"),
+])
+def test_chart_trailing_newline_is_rejected(fixture, path):
+    doc = copy.deepcopy(load(fixture))
+    _append_newline(doc, path)
+    with pytest.raises(schemas.SchemaError) as excinfo:
+        schemas.validate_chart(doc)
+    slash_path = path.replace(".", "/")
+    matching = [e for e in excinfo.value.errors if e.startswith(f"{slash_path}: must match ^")]
+    assert len(matching) == 1
+
+
+def test_pattern_recheck_does_not_repeat_a_schema_error():
+    doc = copy.deepcopy(load("dashboard.json"))
+    doc["id"] = "Not An Id"
+    with pytest.raises(schemas.SchemaError) as excinfo:
+        schemas.validate_dashboard(doc)
+    assert len([e for e in excinfo.value.errors if e.startswith("id:")]) == 1

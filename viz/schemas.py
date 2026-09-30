@@ -1,6 +1,7 @@
 # viz/schemas.py
 """Document validation: JSON Schema plus renderer-specific spec rules."""
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterator
@@ -73,6 +74,58 @@ def _schema_errors(name: str, doc: Any) -> list[str]:
     return out
 
 
+# The same regexes as the "pattern" of the id, slug and columnName definitions in
+# schemas/*.schema.json. jsonschema applies "pattern" with re.search, and Python's "$"
+# also matches just before a trailing "\n", so "sales\n" passes the schema. The
+# helpers below re-check those fields with fullmatch (adopter fix A3).
+SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+COLUMN_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _get(node: Any, key: Any) -> Any:
+    """node[key] when node is a dict (str key) or a list (int key), else None."""
+    if isinstance(node, dict) and isinstance(key, str):
+        return node.get(key)
+    if isinstance(node, list) and isinstance(key, int) and 0 <= key < len(node):
+        return node[key]
+    return None
+
+
+def _items(node: Any) -> list:
+    return node if isinstance(node, list) else []
+
+
+def _fullmatch_errors(fields: list[tuple[str, Any, re.Pattern]]) -> list[str]:
+    """One error per string the schema accepted (search matches) but fullmatch refuses.
+    A value that fails search was already reported by the schema, so it is skipped."""
+    errors = []
+    for path, value, pattern in fields:
+        if isinstance(value, str) and pattern.search(value) and not pattern.fullmatch(value):
+            errors.append(f"{path}: must match {pattern.pattern}")
+    return errors
+
+
+def _chart_pattern_fields(doc: Any) -> list[tuple[str, Any, re.Pattern]]:
+    fields = [("id", _get(doc, "id"), ids.ID_PATTERN)]
+    for i, column in enumerate(_items(_get(_get(doc, "data"), "columns"))):
+        fields.append((f"data/columns/{i}/name", _get(column, "name"), COLUMN_NAME_PATTERN))
+    if _get(doc, "renderer") == "stat":
+        spec = _get(doc, "spec")
+        fields.append(("spec/value", _get(spec, "value"), COLUMN_NAME_PATTERN))
+        fields.append(("spec/compare/column", _get(_get(spec, "compare"), "column"), COLUMN_NAME_PATTERN))
+    return fields
+
+
+def _dashboard_pattern_fields(doc: Any) -> list[tuple[str, Any, re.Pattern]]:
+    fields = [("id", _get(doc, "id"), ids.ID_PATTERN)]
+    for i, control in enumerate(_items(_get(doc, "controls"))):
+        fields.append((f"controls/{i}/id", _get(control, "id"), SLUG_PATTERN))
+        fields.append((f"controls/{i}/column", _get(control, "column"), COLUMN_NAME_PATTERN))
+    for i, tile in enumerate(_items(_get(doc, "layout"))):
+        fields.append((f"layout/{i}/chart", _get(tile, "chart"), ids.ID_PATTERN))
+    return fields
+
+
 def _walk(node: Any, path: str = "spec") -> Iterator[tuple[str, str, Any]]:
     """Yield (path, key, value) for every key in every nested object."""
     if isinstance(node, dict):
@@ -132,6 +185,7 @@ def validate_chart(doc: Any) -> dict:
     if depth:
         raise SchemaError(depth)
     errors = _schema_errors("chart", doc)
+    errors += _fullmatch_errors(_chart_pattern_fields(doc))
     data = doc.get("data") if isinstance(doc, dict) else None
     file_name = data.get("file") if isinstance(data, dict) else None
     if (
@@ -163,6 +217,7 @@ def validate_dashboard(doc: Any) -> dict:
     if depth:
         raise SchemaError(depth)
     errors = _schema_errors("dashboard", doc)
+    errors += _fullmatch_errors(_dashboard_pattern_fields(doc))
     if isinstance(doc, dict) and isinstance(doc.get("controls"), list):
         seen: set[str] = set()
         for i, control in enumerate(doc["controls"]):
