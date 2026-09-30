@@ -68,6 +68,17 @@ describe('vega-lite sanitize', () => {
     expect(sanitize(layered)).toEqual(layered);
   });
 
+  it('rejects params[].bind.element at any depth (A6)', () => {
+    expect(() =>
+      sanitize({ ...base, params: [{ name: 'p', value: 1, bind: { input: 'range', min: 0, max: 10, element: '#elsewhere' } }] }),
+    ).toThrow('spec/params/0/bind: bind.element is not allowed');
+    expect(() => sanitize({ ...base, layer: [{ mark: 'point', params: [{ name: 'q', bind: { input: 'checkbox', element: 'body' } }] }] })).toThrow(
+      /bind\.element/,
+    );
+    expect(() => sanitize({ ...base, params: [{ name: 'p', value: 1, bind: { input: 'range', min: 0, max: 10 } }] })).not.toThrow();
+    expect(() => sanitize({ ...base, params: [{ name: 'sel', select: 'point', bind: 'legend' }] })).not.toThrow();
+  });
+
   it('rejects image marks in both forms', () => {
     expect(() => sanitize({ ...base, mark: 'image' })).toThrow(/image/);
     expect(() => sanitize({ ...base, layer: [{ mark: { type: 'image' } }] })).toThrow(/image/);

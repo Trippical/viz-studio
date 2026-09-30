@@ -15,7 +15,9 @@ export const RULES: readonly string[] = [
   'key "usermeta" rejected at any depth',
   'key "datasets" rejected at any depth',
   'data generators "sequence", "graticule", "sphere" rejected at any depth',
+  'params[].bind.element rejected at any depth',
   'image marks rejected',
+  'tooltips are text only (no vega-tooltip HTML, no image key)',
   'loader refuses load, sanitize, http and file',
   'actions menu off, canvas renderer, ast interpreter (no eval)',
 ];
@@ -41,6 +43,7 @@ export function sanitize(spec: unknown): Record<string, unknown> {
     if (key === 'data' && path !== TOP_LEVEL_DATA_PATH) throw new SanitizeError(`${path}: data is only allowed at the top level`);
     if (DATA_GENERATORS.has(key)) throw new SanitizeError(`${path}: data generator "${key}" is not allowed`);
     if (FORBIDDEN_KEYS.has(key)) throw new SanitizeError(`${path}: key "${key}" is not allowed`);
+    if (key === 'bind' && isPlainObject(value) && 'element' in value) throw new SanitizeError(`${path}: bind.element is not allowed`);
     if (key === 'mark' && (value === 'image' || (isPlainObject(value) && value.type === 'image'))) {
       throw new SanitizeError(`${path}: image marks are not allowed`);
     }
