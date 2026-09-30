@@ -37,7 +37,7 @@ def _dashboard_with_number_range_default(storage, default_text: str) -> bytes:
     return text.replace('"min": 0', f'"min": {default_text}', 1).encode("utf-8")
 
 
-@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity", "1e999", "-1e999"])
 def test_non_finite_number_in_a_dashboard_is_one_error_node(client, storage, settings, constant):
     storage.put("viz/dashboards/sales/bad.json", _dashboard_with_number_range_default(storage, constant),
                 "application/json")

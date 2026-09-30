@@ -7,9 +7,7 @@ storage in memory (the local backend is patched, not the tree code)."""
 import pytest
 
 from viz.server.tree import build_tree
-from viz.storage import NotFound
 from viz.storage.base import ObjectInfo
-
 
 
 def _overlay(monkeypatch, storage, extra: dict[str, bytes]) -> None:
@@ -50,7 +48,7 @@ def deep(request) -> str:
     return "/".join(["a"] * request.param)
 
 
-def test_folder_json_under_a_300_segment_prefix_does_not_break_the_tree(client, storage, settings, monkeypatch, deep):
+def test_folder_json_under_a_deep_prefix_does_not_break_the_tree(client, storage, settings, monkeypatch, deep):
     _overlay(monkeypatch, storage, {
         f"viz/charts/{deep}/_folder.json": b'{"schema_version": 1}',
         f"viz/dashboards/{deep}/_folder.json": b'{"schema_version": 1}',

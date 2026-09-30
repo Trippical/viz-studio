@@ -15,7 +15,7 @@ from viz.storage import NotFound
 NON_FINITE = "not valid JSON: NaN/Infinity is not allowed"
 
 
-@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity", "1e999", "-1e999"])
 def test_read_document_refuses_non_finite_numbers(tmp_path, constant):
     path = tmp_path / "chart.json"
     path.write_text('{"schema_version": 1, "x": ' + constant + "}", encoding="utf-8")

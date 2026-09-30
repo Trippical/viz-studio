@@ -1,7 +1,6 @@
 """Refresher scaffold (spec section 7). v1 only lists what a refresher would run.
 The v2 spec defines execution, overwrite semantics, failure handling and concurrency;
 it must honour spec section 12.7. Nothing here connects to Databricks."""
-import json
 import logging
 
 from .. import strict_json
