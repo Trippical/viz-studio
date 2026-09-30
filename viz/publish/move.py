@@ -3,6 +3,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from .. import strict_json
 from ..config import Settings
 from ..ids import chart_key, dashboard_key, validate_id
 from ..schemas import SchemaError, validate_chart, validate_dashboard
@@ -39,8 +40,8 @@ def _dashboards(storage: Storage, root: str) -> list[tuple[str, dict]]:
         if not info.key.endswith(".json") or info.key.endswith("_folder.json"):
             continue
         try:
-            doc = json.loads(storage.get(info.key))
-        except (UnicodeDecodeError, json.JSONDecodeError, NotFound):
+            doc = strict_json.loads(storage.get(info.key))
+        except (strict_json.InvalidJson, NotFound):
             continue
         if isinstance(doc, dict):
             out.append((info.key[len(prefix):-5], doc))
@@ -57,9 +58,9 @@ def _references(doc: dict, chart_id: str) -> bool:
 def _load_doc(storage: Storage, key: str) -> dict:
     """Read and parse a document key as untrusted content: it must be a JSON object."""
     try:
-        doc = json.loads(storage.get(key))
-    except json.JSONDecodeError as err:
-        raise MoveError(f"{key}: invalid JSON ({err})") from err
+        doc = strict_json.loads(storage.get(key))
+    except strict_json.InvalidJson as err:
+        raise MoveError(err.describe(key)) from err
     if not isinstance(doc, dict):
         raise MoveError(f"{key}: not a JSON object")
     return doc

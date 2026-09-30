@@ -14,6 +14,7 @@ import re
 import sys
 from pathlib import Path
 
+from .. import strict_json
 from ..config import Settings
 from ..ids import DATA_FILE_PATTERN, chart_key, dashboard_key, data_key
 from ..storage import NotFound, PreconditionFailed, Storage
@@ -39,8 +40,8 @@ def _existing(storage: Storage, key: str) -> tuple[dict | None, str | None]:
     except NotFound:
         return None, None
     try:
-        doc = json.loads(raw)
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        doc = strict_json.loads(raw)
+    except strict_json.InvalidJson:
         return {}, etag
     return (doc if isinstance(doc, dict) else {}), etag
 

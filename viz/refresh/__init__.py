@@ -4,6 +4,7 @@ it must honour spec section 12.7. Nothing here connects to Databricks."""
 import json
 import logging
 
+from .. import strict_json
 from ..config import Settings
 from ..schemas import SchemaError, validate_chart
 from ..storage import Storage
@@ -19,7 +20,7 @@ def plan(settings: Settings, storage: Storage) -> list[dict]:
         if not info.key.endswith("/chart.json"):
             continue
         try:
-            doc = validate_chart(json.loads(storage.get(info.key)))
+            doc = validate_chart(strict_json.loads(storage.get(info.key)))
         except (ValueError, SchemaError) as err:
             log.warning("skipping %s: %s", info.key, err)
             continue

@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from .. import strict_json
 from ..config import Settings
 from ..ids import dashboard_key, validate_id
 from ..schemas import SchemaError, validate_dashboard
@@ -77,7 +78,9 @@ def pulled_dashboard(dashboard_id: str, settings: Settings, storage: Storage, au
     except NotFound as err:
         raise DashboardError(f"dashboard '{dashboard_id}' is not published") from err
     try:
-        doc = validate_dashboard(json.loads(raw))
+        doc = validate_dashboard(strict_json.loads(raw))
+    except strict_json.InvalidJson as err:
+        raise DashboardError(f"published dashboard '{dashboard_id}' is invalid: {err.describe('$')}") from err
     except (ValueError, SchemaError) as err:
         raise DashboardError(f"published dashboard '{dashboard_id}' is invalid: {err}") from err
     if doc["id"] != dashboard_id:

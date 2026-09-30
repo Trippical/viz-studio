@@ -7,6 +7,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from .. import strict_json
 from ..config import Settings
 from ..ids import chart_key, data_file_name, is_ancestor
 from ..schemas import SchemaError, validate_chart, validate_dashboard
@@ -30,11 +31,11 @@ def read_document(path: Path) -> tuple[dict | None, list[str]]:
     if not path.is_file():
         return None, [f"{path}: not found"]
     try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as err:
+        doc = strict_json.loads(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as err:
         return None, [f"{path.name}: invalid JSON ({err})"]
-    except RecursionError:
-        return None, [f"{path.name}: invalid JSON (nested too deeply)"]
+    except strict_json.InvalidJson as err:
+        return None, [err.describe(path.name)]
     return doc, []
 
 
