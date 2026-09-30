@@ -101,6 +101,22 @@ test('a deep-linked region survives another control change, and tiles carry down
   expect(log.consoleErrors, 'no console errors').toEqual([]);
 });
 
+test.describe('200% browser zoom (simulated with a narrow viewport)', () => {
+  test.use({ viewport: { width: 640, height: 900 } });
+
+  test('the stat tile value does not clip and the footer keeps the download link visible', async ({ page }) => {
+    await page.goto('/d/bakeoff/vega-lite');
+    const tile = page.locator('[data-tile="bakeoff/total-revenue"]');
+    await expect(tile).toHaveAttribute('data-state', 'ready', { timeout: 90_000 });
+
+    const value = tile.getByTestId('stat-value');
+    const sizes = await value.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
+    expect(sizes.scrollWidth, 'stat value does not overflow its box').toBeLessThanOrEqual(sizes.clientWidth);
+
+    await expect(tile.getByRole('link', { name: 'Download data' })).toBeVisible();
+  });
+});
+
 test('hashed assets are cached for a year', async ({ request }) => {
   const html = await (await request.get('/')).text();
   const match = /\/assets\/[^"']+\.js/.exec(html);
