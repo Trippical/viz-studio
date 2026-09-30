@@ -237,3 +237,22 @@ def test_region_is_set_for_boto3_and_other_sdks():
     text = _template("deployment.yaml")
     for name in ("AWS_REGION", "AWS_DEFAULT_REGION"):
         assert f"- name: {name}\n              value: {{{{ .Values.bucket.region | quote }}}}" in text, name
+
+
+def test_allowed_source_cidrs_default_to_empty_with_an_explanation():
+    # C1: only the SSO proxy may reach the load balancer; otherwise anyone can forge the identity header.
+    assert _values()["ingress"]["allowedSourceCidrs"] == []
+    values_text = (CHART / "values.yaml").read_text(encoding="utf-8")
+    comment = values_text.split("allowedSourceCidrs:")[0].rsplit("host:", 1)[1]
+    assert "CIDRs of the SSO proxy; when set, only they can reach the site" in " ".join(comment.replace("#", " ").split())
+
+
+def test_allowed_source_cidrs_render_the_annotation_of_each_class():
+    text = _template("ingress.yaml")
+    start = text.index('{{- if eq .Values.ingress.className "alb" }}')
+    middle = text.index("{{- else }}", start)
+    alb_block, nginx_block = text[start:middle], text[middle:]
+    assert "{{- with .Values.ingress.allowedSourceCidrs }}" in alb_block
+    assert 'alb.ingress.kubernetes.io/inbound-cidrs: {{ join "," . | quote }}' in alb_block
+    assert "{{- with .Values.ingress.allowedSourceCidrs }}" in nginx_block
+    assert 'nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," . | quote }}' in nginx_block

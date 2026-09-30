@@ -18,9 +18,17 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.alb.certificateArn | quote }}
     alb.ingress.kubernetes.io/healthcheck-path: /api/health
+    {{- with .Values.ingress.allowedSourceCidrs }}
+    # Only the SSO proxy may reach the load balancer.
+    alb.ingress.kubernetes.io/inbound-cidrs: {{ join "," . | quote }}
+    {{- end }}
     {{- else }}
     # ingress-nginx: make the controller's own Service internal
     # (service.beta.kubernetes.io/aws-load-balancer-scheme: internal).
+    {{- with .Values.ingress.allowedSourceCidrs }}
+    # Only the SSO proxy may reach the site.
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," . | quote }}
+    {{- end }}
     {{- if .Values.ingress.rateLimit.enabled }}
     # Counted per client IP. Behind an SSO proxy every request comes from the
     # proxy's IP, so all users share one limit: set ingress.rateLimit.enabled

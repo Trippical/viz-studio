@@ -45,6 +45,16 @@ ingress:
   # ingress.alb values are used only when className is "alb".
   className: nginx
   host: viz.internal.example.com
+  # The CIDRs of the SSO proxy; when set, only they can reach the site.
+  # Anyone else who reaches the load balancer could send the authHeader
+  # header themselves and pass as any user, so set this (or restrict the load
+  # balancer's security group) before you rely on requireIdentity.
+  # Rendered as nginx.ingress.kubernetes.io/whitelist-source-range for
+  # className nginx (nginx must see the real client IP: the controller's
+  # Service needs externalTrafficPolicy: Local) and as
+  # alb.ingress.kubernetes.io/inbound-cidrs for className alb.
+  # Example: ["10.20.30.0/24"]
+  allowedSourceCidrs: []
   # ingress-nginx only. nginx counts requests per client IP. With the company
   # SSO proxy in front of the ingress, every request arrives from the proxy's
   # IP, so all users share one limit and the site starts refusing everyone:

@@ -32,6 +32,7 @@ def test_every_check_is_registered(checks):
         "check_region",
         "check_probes_and_shutdown",
         "check_ingress",
+        "check_source_cidrs",
         "check_dns",
     ]
 
@@ -58,3 +59,10 @@ def test_chart_passes_every_check(checks, monkeypatch):
 
 def test_region_env_names(checks):
     assert checks.REGION_ENV == ("AWS_REGION", "AWS_DEFAULT_REGION")
+
+
+def test_source_cidr_annotations(checks):
+    assert checks.SOURCE_CIDR_ANNOTATIONS == {
+        "nginx": "nginx.ingress.kubernetes.io/whitelist-source-range",
+        "alb": "alb.ingress.kubernetes.io/inbound-cidrs",
+    }

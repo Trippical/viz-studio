@@ -16,6 +16,11 @@ CHART = "deploy/helm/viz-site"
 EGRESS_ERROR = "networkPolicy.egressCidrs must list at least one CIDR"
 # boto3 reads AWS_DEFAULT_REGION; other AWS SDKs read AWS_REGION. Both come from bucket.region.
 REGION_ENV = ("AWS_REGION", "AWS_DEFAULT_REGION")
+# The annotation ingress.allowedSourceCidrs renders for each ingress class.
+SOURCE_CIDR_ANNOTATIONS = {
+    "nginx": "nginx.ingress.kubernetes.io/whitelist-source-range",
+    "alb": "alb.ingress.kubernetes.io/inbound-cidrs",
+}
 
 
 def render(release: str, *args: str) -> list[dict]:
@@ -157,6 +162,23 @@ def check_ingress() -> None:
         raise AssertionError("className alb: the nginx limit-rps annotation is rendered")
 
 
+def check_source_cidrs() -> None:
+    """C1: allowedSourceCidrs renders the source-range annotation of each class, comma-joined."""
+    cidrs = '["10.20.30.0/24","10.20.31.0/24"]'
+    for class_name, key in SOURCE_CIDR_ANNOTATIONS.items():
+        other = [name for cls, name in SOURCE_CIDR_ANNOTATIONS.items() if cls != class_name][0]
+        default = annotations_of(render("ci", "--set", f"ingress.className={class_name}"))
+        if key in default or other in default:
+            raise AssertionError(f"className {class_name}: a source-range annotation is rendered with no allowedSourceCidrs: {default}")
+        annotations = annotations_of(
+            render("ci", "--set", f"ingress.className={class_name}", "--set-json", f"ingress.allowedSourceCidrs={cidrs}")
+        )
+        if annotations.get(key) != "10.20.30.0/24,10.20.31.0/24":
+            raise AssertionError(f"className {class_name}: {key} is {annotations.get(key)!r}")
+        if other in annotations:
+            raise AssertionError(f"className {class_name}: {other} is rendered too")
+
+
 def check_dns() -> None:
     """A32: dnsCidrs adds an ipBlock rule on UDP and TCP 53; the kube-dns rule stays."""
     rules = one(render("ci"), "NetworkPolicy")["spec"]["egress"]
@@ -182,6 +204,7 @@ CHECKS = [
     check_region,
     check_probes_and_shutdown,
     check_ingress,
+    check_source_cidrs,
     check_dns,
 ]
 
