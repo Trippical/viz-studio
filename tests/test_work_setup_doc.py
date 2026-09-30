@@ -100,21 +100,23 @@ def test_deploy_decides_every_setting_before_the_install():
         "networkPolicy.ingressControllerNamespace",
         "ingress.rateLimit.enabled: false",
         "requireIdentity: false",
+        "ingress.allowedSourceCidrs",
     ):
         assert phrase in deploy[:install], phrase
     assert "--set requireIdentity=false" not in deploy
     upgrade = deploy.index("helm upgrade viz-site deploy/helm/viz-site -f my-values.yaml -n viz")
     assert install < upgrade
     assert deploy.count("helm install") == 1
+    # requireIdentity is already true at install; the later step only undoes the smoke-test choice.
+    assert "Turn the identity gate on." not in deploy
+    assert "requireIdentity: true" in deploy[install:upgrade]
 
 
-def test_deploy_locks_the_load_balancer_before_the_identity_gate():
+def test_deploy_locks_the_load_balancer_before_the_install():
     # C1: a forged identity header is only stopped if nobody but the SSO proxy reaches the load balancer.
     deploy = _section(_text(), "7. Deploy")
-    lock = deploy.index("ingress.allowedSourceCidrs", deploy.index("helm install"))
-    gate_on = deploy.index("requireIdentity: true", lock)
-    assert lock < gate_on < deploy.index("helm upgrade viz-site deploy/helm/viz-site -f my-values.yaml -n viz")
-    flat = " ".join(deploy.split())
+    install = deploy.index("helm install viz-site deploy/helm/viz-site -f my-values.yaml -n viz")
+    flat = " ".join(deploy[:install].split())
     for phrase in (
         "overwrite",
         "internal load balancer",
@@ -124,6 +126,42 @@ def test_deploy_locks_the_load_balancer_before_the_identity_gate():
         "security group",
     ):
         assert phrase in flat, phrase
+
+
+def test_deploy_keeps_the_client_ip_for_the_nginx_source_range():
+    # Fix round 1, item 2: externalTrafficPolicy Local alone does not keep the client IP on AWS.
+    deploy = " ".join(_section(_text(), "7. Deploy").split())
+    for phrase in (
+        "externalTrafficPolicy: Local",
+        "Network Load Balancer",
+        "Classic Load Balancer",
+        "preserve_client_ip.enabled=true",
+        "proxy protocol",
+        "controller.service.loadBalancerSourceRanges",
+        "Never widen `ingress.allowedSourceCidrs` to the VPC",
+    ):
+        assert phrase in deploy, phrase
+
+
+def test_deploy_keeps_other_pods_off_the_alb_subnets():
+    # Fix round 1, item 1: ALB subnets shared with pods would let any pod reach viz-site on 8000.
+    deploy = " ".join(_section(_text(), "7. Deploy").split())
+    for phrase in (
+        "dedicated subnets",
+        "alb.ingress.kubernetes.io/subnets",
+        "Security Groups for Pods",
+    ):
+        assert phrase in deploy, phrase
+
+
+def test_deploy_checks_a_forged_header_sent_straight_to_a_pod():
+    deploy = _section(_text(), "7. Deploy")
+    check = deploy.index("kubectl run forge-test")
+    assert deploy.index("helm upgrade viz-site deploy/helm/viz-site -f my-values.yaml -n viz") < check
+    tail = deploy[check:]
+    assert 'http://<pod ip>:8000/api/tree' in tail
+    assert '-H "X-Forwarded-Email: someone@example.com"' in tail
+    assert "kubectl get pods -n viz -o wide" in deploy
 
 
 def test_what_you_need_names_the_cluster_prerequisites():

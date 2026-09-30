@@ -49,10 +49,17 @@ ingress:
   # Anyone else who reaches the load balancer could send the authHeader
   # header themselves and pass as any user, so set this (or restrict the load
   # balancer's security group) before you rely on requireIdentity.
-  # Rendered as nginx.ingress.kubernetes.io/whitelist-source-range for
-  # className nginx (nginx must see the real client IP: the controller's
-  # Service needs externalTrafficPolicy: Local) and as
-  # alb.ingress.kubernetes.io/inbound-cidrs for className alb.
+  # Rendered as alb.ingress.kubernetes.io/inbound-cidrs for className alb and
+  # as nginx.ingress.kubernetes.io/whitelist-source-range for className nginx.
+  # nginx must see the real client IP, and on AWS externalTrafficPolicy: Local
+  # alone is not enough: a Classic Load Balancer never keeps it. Put the
+  # ingress-nginx controller behind a Network Load Balancer that keeps it:
+  # instance targets with externalTrafficPolicy: Local, IP targets with
+  # preserve_client_ip.enabled=true, or proxy protocol turned on in both the
+  # NLB and the controller. If you cannot, leave this empty and instead limit
+  # the controller Service's loadBalancerSourceRanges (or its load balancer's
+  # security group) to the proxy CIDRs. Never widen this to the VPC to make
+  # it work: that lets every pod and node forge the identity header.
   # Example: ["10.20.30.0/24"]
   allowedSourceCidrs: []
   # ingress-nginx only. nginx counts requests per client IP. With the company
@@ -89,8 +96,13 @@ networkPolicy:
   # The rule for kube-dns in kube-system stays in place either way.
   dnsCidrs: []
   # With the AWS Load Balancer Controller (target type ip), traffic comes from
-  # the ALB's subnets, not a namespace: list those subnet CIDRs here. On ALB the
-  # nginx rate-limit annotation does nothing; use a WAF rate-based rule instead.
+  # the ALB's subnets, not a namespace: list those subnet CIDRs here. Every
+  # address in them can then reach the pods on 8000 and forge the identity
+  # header, so put the ALB in dedicated subnets that no node or pod uses
+  # (pin them with the alb.ingress.kubernetes.io/subnets annotation), or use
+  # Security Groups for Pods that allow only the ALB's security group. On ALB
+  # the nginx rate-limit annotation does nothing; use a WAF rate-based rule
+  # instead.
   ingressCidrs: []
 
 resources:

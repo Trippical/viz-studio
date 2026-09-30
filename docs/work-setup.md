@@ -353,9 +353,56 @@ with `Remove-Item Env:VIZ_ROOT_PREFIX`.
    step 5, item 5; `networkPolicy.egressCidrs` lists the S3 and STS CIDRs
    from step 5, items 3 and 4; set `ingress.alb.certificateArn` if you set
    `ingress.className: alb`. Then
-   make these three decisions in `my-values.yaml` before you install:
+   make these four decisions in `my-values.yaml` before you install:
 
-   a. **Who may reach the pods.** The chart's NetworkPolicy lets only the
+   a. **Who may reach the load balancer.** The identity gate trusts the
+      `authHeader` header. Anyone who can reach the load balancer can send
+      that header themselves and pass as any user. So both of these must
+      hold:
+      - Only the SSO proxy can reach the load balancer.
+      - The proxy overwrites the header on every request (it sets it, it
+        never appends to it or passes through a value the user sent).
+
+      Layout 1, the default: the company SSO proxy in front of an internal
+      load balancer. Users reach the proxy, and the proxy reaches the load
+      balancer. Set `ingress.allowedSourceCidrs` to the proxy's CIDRs:
+
+      ```
+      ingress:
+        allowedSourceCidrs: ["10.20.30.0/24"]
+      ```
+
+      The chart turns this into `alb.ingress.kubernetes.io/inbound-cidrs`
+      (className alb), which the ALB enforces in its security group, or
+      `nginx.ingress.kubernetes.io/whitelist-source-range` (className
+      nginx), which nginx checks against the client IP it sees. On AWS,
+      `externalTrafficPolicy: Local` alone does not make nginx see the
+      proxy's IP: a Classic Load Balancer never keeps the client IP. The
+      ingress-nginx controller must sit behind a Network Load Balancer that
+      keeps it: instance targets with `externalTrafficPolicy: Local` on the
+      controller's Service, IP targets with the target group attribute
+      `preserve_client_ip.enabled=true`, or proxy protocol turned on in both
+      the NLB and the controller. If you cannot set that up, leave
+      `allowedSourceCidrs` empty and instead limit who reaches the
+      controller's load balancer: set `controller.service.loadBalancerSourceRanges`
+      in the ingress-nginx Helm values to the proxy's CIDRs, or limit its
+      security group to inbound 443 from them. Never widen
+      `ingress.allowedSourceCidrs` to the VPC to make it work: every pod and
+      node in the VPC could then forge the identity header.
+
+      Layout 2: ingress-nginx asks oauth2-proxy about every request
+      (`nginx.ingress.kubernetes.io/auth-url` and
+      `nginx.ingress.kubernetes.io/auth-signin`) and copies the signed-in
+      user's header from its answer onto the request
+      (`nginx.ingress.kubernetes.io/auth-response-headers`), replacing any
+      value the user sent. Put the three annotations in
+      `ingress.annotations`, run oauth2-proxy with `--set-xauthrequest`, and
+      set `authHeader` to the header you pass through, for example
+      `X-Auth-Request-Email`; any other header name could still be forged.
+      Users reach the ingress directly here, so leave `allowedSourceCidrs`
+      empty and the rate limit on.
+
+   b. **Who may reach the pods.** The chart's NetworkPolicy lets only the
       ingress controller reach the pods; with the wrong setting it drops
       every request.
       - `ingress.className: nginx`: traffic comes from the ingress-nginx
@@ -364,13 +411,33 @@ with `Remove-Item Env:VIZ_ROOT_PREFIX`.
         that namespace. This command shows it in the first column:
         `kubectl get pods -A -l app.kubernetes.io/name=ingress-nginx`
       - `ingress.className: alb`: the ALB sends traffic straight to the pod
-        IPs from its own subnets, not from a namespace. Set
-        `networkPolicy.ingressCidrs` to the CIDRs of the subnets an internal
-        ALB uses, the ones tagged `kubernetes.io/role/internal-elb`:
+        IPs from its own subnets, not from a namespace, so
+        `networkPolicy.ingressCidrs` must list the ALB's subnet CIDRs. Every
+        address in those subnets can then reach the pods on port 8000 and
+        forge the identity header. With the VPC CNI, pods and nodes often
+        share the subnets tagged `kubernetes.io/role/internal-elb`, so do not
+        simply list those. Put the ALB in dedicated subnets that no node
+        group uses and no ENIConfig (VPC CNI custom networking) gives to
+        pods, and pin the ALB to them with an annotation:
 
         ```
-        aws ec2 describe-subnets \
-          --filters Name=vpc-id,Values=<cluster vpc id> Name=tag:kubernetes.io/role/internal-elb,Values=1 \
+        ingress:
+          annotations:
+            alb.ingress.kubernetes.io/subnets: subnet-REPLACE_ME-a,subnet-REPLACE_ME-b
+        ```
+
+        Check that no node runs in them; none of the ALB subnet ids may
+        appear in the output of:
+
+        ```
+        aws ec2 describe-instances --filters Name=tag:eks:cluster-name,Values=<cluster> \
+          --query "Reservations[].Instances[].SubnetId" --output text
+        ```
+
+        Then list the dedicated subnets' CIDRs:
+
+        ```
+        aws ec2 describe-subnets --subnet-ids subnet-REPLACE_ME-a subnet-REPLACE_ME-b \
           --query "Subnets[].CidrBlock" --output text
         ```
 
@@ -379,7 +446,12 @@ with `Remove-Item Env:VIZ_ROOT_PREFIX`.
           ingressCidrs: ["10.0.1.0/24", "10.0.2.0/24"]
         ```
 
-   b. **Rate limit.** With ingress-nginx the chart limits each client IP to
+        If dedicated subnets are not possible, use Security Groups for Pods
+        instead: give the viz-site pods a security group that allows port
+        8000 only from the ALB's security group, and still list the ALB's
+        subnet CIDRs in `networkPolicy.ingressCidrs`.
+
+   c. **Rate limit.** With ingress-nginx the chart limits each client IP to
       `ingress.rateLimit.perSecond` requests per second. Behind the company
       SSO proxy every request arrives from the proxy's IP, so all users share
       that one limit and the site starts refusing everyone under normal use.
@@ -387,7 +459,7 @@ with `Remove-Item Env:VIZ_ROOT_PREFIX`.
       the ingress. On ALB the value does nothing; use a WAF rate-based rule
       there.
 
-   c. **The first smoke test.** The site has no login of its own. With
+   d. **The first smoke test.** The site has no login of its own. With
       `requireIdentity: true` (the default), every request except
       `/api/health` that lacks the `authHeader` header (`X-Forwarded-Email`
       by default) gets 401, so until the SSO proxy is in front of the site
@@ -419,58 +491,44 @@ with `Remove-Item Env:VIZ_ROOT_PREFIX`.
    ```
 
    It returns the folder tree as JSON. Stop the port forward with Ctrl+C.
-4. **Let only the SSO proxy reach the site (required before step 5).** The
-   identity gate trusts the `authHeader` header. Anyone who can reach the
-   load balancer can send that header themselves and pass as any user. So
-   both of these must hold:
-   - Only the SSO proxy can reach the load balancer.
-   - The proxy overwrites the header on every request (it sets it, it never
-     appends to it or passes through a value the user sent).
-
-   Layout 1, the default: the company SSO proxy in front of an internal
-   load balancer. Users reach the proxy, and the proxy reaches the load
-   balancer. Set `ingress.allowedSourceCidrs` in `my-values.yaml` to the
-   proxy's CIDRs:
-
-   ```
-   ingress:
-     allowedSourceCidrs: ["10.20.30.0/24"]
-   ```
-
-   The chart turns this into `nginx.ingress.kubernetes.io/whitelist-source-range`
-   (className nginx) or `alb.ingress.kubernetes.io/inbound-cidrs` (className
-   alb). ingress-nginx can only check the proxy's address if it sees it:
-   the controller's Service needs `externalTrafficPolicy: Local`. If you
-   cannot change that, leave `allowedSourceCidrs` empty and instead limit
-   the load balancer's security group to inbound 443 from the proxy's CIDRs.
-
-   Layout 2: ingress-nginx asks oauth2-proxy about every request
-   (`nginx.ingress.kubernetes.io/auth-url` and
-   `nginx.ingress.kubernetes.io/auth-signin`) and copies the signed-in
-   user's header from its answer onto the request
-   (`nginx.ingress.kubernetes.io/auth-response-headers`), replacing any value
-   the user sent. Put the three annotations in `ingress.annotations`, run
-   oauth2-proxy with `--set-xauthrequest`, and set `authHeader` to the header
-   you pass through, for example `X-Auth-Request-Email`; any other header
-   name could still be forged. Users reach the ingress directly here, so
-   leave `allowedSourceCidrs` empty and the rate limit on.
-5. **Turn the identity gate on.** In `my-values.yaml`, make sure
-   `requireIdentity: true` is set (change it back if you set it to false in
-   step 2), then apply it together with the changes from step 4:
+4. **Connect the SSO proxy.** Point the company SSO proxy at the load
+   balancer (layout 1), or deploy oauth2-proxy (layout 2), as decided in
+   step 2a. Confirm with the proxy's owners that it overwrites the identity
+   header on every request. If you chose to limit the controller's
+   `loadBalancerSourceRanges` or a security group instead of
+   `allowedSourceCidrs`, apply that now.
+5. **Apply changes, and turn the gate back on if you turned it off.**
+   `requireIdentity` is already `true` unless you set `requireIdentity: false`
+   in step 2d. If you did, set `requireIdentity: true` in `my-values.yaml`
+   now. Apply that and any other change you made to `my-values.yaml`:
 
    ```
    helm upgrade viz-site deploy/helm/viz-site -f my-values.yaml -n viz
    ```
 
-6. **Check through the SSO proxy.** Check `https://<your host>/api/health`
-   through the proxy; it returns `{"status": "ok"}` but does not touch S3,
-   so it only says the pods are running. Then open `https://<your host>/`
-   and check that the folder tree loads. Finally, from a machine that is not
-   the proxy, send a request with a made-up `authHeader` header straight to the
-   load balancer:
-   `curl -H "X-Forwarded-Email: someone@example.com" https://<load balancer host>/api/tree`.
-   It must fail (403, or no connection at all); if it returns the tree,
-   go back to step 4.
+6. **Check through the SSO proxy, then try to get around it.**
+   - Check `https://<your host>/api/health` through the proxy; it returns
+     `{"status": "ok"}` but does not touch S3, so it only says the pods are
+     running. Then open `https://<your host>/` and
+     check that the folder tree loads.
+   - From a machine that is not the proxy, send a request with a made-up
+     `authHeader` header straight to the load balancer:
+     `curl -H "X-Forwarded-Email: someone@example.com" https://<load balancer host>/api/tree`.
+     It must fail (403, or no connection at all); if it returns the tree,
+     go back to step 2a.
+   - From another pod in the cluster, send the same request straight to a
+     viz-site pod. Find a pod IP in the IP column of
+     `kubectl get pods -n viz -o wide`, then run a throwaway curl pod in
+     another namespace:
+
+     ```
+     kubectl run forge-test --rm -it --restart=Never -n default --image=curlimages/curl -- \
+       curl -s -m 5 -H "Host: viz.internal.example.com" -H "X-Forwarded-Email: someone@example.com" http://<pod ip>:8000/api/tree
+     ```
+
+     It must time out. Any HTTP answer, even a 400 or 401, means other
+     pods can reach viz-site directly: check the NetworkPolicy engine
+     ("What you need") and step 2b.
 
 ## Troubleshooting
 

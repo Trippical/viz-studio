@@ -256,3 +256,22 @@ def test_allowed_source_cidrs_render_the_annotation_of_each_class():
     assert 'alb.ingress.kubernetes.io/inbound-cidrs: {{ join "," . | quote }}' in alb_block
     assert "{{- with .Values.ingress.allowedSourceCidrs }}" in nginx_block
     assert 'nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," . | quote }}' in nginx_block
+
+
+def _comment_before(key: str, previous: str) -> str:
+    text = (CHART / "values.yaml").read_text(encoding="utf-8")
+    return " ".join(text.split(f"{key}:")[0].rsplit(f"{previous}:", 1)[1].replace("#", " ").split())
+
+
+def test_allowed_source_cidrs_comment_explains_the_client_ip_on_aws():
+    # Fix round 1, item 2.
+    comment = _comment_before("allowedSourceCidrs", "host")
+    for phrase in ("Network Load Balancer", "proxy protocol", "loadBalancerSourceRanges", "Never widen this to the VPC"):
+        assert phrase in comment, phrase
+
+
+def test_ingress_cidrs_comment_asks_for_dedicated_alb_subnets():
+    # Fix round 1, item 1.
+    comment = _comment_before("ingressCidrs", "dnsCidrs")
+    for phrase in ("dedicated subnets", "Security Groups for Pods"):
+        assert phrase in comment, phrase
