@@ -96,6 +96,12 @@ def test_writes_are_denied_to_everyone_but_the_publisher_role():
     }
 
 
+def test_read_deny_covers_old_versions_too():
+    # C7: the bucket is versioned; without GetObjectVersion an old version could be read from anywhere.
+    deny = _statement("DenyReadsOutsideTheVpcEndpointExceptPublishers")
+    assert sorted(deny["Action"]) == ["s3:GetObject", "s3:GetObjectVersion", "s3:ListBucket"]
+
+
 def test_write_deny_exempts_the_same_publisher_as_the_read_deny():
     write = _statement("DenyWritesExceptThePublisherRole")["Condition"]["ArnNotLike"]
     read = _statement("DenyReadsOutsideTheVpcEndpointExceptPublishers")["Condition"]["ArnNotLike"]

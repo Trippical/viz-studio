@@ -13,7 +13,7 @@
       "Sid": "DenyReadsOutsideTheVpcEndpointExceptPublishers",
       "Effect": "Deny",
       "Principal": "*",
-      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Action": ["s3:GetObject", "s3:GetObjectVersion", "s3:ListBucket"],
       "Resource": ["arn:aws:s3:::REPLACE_ME-viz-bucket", "arn:aws:s3:::REPLACE_ME-viz-bucket/*"],
       "Condition": {
         "StringNotEquals": {"aws:SourceVpce": "vpce-REPLACE_ME"},
