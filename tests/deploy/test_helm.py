@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import yaml
@@ -138,3 +139,34 @@ def test_require_identity_env_matches_a_setting():
     # The env var only works if it maps to a real field (plan 5a adds require_identity).
     assert "require_identity" in Settings.model_fields
     assert Settings(require_identity="true").require_identity is True
+
+
+def _probe(text: str, start: str, end: str) -> dict[str, int]:
+    block = text.split(start, 1)[1].split(end, 1)[0]
+    return {key: int(value) for key, value in re.findall(r"(\w+Seconds|failureThreshold): (\d+)", block)}
+
+
+def test_readiness_and_liveness_differ_and_liveness_is_more_lenient():
+    text = _template("deployment.yaml")
+    ready = _probe(text, "readinessProbe:", "livenessProbe:")
+    live = _probe(text, "livenessProbe:", "lifecycle:")
+    assert ready == {"periodSeconds": 5, "timeoutSeconds": 2, "failureThreshold": 3}
+    assert live == {"initialDelaySeconds": 10, "periodSeconds": 20, "timeoutSeconds": 5, "failureThreshold": 6}
+    assert live["periodSeconds"] * live["failureThreshold"] > ready["periodSeconds"] * ready["failureThreshold"]
+    assert live["timeoutSeconds"] > ready["timeoutSeconds"]
+
+
+def test_pods_shut_down_gracefully():
+    text = _template("deployment.yaml")
+    assert "      terminationGracePeriodSeconds: 30\n" in text
+    assert 'preStop:\n              exec:\n                command: ["sleep", "5"]' in text
+
+
+def test_disruption_budget_only_with_more_than_one_replica():
+    text = _template("pdb.yaml")
+    assert text.startswith("{{- if gt (int .Values.replicaCount) 1 }}")
+    assert "apiVersion: policy/v1" in text
+    assert "kind: PodDisruptionBudget" in text
+    assert "  minAvailable: 1" in text
+    assert 'include "viz-site.selectorLabels" .' in text
+    assert text.rstrip().endswith("{{- end }}")
