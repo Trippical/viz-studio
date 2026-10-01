@@ -1,7 +1,16 @@
 import type { Control } from '../api/types';
 import { defaultFilterValue, isActive, type Filter, type FilterValue, type SelectOptions } from '../data/filters';
 
-const CLEARED = '-';
+/**
+ * Marks a control the user cleared. It contains ':', which encodeURIComponent
+ * always escapes, so no encoded select value can equal it (finding A12: the
+ * old marker "-" collided with a select value "-"). Text values start with
+ * "~" and ranges contain "..", so they cannot equal it either.
+ */
+export const CLEARED = ':none';
+
+/** The marker before plan 5c. Still read for range controls, where "-" can never be a value. */
+const LEGACY_CLEARED = '-';
 
 function encodeValue(value: FilterValue): string {
   if (!isActive(value)) return CLEARED;
@@ -85,7 +94,7 @@ export function decodeFilters(
     const fallback = defaultFilterValue(control, today, tooMany);
     const raw = params.get(control.id);
     let value: FilterValue = fallback;
-    if (raw === CLEARED) {
+    if (raw === CLEARED || (raw === LEGACY_CLEARED && control.type !== 'select')) {
       value = tooMany ? { type: 'text', text: '' } : clearedValue(control);
     } else if (raw !== null) {
       value = decodeValue(raw, control, opts) ?? fallback;

@@ -1,14 +1,19 @@
 """Regenerate the sample bucket. Deterministic, synthetic, safe to commit.
 
-Run from the repo root:  python sample-bucket/generate.py
+Run from the repo root:  .venv/Scripts/python sample-bucket/generate.py
+(needs the viz package installed: pip install -e ".[dev]")
 """
+import hashlib
 import json
+import os
 import random
 from datetime import date, timedelta
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+from viz.ids import data_file_name
 
 ROOT = Path(__file__).resolve().parent / "viz"
 SKILL_EXAMPLES = Path(__file__).resolve().parents[1] / "skills" / "publish-viz" / "examples"
@@ -72,7 +77,36 @@ def write_json(path: Path, doc) -> int:
     return len(text.encode("utf-8"))
 
 
-def chart_doc(chart_id, title, description, renderer, spec, data_rows, data_bytes, source=None,
+def remove_data_files(chart_dir: Path, keep: str) -> None:
+    """Each chart directory holds exactly one data file: the one its chart.json names."""
+    for path in chart_dir.glob("data.*"):
+        if path.name != keep:
+            path.unlink()
+
+
+def write_data_json(chart_dir: Path, data_rows: list[dict]) -> tuple[str, int]:
+    """Write the rows under their content-addressed name. Returns (file name, byte count)."""
+    chart_dir.mkdir(parents=True, exist_ok=True)
+    payload = (json.dumps(data_rows, indent=2) + "\n").encode("utf-8")
+    name = data_file_name(hashlib.sha256(payload).hexdigest(), "json")
+    (chart_dir / name).write_bytes(payload)
+    remove_data_files(chart_dir, keep=name)
+    return name, len(payload)
+
+
+def write_data_parquet(chart_dir: Path, table: pa.Table) -> tuple[str, int]:
+    """Write the table as parquet under its content-addressed name. Returns (file name, byte count)."""
+    chart_dir.mkdir(parents=True, exist_ok=True)
+    tmp = chart_dir / "parquet.tmp"
+    pq.write_table(table, tmp, compression="snappy")
+    payload = tmp.read_bytes()
+    name = data_file_name(hashlib.sha256(payload).hexdigest(), "parquet")
+    os.replace(tmp, chart_dir / name)
+    remove_data_files(chart_dir, keep=name)
+    return name, len(payload)
+
+
+def chart_doc(chart_id, title, description, renderer, spec, data_file, data_rows, data_bytes, source=None,
               columns=COLUMNS, fmt="json", lane="small", aggregate=None, tags=("sales", "sample")):
     doc = {
         "schema_version": 1,
@@ -85,7 +119,8 @@ def chart_doc(chart_id, title, description, renderer, spec, data_rows, data_byte
         "updated_at": STAMP,
         "renderer": renderer,
         "spec": spec,
-        "data": {"format": fmt, "lane": lane, "rows": data_rows, "bytes": data_bytes, "columns": columns},
+        "data": {"format": fmt, "file": data_file, "lane": lane, "rows": data_rows, "bytes": data_bytes,
+                 "columns": columns},
         "aggregate": aggregate,
     }
     if source:
@@ -119,12 +154,6 @@ def order_lines() -> pa.Table:
         "product": pa.array([t[2] for t in lines], pa.string()),
         "amount": pa.array([t[3] for t in lines], pa.float64()),
     })
-
-
-def write_parquet(path: Path, table: pa.Table) -> int:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    pq.write_table(table, path, compression="snappy")
-    return path.stat().st_size
 
 
 def time_series_spec(renderer: str) -> dict:
@@ -202,36 +231,37 @@ def write_bakeoff(data: list[dict]) -> None:
     write_json(charts / "_folder.json", {"schema_version": 1, "title": "Bake-off", "description": "The same four charts written for each renderer.", "order": 20})
     write_json(dashboards / "_folder.json", {"schema_version": 1, "title": "Bake-off", "description": "One dashboard per renderer. Pick a winner.", "order": 20})
 
-    n = write_json(charts / "total-revenue" / "data.json", data)
+    name, n = write_data_json(charts / "total-revenue", data)
     write_json(charts / "total-revenue" / "chart.json", chart_doc(
         "bakeoff/total-revenue", "Total revenue", "Sum of revenue over the selected period, with total orders.",
         "stat", {"value": "revenue", "agg": "sum", "format": "$,.0f", "compare": {"column": "orders", "agg": "sum"}},
-        len(data), n, tags=("bakeoff", "sample"),
+        name, len(data), n, tags=("bakeoff", "sample"),
     ))
 
     for renderer in RENDERERS:
         folder = charts / renderer
         write_json(folder / "_folder.json", {"schema_version": 1, "title": renderer_title(renderer)})
 
-        n = write_json(folder / "time-series" / "data.json", data)
+        name, n = write_data_json(folder / "time-series", data)
         write_json(folder / "time-series" / "chart.json", chart_doc(
             f"bakeoff/{renderer}/time-series", f"Revenue by region, monthly ({renderer_title(renderer)})",
             "Monthly revenue per region. Filter with the Period and Region controls.",
-            renderer, time_series_spec(renderer), len(data), n, tags=("bakeoff", "sample"),
+            renderer, time_series_spec(renderer), name, len(data), n, tags=("bakeoff", "sample"),
         ))
 
-        n = write_json(folder / "grouped-bar" / "data.json", quarters)
+        name, n = write_data_json(folder / "grouped-bar", quarters)
         write_json(folder / "grouped-bar" / "chart.json", chart_doc(
             f"bakeoff/{renderer}/grouped-bar", f"Orders by region, quarterly ({renderer_title(renderer)})",
             "Quarterly orders per region. Filter with the Region control.",
-            renderer, grouped_bar_spec(renderer), len(quarters), n, columns=QUARTER_COLUMNS, tags=("bakeoff", "sample"),
+            renderer, grouped_bar_spec(renderer), name, len(quarters), n, columns=QUARTER_COLUMNS,
+            tags=("bakeoff", "sample"),
         ))
 
-        n = write_parquet(folder / "order-lines" / "data.parquet", lines)
+        name, n = write_data_parquet(folder / "order-lines", lines)
         write_json(folder / "order-lines" / "chart.json", chart_doc(
             f"bakeoff/{renderer}/order-lines", f"Order amount per day ({renderer_title(renderer)})",
             f"{ORDER_LINES:,} synthetic order lines aggregated per day in the browser with DuckDB. Filter with the Days and Region controls.",
-            renderer, order_lines_spec(renderer), lines.num_rows, n,
+            renderer, order_lines_spec(renderer), name, lines.num_rows, n,
             columns=LINE_COLUMNS, fmt="parquet", lane="large", aggregate=LINE_AGGREGATE, tags=("bakeoff", "sample"),
         ))
 
@@ -270,10 +300,10 @@ def write_examples(data: list[dict]) -> None:
     for path in sorted(SKILL_EXAMPLES.glob("*.json")):
         example = json.loads(path.read_text(encoding="utf-8"))
         chart_id = f"examples/{path.stem}"
-        n = write_json(charts / path.stem / "data.json", data)
+        name, n = write_data_json(charts / path.stem, data)
         write_json(charts / path.stem / "chart.json", chart_doc(
             chart_id, example["title"], example["description"], example["renderer"], example["spec"],
-            len(data), n, tags=("examples", "sample"),
+            name, len(data), n, tags=("examples", "sample"),
         ))
         layout.append({"chart": chart_id, "w": 6, "h": 3})
 
@@ -302,7 +332,7 @@ def main() -> None:
     write_json(charts / "_folder.json", {"schema_version": 1, "title": "Sales", "description": "Sample sales charts.", "order": 10})
     write_json(dashboards / "_folder.json", {"schema_version": 1, "title": "Sales", "description": "Sample sales dashboards.", "order": 10})
 
-    n = write_json(charts / "revenue-by-region" / "data.json", data)
+    name, n = write_data_json(charts / "revenue-by-region", data)
     write_json(charts / "revenue-by-region" / "chart.json", chart_doc(
         "sales/revenue-by-region",
         "Revenue by region, monthly",
@@ -318,7 +348,7 @@ def main() -> None:
                 "color": {"field": "region", "type": "nominal", "title": "Region"},
             },
         },
-        len(data), n,
+        name, len(data), n,
         source={
             "kind": "databricks-sql",
             "sql": "SELECT month, region, revenue, orders FROM sample.sales.monthly_revenue ORDER BY month, region",
@@ -328,14 +358,14 @@ def main() -> None:
         },
     ))
 
-    n = write_json(charts / "total-revenue" / "data.json", data)
+    name, n = write_data_json(charts / "total-revenue", data)
     write_json(charts / "total-revenue" / "chart.json", chart_doc(
         "sales/total-revenue",
         "Total revenue",
         "Sum of revenue over the selected period. One-off publish, no source.",
         "stat",
         {"value": "revenue", "agg": "sum", "format": "$,.0f", "compare": {"column": "orders", "agg": "sum"}},
-        len(data), n,
+        name, len(data), n,
     ))
 
     write_json(dashboards / "overview.json", {

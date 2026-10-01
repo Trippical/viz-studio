@@ -1,0 +1,15 @@
+{{- if gt (int .Values.replicaCount) 1 }}
+# Keep at least one pod running during node drains and cluster upgrades.
+# Not rendered for a single replica: minAvailable 1 would block every drain.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "viz-site.fullname" . }}
+  labels:
+    {{- include "viz-site.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "viz-site.selectorLabels" . | nindent 6 }}
+{{- end }}

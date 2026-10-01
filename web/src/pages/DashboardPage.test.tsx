@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
     update: vi.fn(async (_rows: unknown[]) => undefined),
     destroy: vi.fn(),
   },
+  queryLargeLane: vi.fn(),
+  distinctValues: vi.fn(),
 }));
 vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
@@ -24,6 +26,7 @@ vi.mock('../api/client', async (importOriginal) => ({
   fetchRows: mocks.fetchRows,
 }));
 vi.mock('../renderers', () => ({ getAdapter: () => mocks.adapter }));
+vi.mock('../data/duckdb', () => ({ queryLargeLane: mocks.queryLargeLane, distinctValues: mocks.distinctValues }));
 
 const columns = [
   { name: 'month', type: 'date' as const },
@@ -33,7 +36,7 @@ const columns = [
 const chart: Chart = {
   schema_version: 1, id: 'sales/revenue', title: 'Revenue', renderer: 'vega-lite',
   spec: { data: { name: 'data' }, mark: 'line' },
-  data: { format: 'json', lane: 'small', rows: 2, bytes: 1, columns }, aggregate: null,
+  data: { format: 'json', file: 'data.0123456789abcdef.json', lane: 'small', rows: 2, bytes: 1, columns }, aggregate: null,
 };
 const stat: Chart = { ...chart, id: 'sales/total', title: 'Total', renderer: 'stat', spec: { value: 'revenue', agg: 'sum' } };
 const rows = [
@@ -74,7 +77,22 @@ beforeEach(() => {
   mocks.fetchRows.mockReset().mockResolvedValue(rows);
   mocks.adapter.mount.mockClear();
   mocks.adapter.update.mockClear();
+  mocks.queryLargeLane.mockReset().mockResolvedValue([]);
+  mocks.distinctValues.mockReset().mockResolvedValue([]);
 });
+
+/** A promise this test can resolve on its own schedule. */
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+function tileState(id: string): string | null | undefined {
+  return document.querySelector(`[data-tile="${id}"]`)?.getAttribute('data-state');
+}
 
 describe('DashboardPage', () => {
   it('renders title, description, controls, tiles and markdown', async () => {
@@ -111,10 +129,11 @@ describe('DashboardPage', () => {
     expect(screen.getByLabelText('Period from')).toHaveValue('2026-01-01');
   });
 
-  it('shows one error card for a missing dashboard', async () => {
+  it('shows one error card for a missing dashboard, with a link back to the dashboard list', async () => {
     mocks.fetchDashboard.mockRejectedValue(new ApiError(404, 'not found'));
     renderPage('/d/sales/nope');
     expect(await screen.findByRole('alert')).toHaveTextContent('sales/nope');
+    expect(screen.getByRole('link', { name: 'Browse all dashboards' })).toHaveAttribute('href', '/');
   });
 
   it('keeps the page up when one tile fails', async () => {
@@ -137,5 +156,69 @@ describe('DashboardPage', () => {
     // nothing stays selected and the tile falls back to its unfiltered rows.
     expect(Array.from(region.selectedOptions).map((o) => o.value)).toEqual([]);
     await waitFor(() => expect(document.querySelector('[data-tile="sales/revenue"]')?.getAttribute('data-rows')).toBe('2'));
+  });
+});
+
+describe('DashboardPage select options and deep links (A7, A8)', () => {
+  it('keeps a deep-linked select value while tiles are still loading, even when another control changes', async () => {
+    const late = deferred<typeof rows>();
+    mocks.fetchRows.mockImplementation(async (id: string) => (id === 'sales/total' ? late.promise : [rows[0]]));
+    renderPage('/d/sales/overview?region=NA');
+    await waitFor(() => expect(tileState('sales/revenue')).toBe('ready'));
+
+    // Only EMEA has been reported so far. Editing another control must not drop region=NA.
+    fireEvent.change(screen.getByLabelText('Period from'), { target: { value: '2026-01-01' } });
+    await waitFor(() => expect(screen.getByTestId('search').textContent).toContain('period=2026-01-01..'));
+    expect(screen.getByTestId('search').textContent).toContain('region=NA');
+
+    late.resolve(rows);
+    await waitFor(() => expect(document.querySelectorAll('[data-tile][data-state="ready"]')).toHaveLength(2));
+    const region = screen.getByLabelText('Region') as HTMLSelectElement;
+    await waitFor(() => expect(Array.from(region.options).map((o) => o.value)).toEqual(['EMEA', 'NA']));
+    expect(Array.from(region.selectedOptions).map((o) => o.value)).toEqual(['NA']);
+    expect(screen.getByTestId('search').textContent).toContain('region=NA');
+  });
+
+  it('lists select options from a large-lane chart and keeps a deep-linked value', async () => {
+    const large: Chart = {
+      ...chart,
+      id: 'sales/lines',
+      data: { ...chart.data, lane: 'large', format: 'parquet' },
+      aggregate: 'SELECT month, sum(revenue) AS revenue FROM data GROUP BY month',
+    };
+    mocks.fetchDashboard.mockResolvedValue({ ...dashboard, layout: [{ chart: 'sales/lines', w: 12, h: 4 }] });
+    mocks.fetchChart.mockResolvedValue(large);
+    mocks.queryLargeLane.mockResolvedValue([{ month: '2026-01-01', revenue: 3 }]);
+    mocks.distinctValues.mockResolvedValue(['APAC', 'EMEA']);
+    renderPage('/d/sales/overview?region=APAC');
+    await waitFor(() => expect(tileState('sales/lines')).toBe('ready'));
+    const region = screen.getByLabelText('Region') as HTMLSelectElement;
+    await waitFor(() => expect(Array.from(region.options).map((o) => o.value)).toEqual(['APAC', 'EMEA']));
+    expect(Array.from(region.selectedOptions).map((o) => o.value)).toEqual(['APAC']);
+    expect(mocks.distinctValues).toHaveBeenCalledWith('sales/lines', 'region', columns);
+    expect(mocks.fetchRows).not.toHaveBeenCalled();
+  });
+
+  it('counts a failed tile as reported, so URL values are checked once the rest have loaded', async () => {
+    mocks.fetchChart.mockImplementation(async (id: string) => {
+      if (id === 'sales/total') throw new ApiError(404, 'not found');
+      return chart;
+    });
+    renderPage('/d/sales/overview?region=APAC');
+    await waitFor(() => expect(tileState('sales/revenue')).toBe('ready'));
+    const region = screen.getByLabelText('Region') as HTMLSelectElement;
+    await waitFor(() => expect(Array.from(region.options).map((o) => o.value)).toEqual(['EMEA', 'NA']));
+    await waitFor(() => expect(document.querySelector('[data-tile="sales/revenue"]')?.getAttribute('data-rows')).toBe('2'));
+  });
+});
+
+describe('DashboardPage badges (A9)', () => {
+  it('labels the badge of a tile that ignores an active control', async () => {
+    const noMonth: Chart = { ...stat, data: { ...stat.data, columns: columns.filter((c) => c.name !== 'month') } };
+    mocks.fetchChart.mockImplementation(async (id: string) => (id === 'sales/total' ? noMonth : chart));
+    renderPage('/d/sales/overview?period=2026-01-01..2026-12-31');
+    await waitFor(() => expect(document.querySelectorAll('[data-tile][data-state="ready"]')).toHaveLength(2));
+    expect(screen.getByText('not filtered by Period')).toBeInTheDocument();
+    expect(screen.getAllByText(/^not filtered by/)).toHaveLength(1);
   });
 });

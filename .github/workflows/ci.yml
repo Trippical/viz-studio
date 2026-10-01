@@ -54,26 +54,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t viz-site:ci .
+      # Smoke: run the image locked down, with the synthetic sample bucket
+      # mounted read-only, and check that it serves real WebAssembly (not the
+      # index.html fallback) and a folder tree with dashboards.
       - run: |
-          docker run -d --name viz --read-only --tmpfs /tmp -p 8000:8000 -e VIZ_ALLOWED_HOSTS=localhost viz-site:ci
-          for i in $(seq 1 30); do curl -fsS -H 'Host: localhost' http://127.0.0.1:8000/api/health && break; sleep 1; done
-          curl -fsS -H 'Host: localhost' http://127.0.0.1:8000/api/health
-          curl -fsS -o /dev/null -H 'Host: localhost' http://127.0.0.1:8000/duckdb/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm
+          docker run -d --name viz --read-only --tmpfs /tmp -p 8000:8000 \
+            -v "$PWD/sample-bucket:/data:ro" \
+            -e VIZ_STORAGE=local -e VIZ_LOCAL_DIR=/data -e VIZ_ROOT_PREFIX=viz/ \
+            -e VIZ_ALLOWED_HOSTS=localhost \
+            viz-site:ci
+          python3 .github/scripts/docker_smoke.py http://localhost:8000
           test "$(docker exec viz id -u)" = "10001"
-          docker rm -f viz
+      - if: failure()
+        run: docker logs viz || true
+      - if: always()
+        run: docker rm -f viz || true
 
   helm:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install "pyyaml>=6"
+      # helm lint renders every template, NOTES.txt included. helm_checks.py
+      # renders the chart in several configurations and checks names, the
+      # identity gate, probes and the PodDisruptionBudget, the ingress
+      # annotations, the DNS egress rules, and that an empty egressCidrs fails
+      # with the chart's own message.
       - run: |
           helm lint deploy/helm/viz-site
-          helm template ci deploy/helm/viz-site > /tmp/rendered.yaml
-          cat /tmp/rendered.yaml
-          if helm template ci deploy/helm/viz-site --set-json 'networkPolicy.egressCidrs=[]' > /dev/null 2>&1; then
-            echo "an empty networkPolicy.egressCidrs must fail the render"; exit 1
-          fi
+          helm template ci deploy/helm/viz-site
+          python .github/scripts/helm_checks.py
 
   gitleaks:
     runs-on: ubuntu-latest

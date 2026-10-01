@@ -20,8 +20,10 @@ def bucket(tmp_path) -> Path:
 
 @pytest.fixture
 def settings(bucket) -> Settings:
+    # "testserver" is the Host header FastAPI's TestClient sends. It is allowed here,
+    # in tests only; the production default does not include it.
     return Settings(storage="local", local_dir=bucket, root_prefix="viz/", tree_ttl_seconds=60,
-                    web_dist=bucket / "no-web-dist")
+                    web_dist=bucket / "no-web-dist", allowed_hosts="localhost,127.0.0.1,testserver")
 
 
 @pytest.fixture

@@ -14,8 +14,9 @@ spec:
       labels:
         {{- include "viz-site.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "viz-site.serviceAccountName" . }}
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -41,7 +42,12 @@ spec:
               value: {{ .Values.allowedHosts | quote }}
             - name: VIZ_AUTH_HEADER
               value: {{ .Values.authHeader | quote }}
+            - name: VIZ_REQUIRE_IDENTITY
+              value: {{ .Values.requireIdentity | quote }}
+            # boto3 reads AWS_DEFAULT_REGION; other AWS SDKs read AWS_REGION.
             - name: AWS_REGION
+              value: {{ .Values.bucket.region | quote }}
+            - name: AWS_DEFAULT_REGION
               value: {{ .Values.bucket.region | quote }}
             - name: AWS_STS_REGIONAL_ENDPOINTS
               value: "regional"
@@ -51,8 +57,11 @@ spec:
             capabilities:
               drop:
                 - ALL
-          # Probes must send an allowed Host header: the pod IP is rejected by
-          # the host allow-list with 400.
+          # /api/health does not touch S3 and is answered before the host
+          # allow-list; the Host header is sent anyway so the probes never
+          # depend on that ordering.
+          # Readiness is quick to react: a slow pod leaves the Service after
+          # about 15 seconds.
           readinessProbe:
             httpGet:
               path: /api/health
@@ -60,6 +69,12 @@ spec:
               httpHeaders:
                 - name: Host
                   value: {{ include "viz-site.probeHost" . | quote }}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          # Liveness is more lenient: a pod is restarted only after about two
+          # minutes without an answer, so a busy pod is not killed while it is
+          # merely out of the Service.
           livenessProbe:
             httpGet:
               path: /api/health
@@ -67,6 +82,16 @@ spec:
               httpHeaders:
                 - name: Host
                   value: {{ include "viz-site.probeHost" . | quote }}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          # Keep serving for 5 seconds after the pod is marked for deletion, so
+          # the load balancer stops sending new requests before SIGTERM.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:

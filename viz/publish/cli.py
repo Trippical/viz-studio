@@ -1,5 +1,6 @@
 """The viz command line. Every subcommand is a thin function that calls one module."""
 import argparse
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,24 +12,26 @@ from ..config import Settings
 from ..ids import InvalidId
 from ..storage import get_storage
 from .errors import CliError
-from .dashboards import DashboardError, new_dashboard, pulled_dashboard, write_staged_dashboard
+from .dashboards import (
+    DashboardError, clear_pulled_etag, new_dashboard, pulled_dashboard, write_pulled_etag, write_staged_dashboard,
+)
 from .skill import SkillExists, UnsafeTarget, default_destination, install_skill
-from .identity import resolve_author
+from .identity import publisher_author
 from .infer import UnsupportedColumn, table_from_file
 from .move import MoveError, apply_move, describe, plan_move
 from .pii import drop_columns, parse_drop_list, pii_warning
-from .preview import run_preview
-from .publish import PublishRefused, publish_chart, publish_dashboard
-from .query import QueryError, read_sql_argument, resolve_warehouse, run_query
+from .preview import PreviewError, run_preview
+from .publish import PublishRefused, destination, publish_chart, publish_dashboard
+from .query import QueryError, read_sql_argument, read_sql_file, resolve_warehouse, run_query
 from .staging import LaneError, column_summary, write_staged_chart
 from .validate import validate_dashboard_file, validate_staged_chart
 
 
-def _resolve_author(settings: Settings) -> str:
-    """resolve_author() can reach out to AWS (VIZ_STORAGE=s3) or the local user
-    database; any failure there is an environment problem, not a crash."""
+def _resolve_author(settings: Settings, databricks_user: str | None = None) -> str:
+    """publisher_author() can reach Databricks, AWS or the local user database; any
+    failure there is an environment problem, not a crash."""
     try:
-        return resolve_author(settings)
+        return publisher_author(settings, databricks_user=databricks_user)
     except Exception as err:
         raise CliError(f"could not resolve the author identity: {err}", code=2) from err
 
@@ -102,7 +105,28 @@ def _cmd_validate(args) -> int:
     return 0
 
 
+def _require_explicit_storage() -> None:
+    """publish and move write to the bucket. They never fall back to the default local
+    folder: VIZ_STORAGE must be set in the environment (finding A13)."""
+    if not os.environ.get("VIZ_STORAGE", "").strip():
+        raise CliError(
+            "VIZ_STORAGE is not set, so there is nowhere to write; ask the user where to publish: "
+            "VIZ_STORAGE=s3 with VIZ_S3_BUCKET for the shared bucket, or VIZ_STORAGE=local with "
+            "VIZ_LOCAL_DIR for a folder on this machine.",
+            code=2,
+        )
+    # VIZ_STORAGE=local alone would fall back to local_dir's default, ./sample-bucket,
+    # which is the repo's synthetic bucket when run from the repo (adopter fix A5).
+    if os.environ["VIZ_STORAGE"].strip() == "local" and not os.environ.get("VIZ_LOCAL_DIR", "").strip():
+        raise CliError(
+            "VIZ_LOCAL_DIR is not set; publish and move will not write to the default ./sample-bucket; "
+            "ask the user where to publish",
+            code=2,
+        )
+
+
 def _cmd_publish(args) -> int:
+    _require_explicit_storage()
     settings = Settings()
     storage = get_storage(settings)
     path = Path(args.path)
@@ -119,40 +143,45 @@ def _cmd_publish(args) -> int:
 
 
 def _cmd_move(args) -> int:
+    _require_explicit_storage()
     settings = Settings()
     storage = get_storage(settings)
     try:
-        plan = plan_move(args.old_id, args.new_id, settings, storage)
+        plan = plan_move(args.old_id, args.new_id, settings, storage, kind=args.kind)
     except (MoveError, InvalidId) as err:
         raise CliError(str(err), code=1) from err
     print(describe(plan))
     if not args.yes:
-        print("dry run: pass --yes to apply", file=sys.stderr)
+        print("dry run: ask the user before passing --yes to apply", file=sys.stderr)
         return 1
     try:
         apply_move(plan, settings, storage)
     except MoveError as err:
         raise CliError(str(err), code=1) from err
-    print(f"moved: {plan.old_id} -> {plan.new_id}")
+    print(f"moved: {plan.old_id} -> {plan.new_id} in {destination(settings, settings.root_prefix)}")
     return 0
 
 
 def _cmd_preview(args) -> int:
     settings = Settings()
-    run_preview(_staging_root(args, settings), args.host, args.port)
+    try:
+        run_preview(_staging_root(args, settings), args.host, args.port, args.allowed_hosts)
+    except PreviewError as err:
+        raise CliError(str(err), code=2) from err
     return 0
 
 
 def _cmd_query(args) -> int:
     settings = Settings()
     try:
-        sql = read_sql_argument(args.sql)
+        sql = read_sql_file(args.sql_file) if args.sql_file else read_sql_argument(args.sql)
         table, user = run_query(sql, settings, args.warehouse)
         warehouse = resolve_warehouse(args.warehouse)
     except QueryError as err:
         raise CliError(str(err), code=err.code) from err
     source = {"kind": "databricks-sql", "sql": sql, "warehouse_id": warehouse}
-    return _stage_table(table, args.id, settings, args, author=user, source=source)
+    return _stage_table(table, args.id, settings, args, author=_resolve_author(settings, databricks_user=user),
+                        source=source)
 
 
 def _cmd_new_dashboard(args) -> int:
@@ -161,6 +190,7 @@ def _cmd_new_dashboard(args) -> int:
     try:
         doc = new_dashboard(args.id, args.chart or [], args.title, author, datetime.now(timezone.utc))
         path = write_staged_dashboard(doc, _staging_root(args, settings), force=args.force)
+        clear_pulled_etag(path)
     except (InvalidId, DashboardError, ValueError) as err:
         raise CliError(str(err), code=1) from err
     print(f"staged: {path}")
@@ -172,8 +202,9 @@ def _cmd_pull_dashboard(args) -> int:
     storage = get_storage(settings)
     author = _resolve_author(settings)
     try:
-        doc = pulled_dashboard(args.id, settings, storage, author, datetime.now(timezone.utc))
+        doc, etag = pulled_dashboard(args.id, settings, storage, author, datetime.now(timezone.utc))
         path = write_staged_dashboard(doc, _staging_root(args, settings), force=args.force)
+        write_pulled_etag(path, etag)
     except (InvalidId, DashboardError, ValueError) as err:
         raise CliError(str(err), code=1) from err
     print(f"staged: {path}")
@@ -226,16 +257,22 @@ def build_parser() -> argparse.ArgumentParser:
     move_p.add_argument("old_id", metavar="OLD_ID")
     move_p.add_argument("new_id", metavar="NEW_ID")
     move_p.add_argument("--yes", action="store_true", help="apply the move (without it, only the plan is printed)")
+    move_p.add_argument("--kind", choices=["chart", "dashboard"], default=None,
+                        help="which one to move when the id is both a chart and a dashboard")
     move_p.set_defaults(func=_cmd_move)
 
     preview_p = sub.add_parser("preview", help="serve the staging directory locally so charts can be opened before publishing")
     preview_p.add_argument("--staging", default=None, metavar="DIR", help="staging directory (default ./.viz-staging)")
     preview_p.add_argument("--host", default="127.0.0.1")
+    preview_p.add_argument("--allowed-hosts", default=None, metavar="HOSTS",
+                           help="comma-separated Host names to accept; required when --host is not loopback")
     preview_p.add_argument("--port", type=int, default=8000)
     preview_p.set_defaults(func=_cmd_preview)
 
     query_p = sub.add_parser("query", help="run SQL on Databricks and stage the result as a chart")
-    query_p.add_argument("--sql", required=True, metavar="SQL_OR_@FILE")
+    sql_group = query_p.add_mutually_exclusive_group(required=True)
+    sql_group.add_argument("--sql", default=None, metavar="SQL_OR_@FILE", help="the SQL text, or @path to read it from a file")
+    sql_group.add_argument("--sql-file", default=None, metavar="PATH", help="read the SQL from this file (works in every shell)")
     query_p.add_argument("--id", required=True, help="chart id, for example sales/emea/revenue")
     query_p.add_argument("--warehouse", default=None, metavar="ID", help="SQL warehouse id (default DATABRICKS_WAREHOUSE_ID)")
     query_p.add_argument("--drop-columns", default=None, metavar="a,b")

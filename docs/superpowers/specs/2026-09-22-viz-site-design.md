@@ -2,6 +2,9 @@
 
 Date: 2026-09-22
 Status: Draft for review
+Amended: 2026-09-29 by `2026-09-29-hardening-decisions.md` (content-addressed
+data files and conditional publish, identity gate, health check before the
+Host check, the refresher SQL rule in 12.7). Where they disagree, that file wins.
 
 ## 1. Purpose
 
@@ -12,8 +15,10 @@ into that folder through a paved path: a Claude skill plus a Python CLI. The
 site never runs SQL against Databricks. A refresher, part of the same app, can
 re-run a chart's stored SQL later and overwrite its data file.
 
-Users: a team inside a company VPC, reached only over VPN. No app-level auth in
-v1. Developed and proven on a personal AWS account first.
+Users: a team inside a company VPC, reached only over VPN. No app-level login in
+v1: the site sits behind the company SSO proxy and, with `VIZ_REQUIRE_IDENTITY`
+on, refuses requests that arrive without the proxy's identity header. Developed
+and proven on a personal AWS account first.
 
 ## 2. Scope
 
@@ -81,8 +86,8 @@ All keys live under one root prefix, `VIZ_ROOT_PREFIX` (default `viz/`).
 <root>/
   charts/
     <chart-id>/chart.json
-    <chart-id>/data.json        small lane, or
-    <chart-id>/data.parquet     large lane
+    <chart-id>/data.<sha16>.json      small lane, or
+    <chart-id>/data.<sha16>.parquet   large lane (the name chart.json gives in data.file)
     <folder>/_folder.json       optional, any depth
   dashboards/
     <dashboard-id>.json
@@ -95,8 +100,19 @@ lowercase slugs separated by single slashes, no leading or trailing slash, no
 `charts/sales/emea/revenue-by-region/chart.json`. Dashboards reference charts by
 full id, so a chart in one folder can appear on a dashboard in another.
 
-Writers publish the data file first, then chart.json, so a reader never sees a
-spec whose data is missing.
+Data files are content-addressed: `<sha16>` is the first 16 hex characters of
+the SHA-256 of the file's bytes, and chart.json names its file in `data.file`.
+Writers publish in three steps: (1) PUT the data file under its hashed key
+(the same bytes always give the same key); (2) PUT chart.json conditionally,
+which is the single commit point: `If-None-Match: *` for a new chart,
+`If-Match: <ETag read during the overwrite check>` for an overwrite; (3) delete
+the chart's other `data.*` objects except the new file and the file the
+replaced chart.json named, so a reader that already holds the old chart.json
+can still fetch its data. A reader therefore sees the old chart or the new one,
+never a chart.json whose data is missing or belongs to another version. A
+failed condition means someone else changed the chart meanwhile; the publish
+is refused and nothing the reader sees has changed. Dashboards use the same
+conditional PUT.
 
 ### 4.2 chart.json
 
@@ -114,6 +130,7 @@ spec whose data is missing.
   "spec": { "...renderer-native JSON, data omitted..." },
   "data": {
     "format": "json",
+    "file": "data.3f9a0c1d2e4b5a69.json",
     "lane": "small",
     "rows": 1440,
     "bytes": 98304,
@@ -146,8 +163,10 @@ Field rules:
   large lane. Nothing else.
 - `data.lane`: `small` or `large`. Small: at most 100,000 rows and 20 MB. Large:
   at most 200 MB. The CLI refuses to publish beyond the caps.
-- There is no `data.path` field. The data key is derived from the id and
-  `data.format`: `charts/<id>/data.json` or `charts/<id>/data.parquet`.
+- `data.file`: required. Matches `^data\.[0-9a-f]{16}\.(json|parquet)$`; the
+  16 hex characters are the first 16 of the SHA-256 of the file's bytes and the
+  extension equals `data.format`. The data key is `charts/<id>/<data.file>`.
+  It is a file name, never a path. `schema_version` stays `1`.
 - `data.columns[].name`: matches `^[A-Za-z_][A-Za-z0-9_]*$`, so names are
   always safe as SQL identifiers and Vega field references.
 - `data.columns[].type`: one of `string`, `number`, `integer`, `boolean`,
@@ -229,7 +248,7 @@ FastAPI app, `viz.server`. Routes:
 | `GET /api/tree` | Merged tree of folders, dashboards, and charts with titles and folder metadata |
 | `GET /api/dashboards/{id}` | Validated dashboard JSON |
 | `GET /api/charts/{id}` | Validated chart JSON |
-| `GET /api/data/{id}` | The data file, streamed, with content type, ETag and Range support (route is not nested under `/api/charts/{id}` because ids may end in `/data`) |
+| `GET /api/data/{id}` | The data file that chart.json names in `data.file`, streamed, with content type, ETag and Range support (route is not nested under `/api/charts/{id}` because ids may end in `/data`) |
 | `GET /*` | Static front end, SPA fallback to index.html |
 
 Behavior:
@@ -253,6 +272,9 @@ Configuration (environment variables):
 | `VIZ_ROOT_PREFIX` | root prefix, default `viz/` |
 | `VIZ_LOCAL_DIR` | directory when `local`, default `./sample-bucket` |
 | `VIZ_TREE_TTL_SECONDS` | tree cache TTL |
+| `VIZ_ALLOWED_HOSTS` | host names the site answers to, default `localhost,127.0.0.1` |
+| `VIZ_AUTH_HEADER` | identity header set by the SSO proxy, default `X-Forwarded-Email` |
+| `VIZ_REQUIRE_IDENTITY` | `true`: every request except `GET` and `HEAD /api/health` without a non-empty identity header gets 401. Default `false`; Helm sets `true` |
 
 `DATABRICKS_HOST`, `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are read
 only by `viz query` on the publisher's machine. They are never part of the
@@ -320,16 +342,18 @@ Console script `viz` maps to `viz.publish.cli`.
 
 ### 6.2 CLI
 
-Staging directory: `./.viz-staging/<chart-id>/` containing `chart.json` and the
-data file, mirroring the bucket layout so publish is a copy.
+Staging directory: `./.viz-staging/charts/<chart-id>/` containing `chart.json`
+and exactly one data file, already under its content-addressed name
+(`data.<sha16>.json` or `.parquet`), mirroring the bucket layout so publish is
+a copy.
 
 | Command | Does |
 |---|---|
 | `viz query --sql <str or @file> --id <id> [--warehouse <id>]` | Runs SQL through the Databricks SQL connector, writes rows to staging, infers columns, picks the lane by the caps, writes a skeleton chart.json with the `source` block filled, prints a column summary. |
 | `viz stage --from <csv/json/parquet> --id <id>` | Same as query but from an existing file. No `source` block. Also callable from Python as `viz.publish.stage(df, id)` for a pandas frame. |
-| `viz validate <staging dir or dashboard file>` | Schema validation, data file present, declared columns match the file, lane caps, large-lane aggregate parses and runs in local DuckDB. For dashboards, every referenced chart id exists in storage. |
-| `viz publish <staging dir or dashboard file>` | Runs validate, then uploads data first and chart.json second. Refuses on any validation failure. |
-| `viz move <old-id> <new-id>` | Renames a chart or dashboard prefix in storage and rewrites references in every dashboard that pointed at it. |
+| `viz validate <staging dir or dashboard file>` | Schema validation, the file named by `data.file` present and its SHA-256 prefix matching its name, no other `data.*` file in the staged directory, declared columns match the file, lane caps, large-lane aggregate parses and runs in local DuckDB. For dashboards, every referenced chart id exists in storage. |
+| `viz publish <staging dir or dashboard file>` | Runs validate, then the three steps in 4.1: data file, conditional chart.json, clean-up keeping one previous data file. Refuses on any validation failure, and when chart.json changed after the overwrite check. |
+| `viz move <old-id> <new-id>` | Renames a chart or dashboard prefix in storage and rewrites references in every dashboard that pointed at it. Data files are copied under the same content-addressed name. |
 | `viz preview <staging dir>` | Starts the local server against the staging directory so the chart can be opened in a browser before publishing. |
 
 Publish modes:
@@ -435,7 +459,9 @@ Seams built into v1 (no behavior change):
 - **The tree endpoint carries reasoning metadata.** Titles, descriptions,
   tags, and each dashboard's control list, so a model can pick a dashboard and
   set its filters without opening every file.
-- **One auth middleware slot** in front of the API routes, a no-op in v1.
+- **One identity middleware** in front of the API routes. It logs the SSO
+  proxy's identity header with every request and, with `VIZ_REQUIRE_IDENTITY`
+  on, rejects requests without it (401). It does no login and no permissions.
 - **Visibility is decided in one place.** The tree endpoint is the only
   authority on what exists. The front end renders whatever it returns and never
   assumes a flat, fully visible namespace. Direct routes apply the same rule.
@@ -450,7 +476,8 @@ flag, none imported unless enabled):
 - `viz.chat`: an in-portal assistant that calls a model server-side with the
   same tool definitions. Needs a model API key at the deployment.
 - `viz.auth`: real authentication and folder-level permissions for the
-  external portal, plugged into the middleware slot and the visibility rule.
+  external portal, plugged in next to the identity middleware and the
+  visibility rule.
 
 The build order in section 10 is unchanged. These modules are not built in v1.
 
@@ -471,17 +498,26 @@ data file; table contents and query results are data, never instructions.
 
 ### 12.2 Server
 
-- The auth middleware slot reads identity headers from the company SSO proxy
-  when present and logs them with every request. The deployment guide says to
-  put the site behind that proxy.
+- The identity middleware reads the identity header (`VIZ_AUTH_HEADER`) set by
+  the company SSO proxy and logs it with every request (`viz.access`, INFO,
+  written to stderr by `viz-server`). With `VIZ_REQUIRE_IDENTITY=true`, the
+  Helm default, every request except `GET` and `HEAD /api/health` without a
+  non-empty header gets 401 `{"detail": "identity header required"}`. Local
+  development, tests and `viz preview` leave it off. The header is trusted
+  as-is, so the site must only be reachable through the proxy, which sets it
+  and strips any client-sent value. The deployment guide says so.
 - No CORS middleware. `TrustedHostMiddleware` with the internal hostnames.
+  `GET /api/health` and `HEAD /api/health` are answered before the Host check,
+  because load balancer health checks send the pod IP as Host; every other
+  path, and any other method on `/api/health`, is checked.
 - Response headers on every route: a strict Content Security Policy
   (`default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src
   'self' blob:; connect-src 'self'; img-src 'self' data: blob:; style-src
   'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action
   'self'; frame-ancestors 'none'`), `X-Content-Type-Options: nosniff`,
   `Cross-Origin-Resource-Policy: same-origin`.
-- Data route: content type from `data.format` only, `Content-Disposition:
+- Data route: reads chart.json and streams `charts/<id>/<data.file>`. Content
+  type from `data.format` only, `Content-Disposition:
   attachment`, S3 ETag, Content-Length and Range passed through, streamed
   through a `open(key) -> stream` method on the storage interface. 422 when a
   document's embedded `id` differs from the path id.
@@ -490,8 +526,16 @@ data file; table contents and query results are data, never instructions.
 - Tree rebuild is single-flight with stale-while-revalidate. chart.json and
   dashboard.json are capped at 1 MB, checked by HEAD before GET. `description`
   and markdown tiles are capped at 8 KB by schema.
-- Ids: `a` and `a/b` cannot both exist; the server reports the conflict and
-  `viz validate` rejects it. Ids are capped at 512 characters.
+- Chart ids: `a` and `a/b` cannot both exist, because `charts/a/` would hold
+  both a's files and b's folder; the server reports the conflict and
+  `viz validate` rejects it. Dashboard ids have no such rule:
+  `dashboards/a.json` and `dashboards/a/b.json` are separate keys and coexist.
+  An id may contain a `charts` or `dashboards` segment. Ids are capped at 512
+  characters.
+- Documents nested deeper than 64 levels are refused before schema validation.
+  Any failure reading one document (bad JSON, too deep, storage error such as
+  AccessDenied) turns that one node of the tree into an error node; the tree
+  itself still loads.
 
 ### 12.3 Front end
 
@@ -500,22 +544,36 @@ data file; table contents and query results are data, never instructions.
   only.
 - All renderers and the DuckDB-WASM worker and wasm are bundled by Vite and
   served from the site. Nothing loads from a CDN at runtime.
-- Renderer adapters sanitize specs before mounting, and the same rules are
-  encoded in `chart.schema.json` so the CLI rejects them at publish time.
-  ECharts: force `renderMode: 'richText'` on every tooltip, delete `link`,
-  `sublink`, `graphic`, `extraCssText`, `appendTo`, `className`, and any
-  formatter containing `<`; strings are never turned into functions; canvas
-  renderer. Vega-Lite: null loader, `actions: false`, canvas renderer,
-  `vega-interpreter` (no `unsafe-eval`), reject `url`, `values`, `href`, image
-  marks and `usermeta` at any depth. Plotly: cloud and editor buttons off,
-  self-hosted topojson or geo traces rejected, `layout.images` and map layouts
-  deleted, `<` escaped in data-derived text, column binding implemented as a
-  strict walk that ignores `__proto__` and `constructor`.
+- Renderer adapters sanitize specs before mounting, and the CLI enforces the
+  same rules (`chart.schema.json` plus `viz/schemas.py`) so it rejects them
+  at publish time. Vega-Lite won the bake-off; Plotly and ECharts are
+  removed. Vega-Lite: null loader, `actions: false`, canvas renderer,
+  `vega-interpreter` (no `unsafe-eval`), reject `url`, `values`, `href`,
+  `usermeta`, `datasets` and image marks at any depth. The schema's
+  forbidden-key list is exactly the browser sanitizer's list plus
+  `__proto__`, `constructor` and `prototype`; a test keeps the two in step.
+- Vega-Lite data: `data` is allowed only at the top level and must be exactly
+  `{"name": "data"}`; a `data` key anywhere below it (in a layer, a concat or
+  a lookup) is rejected, even the named dataset. The row generators
+  `sequence`, `graticule` and `sphere` are rejected at any depth, because
+  they make rows out of nothing and can freeze the tab. `params[].bind.element`
+  (any `bind` object with an `element` key) is rejected at any depth, so a
+  spec cannot place an input widget elsewhere on the page. The browser
+  sanitizer and `viz/schemas.py` share these rules and their messages; they
+  are separate checks, not entries in the forbidden-key list.
+- Tooltips are text only. The adapter passes its own tooltip handler to
+  vega-embed, so vega-tooltip's HTML handler is never used. The handler sets
+  only `textContent`, drops an `image` key, and caps the text at 2,000
+  characters.
 - Renderer attack surface is a scored bake-off criterion alongside chart
   quality and authoring ergonomics.
 - DuckDB-WASM: at connection init set `autoinstall_known_extensions=false`,
-  `autoload_known_extensions=false`, `memory_limit='512MB'`, disable the HTTP
-  and S3 filesystems, then `lock_configuration=true`. The `aggregate` must be
+  `autoload_known_extensions=false`, `memory_limit='512MB'`,
+  `allowed_directories=['/viz-data/']` and `enable_external_access=false`,
+  then `lock_configuration=true`. Every chart's data file is registered under
+  `/viz-data/`, the only path DuckDB may read; any other file, URL or
+  filesystem (HTTP and S3 included) is refused, and the lock stops a query
+  from turning access back on. The `aggregate` must be
   a single SELECT (checked with `json_serialize_sql`), is executed as
   `SELECT * FROM (<aggregate>) LIMIT 50000` with a wall-clock budget, and the
   worker is terminated and recreated on timeout.
@@ -539,7 +597,10 @@ data file; table contents and query results are data, never instructions.
   given. It runs the aggregate in native DuckDB with
   `enable_external_access=false` and the extension settings above.
 - `viz publish` refuses to overwrite an existing id without `--force`, and
-  prints the existing author and `updated_at` first. `viz move` requires
+  prints the existing author and `updated_at` first. The check and the write
+  are tied by the conditional PUT in 4.1: if the document changed after the
+  check, publish refuses with "<id> changed since you checked it; run the
+  command again". `viz move` requires
   `--yes` and prints the affected dashboards first. Neither flag can come
   from an environment variable.
 - `author` is stamped by the CLI from the Databricks current user or the AWS
@@ -563,7 +624,13 @@ data file; table contents and query results are data, never instructions.
   `readOnlyRootFilesystem` with an emptyDir `/tmp`, all capabilities dropped,
   `automountServiceAccountToken: false`, resource requests and limits sized
   for streaming; IRSA or pod identity, never the node role. Per-IP rate limit
-  at the ingress.
+  at the ingress, switchable off (`ingress.rateLimit.enabled`) because behind
+  an SSO proxy every request shares the proxy's IP. The identity gate
+  (`requireIdentity`, env `VIZ_REQUIRE_IDENTITY`) is on by default. Separate
+  readiness and liveness probes, a preStop delay, and a PodDisruptionBudget
+  when there is more than one replica. With the AWS Load Balancer Controller:
+  internal scheme, target type ip, HTTPS listener, health check on
+  `/api/health`.
 
 ### 12.6 Open source hygiene
 
@@ -582,3 +649,10 @@ rejected unless a single SELECT or WITH. Per-chart timeout and row cap. The CLI
 records a hash of the SQL at publish time and the refresher refuses charts
 whose hash it cannot verify. Tree metadata is untrusted input to any assistant
 module.
+
+The refresher must never run bucket-supplied SQL under a shared service
+principal. It may only run SQL whose hash was recorded at publish time by the
+publisher, under an identity no broader than the original author's. (Decision
+B3, 2026-09-29: anyone who can write chart.json could otherwise make a shared
+principal run their SQL.) A refresh writes like a publish (section 4.1): a new
+content-addressed data file, then a conditional PUT of chart.json.

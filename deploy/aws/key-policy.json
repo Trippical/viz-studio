@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AccountAdministratorsManageTheKey",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::123456789012:root"},
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "TheServerDecrypts",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::123456789012:role/viz-site-server"},
+      "Action": "kms:Decrypt",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ThePublisherEncryptsAndDecrypts",
+      "Effect": "Allow",
+      "Principal": {"AWS": "arn:aws:iam::123456789012:role/viz-site-publisher"},
+      "Action": ["kms:Decrypt", "kms:GenerateDataKey"],
+      "Resource": "*"
+    }
+  ]
+}

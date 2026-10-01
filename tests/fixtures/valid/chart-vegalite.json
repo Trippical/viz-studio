@@ -9,7 +9,7 @@
   "updated_at": "2026-09-22T10:00:00Z",
   "renderer": "vega-lite",
   "spec": {
-    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
     "data": {"name": "data"},
     "mark": {"type": "line", "point": true},
     "encoding": {
@@ -20,6 +20,7 @@
   },
   "data": {
     "format": "json",
+    "file": "data.0123456789abcdef.json",
     "lane": "small",
     "rows": 144,
     "bytes": 9000,

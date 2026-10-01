@@ -1,17 +1,39 @@
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ApiError, DataTooLarge, fetchChart, fetchRows } from '../api/client';
+import { ApiError, DataTooLarge, dataUrl, fetchChart, fetchRows } from '../api/client';
 import type { Chart, Row } from '../api/types';
-import { applyFilters, filterKey, type Filter } from '../data/filters';
+import { applyFilters, filterKey, isActive, type Filter } from '../data/filters';
 import { getAdapter } from '../renderers';
 import type { Adapter } from '../renderers/adapter';
 import { SanitizeError, isPlainObject } from '../renderers/common';
 import { ErrorCard } from './ErrorCard';
+import { formatDataAsOf } from './freshness';
 import { StatTile } from './StatTile';
+
+let duckdbModule: Promise<typeof import('../data/duckdb')> | null = null;
+function loadDuckdb(): Promise<typeof import('../data/duckdb')> {
+  if (!duckdbModule) {
+    duckdbModule = import('../data/duckdb').catch((err: unknown) => {
+      duckdbModule = null;
+      throw err;
+    });
+  }
+  return duckdbModule;
+}
 
 export interface ChartTileProps {
   chartId: string;
   filters: Filter[];
   onRows?: (chartId: string, rows: Row[]) => void;
+  /** Columns of the dashboard's select controls; a large-lane tile lists their distinct values (A7). */
+  optionColumns?: string[];
+  /** Called once per loaded large-lane chart with the distinct values of each declared option column. */
+  onOptions?: (chartId: string, values: Record<string, string[]>) => void;
+  /** Called when the tile shows its error card, so a dashboard stops waiting for it (A8). */
+  onFailed?: (chartId: string) => void;
+  /** Control labels by control id, for the "not filtered by" badges (A9). */
+  controlLabels?: Record<string, string>;
+  /** A chart document the caller already fetched; the tile then skips its own fetch (A12). */
+  chart?: Chart;
   showTitle?: boolean;
 }
 
@@ -50,7 +72,7 @@ class TileErrorBoundary extends Component<{ id: string; onError?: (err: unknown)
   }
 }
 
-export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartTileProps) {
+export function ChartTile({ chartId, chart: preloadedChart, filters, onRows, optionColumns, onOptions, onFailed, controlLabels, showTitle = true }: ChartTileProps) {
   const [chart, setChart] = useState<Chart | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [largeRows, setLargeRows] = useState<Row[] | null>(null);
@@ -61,6 +83,14 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const onRowsRef = useRef(onRows);
   onRowsRef.current = onRows;
+  const preloadedRef = useRef(preloadedChart);
+  preloadedRef.current = preloadedChart;
+  const onFailedRef = useRef(onFailed);
+  onFailedRef.current = onFailed;
+  const onOptionsRef = useRef(onOptions);
+  onOptionsRef.current = onOptions;
+  const optionColumnsRef = useRef(optionColumns);
+  optionColumnsRef.current = optionColumns;
   const key = filterKey(filters);
 
   // Load the chart document and its small-lane rows.
@@ -73,7 +103,8 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
     setRendered(false);
     (async () => {
       try {
-        const doc = await fetchChart(chartId);
+        const preloaded = preloadedRef.current;
+        const doc = preloaded && preloaded.id === chartId ? preloaded : await fetchChart(chartId);
         if (doc.data.lane === 'large') {
           if (!cancelled) setChart(doc);
           return;
@@ -105,7 +136,7 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
     let cancelled = false;
     (async () => {
       try {
-        const { queryLargeLane } = await import('../data/duckdb');
+        const { queryLargeLane } = await loadDuckdb();
         const result = await queryLargeLane(chartId, chart.aggregate ?? '', chart.data.columns, filters);
         if (!cancelled) setLargeRows(result);
       } catch (err) {
@@ -117,6 +148,34 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands in for `filters`
   }, [chart, chartId, key, error]);
+
+  // Large lane (finding A7): list the distinct values of every select-control
+  // column this chart declares, once per loaded chart, over the unfiltered
+  // data, and report them so the control bar can offer them.
+  useEffect(() => {
+    if (!chart || chart.id !== chartId || chart.data.lane !== 'large') return;
+    let cancelled = false;
+    const declared = new Set(chart.data.columns.map((c) => c.name));
+    const wanted = (optionColumnsRef.current ?? []).filter((column, i, all) => declared.has(column) && all.indexOf(column) === i);
+    (async () => {
+      try {
+        const { distinctValues } = await loadDuckdb();
+        const out: Record<string, string[]> = {};
+        for (const column of wanted) out[column] = await distinctValues(chartId, column, chart.data.columns);
+        if (!cancelled) onOptionsRef.current?.(chartId, out);
+      } catch (err) {
+        if (!cancelled) setError(describeError(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chart, chartId]);
+
+  // Finding A8: a failed tile will never report rows or options; say so.
+  useEffect(() => {
+    if (error) onFailedRef.current?.(chartId);
+  }, [error, chartId]);
 
   // Mount once, then update on every filter change. Operations are serialized.
   // The cleanup below also fires on a chartId change (it is in the deps), so
@@ -178,6 +237,19 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
     [chartId],
   );
 
+  // Finding A9: an empty result says so, and the tile names every active
+  // control it ignores because it does not declare that control's column.
+  const declared = new Set(chart ? chart.data.columns.map((c) => c.name) : []);
+  const activeFilters = chart ? filters.filter((f) => isActive(f.value)) : [];
+  const ignored = activeFilters.filter((f) => !declared.has(f.column));
+  const appliedCount = activeFilters.length - ignored.length;
+  const empty = !error && rendered && filtered !== null && filtered.length === 0;
+
+  // Finding A10: a text alternative for the canvas and a link to the data
+  // file; plus when the data was published (no refresher runs in v1).
+  const ariaLabel = chart ? (chart.description ? `${chart.title}. ${chart.description}` : chart.title) : chartId;
+  const asOf = formatDataAsOf(chart?.updated_at);
+
   const state = error ? 'error' : rendered ? 'ready' : 'loading';
   const columnNames = chart ? chart.data.columns.map((c) => c.name) : [];
 
@@ -198,9 +270,23 @@ export function ChartTile({ chartId, filters, onRows, showTitle = true }: ChartT
             <StatTile spec={chart.spec} rows={filtered} columns={columnNames} />
           </TileErrorBoundary>
         ) : (
-          <div className="tile-mount" ref={mountRef} />
+          <div className="tile-chart" role="img" aria-label={ariaLabel}>
+            <div className="tile-mount" ref={mountRef} />
+          </div>
         )}
         {!error && !rendered && <div className="muted tile-loading">Loading…</div>}
+        {empty && <div className="tile-empty muted">{appliedCount > 0 ? 'No rows match the filters' : 'No rows'}</div>}
+      </div>
+      <div className="tile-footer">
+        {ignored.map((f) => (
+          <span key={f.controlId} className="badge tile-badge">{`not filtered by ${controlLabels?.[f.controlId] ?? f.controlId}`}</span>
+        ))}
+        {asOf && <span className="muted tile-asof">{`Data as of ${asOf}`}</span>}
+        {chart && (
+          <a className="tile-download" href={dataUrl(chartId)} download aria-label={`Download data for ${chart.title}`}>
+            Download data
+          </a>
+        )}
       </div>
     </div>
   );

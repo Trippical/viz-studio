@@ -77,6 +77,55 @@ test('the single chart page renders a large-lane chart and shows its columns', a
   expect(log.consoleErrors).toEqual([]);
 });
 
+test('a deep-linked region survives another control change, and tiles carry download links and freshness', async ({ page }) => {
+  const log = watch(page);
+  await page.goto('/d/bakeoff/vega-lite?region=EMEA');
+  await expect(page.locator('[data-tile][data-state="ready"]')).toHaveCount(4, { timeout: 90_000 });
+  await expect(page.locator('.error-card')).toHaveCount(0);
+  await expect(page.getByLabel('Region', { exact: true })).toHaveValues(['EMEA']);
+
+  await page.getByLabel('Days from').fill('2025-01-01');
+  await expect(page).toHaveURL(/days=2025-01-01/);
+  await expect(page).toHaveURL(/region=EMEA/);
+  await expect(page.locator('[data-tile][data-state="ready"]')).toHaveCount(4, { timeout: 60_000 });
+
+  const links = page.getByRole('link', { name: 'Download data' });
+  await expect(links).toHaveCount(4);
+  await expect(page.locator('[data-tile="bakeoff/vega-lite/order-lines"] a.tile-download')).toHaveAttribute('href', '/api/data/bakeoff/vega-lite/order-lines');
+  await expect(page.locator('[data-tile="bakeoff/vega-lite/order-lines"] .tile-chart')).toHaveAttribute('role', 'img');
+  await expect(page.locator('[data-tile="bakeoff/vega-lite/order-lines"] .tile-chart')).toHaveAttribute('aria-label', /.+/);
+  await expect(page.getByText(/^Data as of \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/).first()).toBeVisible();
+
+  expect(log.foreign, 'every request stays on the site origin').toEqual([]);
+  expect(log.failed, 'no request failed').toEqual([]);
+  expect(log.consoleErrors, 'no console errors').toEqual([]);
+});
+
+test.describe('200% browser zoom (simulated with a narrow viewport)', () => {
+  test.use({ viewport: { width: 640, height: 900 } });
+
+  test('the stat tile value does not clip and the footer keeps the download link visible', async ({ page }) => {
+    await page.goto('/d/bakeoff/vega-lite');
+    const tile = page.locator('[data-tile="bakeoff/total-revenue"]');
+    await expect(tile).toHaveAttribute('data-state', 'ready', { timeout: 90_000 });
+
+    const value = tile.getByTestId('stat-value');
+    const sizes = await value.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
+    expect(sizes.scrollWidth, 'stat value does not overflow its box').toBeLessThanOrEqual(sizes.clientWidth);
+
+    await expect(tile.getByRole('link', { name: 'Download data' })).toBeVisible();
+  });
+});
+
+test('hashed assets are cached for a year', async ({ request }) => {
+  const html = await (await request.get('/')).text();
+  const match = /\/assets\/[^"']+\.js/.exec(html);
+  expect(match, 'index.html references a hashed script').not.toBeNull();
+  const res = await request.get(match![0]);
+  expect(res.status()).toBe(200);
+  expect(res.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+});
+
 test('a missing dashboard shows one error card and the header still renders', async ({ page }) => {
   await page.goto('/d/bakeoff/nope');
   await expect(page.locator('.error-card')).toHaveCount(1);

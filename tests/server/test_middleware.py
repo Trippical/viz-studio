@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from viz.config import Settings
 from viz.server.app import create_app
 from viz.server.middleware import CSP
 
@@ -30,8 +31,39 @@ def test_csp_exact_value():
 def test_untrusted_host_is_rejected(settings):
     app = create_app(settings)
     with TestClient(app, base_url="http://evil.example") as c:
-        r = c.get("/api/health")
+        r = c.get("/api/tree")
     assert r.status_code == 400
+
+
+def test_health_is_answered_for_any_host(settings):
+    # A load balancer health check sends the pod IP as Host (A29), with GET or HEAD.
+    with TestClient(create_app(settings), base_url="http://10.1.2.3:8000") as c:
+        r = c.get("/api/health")
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok"}
+        assert r.headers["content-security-policy"] == CSP
+        head = c.head("/api/health")
+        assert head.status_code == 200
+        assert head.headers["content-security-policy"] == CSP
+        assert c.get("/api/tree").status_code == 400
+        assert c.get("/api/health/").status_code == 400
+        assert c.get("/api/healthz").status_code == 400
+        assert c.post("/api/health").status_code == 400
+        assert c.get("/").status_code == 400
+
+
+def test_head_health_is_answered_on_an_allowed_host(client):
+    r = client.head("/api/health")
+    assert r.status_code == 200
+    assert r.content == b""
+
+
+def test_default_allowed_hosts_do_not_include_the_test_client_host(bucket, monkeypatch):
+    monkeypatch.delenv("VIZ_ALLOWED_HOSTS", raising=False)
+    settings = Settings(storage="local", local_dir=bucket, web_dist=bucket / "no-web-dist")
+    assert "testserver" not in settings.allowed_hosts_list
+    assert TestClient(create_app(settings)).get("/api/tree").status_code == 400
+    assert TestClient(create_app(settings), base_url="http://localhost").get("/api/tree").status_code == 200
 
 
 def test_no_cors_headers(client):
@@ -54,7 +86,7 @@ def test_missing_identity_logs_anonymous(client, caplog):
 def test_untrusted_host_response_still_has_security_headers(settings):
     app = create_app(settings)
     with TestClient(app, base_url="http://evil.example") as c:
-        r = c.get("/api/health")
+        r = c.get("/api/tree")
     assert r.status_code == 400
     assert r.headers["content-security-policy"] == CSP
 

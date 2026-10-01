@@ -71,6 +71,12 @@ CHART_CASES = [
     ("small lane parquet", "chart-vegalite.json", _set("data.format", "parquet"), "format"),
     ("small lane too many rows", "chart-vegalite.json", _set("data.rows", 100001), "rows"),
     ("small lane too many bytes", "chart-vegalite.json", _set("data.bytes", 20971521), "bytes"),
+    ("data file missing", "chart-vegalite.json", _delete("data.file"), "file"),
+    ("data file not content-addressed", "chart-vegalite.json", _set("data.file", "data.json"), "file"),
+    ("data file uppercase hex", "chart-vegalite.json", _set("data.file", "data.0123456789ABCDEF.json"), "file"),
+    ("data file path traversal", "chart-vegalite.json", _set("data.file", "../data.0123456789abcdef.json"), "file"),
+    ("json data in a parquet file name", "chart-vegalite.json", _set("data.file", "data.0123456789abcdef.parquet"), "file"),
+    ("parquet data in a json file name", "chart-large.json", _set("data.file", "data.00112233445566aa.json"), "file"),
     ("large lane without aggregate", "chart-large.json", _delete("aggregate"), "aggregate"),
     ("large lane null aggregate", "chart-large.json", _set("aggregate", None), "aggregate"),
     ("large lane json", "chart-large.json", _set("data.format", "json"), "format"),
@@ -88,6 +94,14 @@ CHART_CASES = [
     ("vega-lite image mark", "chart-vegalite.json", _set("spec.mark", "image"), "image"),
     ("vega-lite image mark object", "chart-vegalite.json", _set("spec.mark", {"type": "image"}), "image"),
     ("vega-lite missing top-level data", "chart-vegalite.json", _delete("spec.data"), "top-level data"),
+    ("vega-lite nested data", "chart-vegalite.json",
+     _set("spec.layer", [{"data": {"name": "data"}, "mark": "point"}]), "only allowed at the top level"),
+    ("vega-lite nested sequence", "chart-vegalite.json",
+     _set("spec.layer", [{"data": {"sequence": {"start": 0, "stop": 1000000000}}, "mark": "point"}]), "sequence"),
+    ("vega-lite graticule", "chart-vegalite.json", _set("spec.transform", [{"graticule": True}]), "graticule"),
+    ("vega-lite sphere", "chart-vegalite.json", _set("spec.transform", [{"sphere": True}]), "sphere"),
+    ("vega-lite bind element", "chart-vegalite.json",
+     _set("spec.params", [{"name": "p", "value": 1, "bind": {"input": "range", "element": "#x"}}]), "bind.element"),
     ("plotly renderer retired", "chart-vegalite.json", _set("renderer", "plotly"), "renderer"),
     ("echarts renderer retired", "chart-vegalite.json", _set("renderer", "echarts"), "renderer"),
     ("stat unknown column", "chart-stat.json", _set("spec.value", "nope"), "nope"),
@@ -158,3 +172,73 @@ def test_unhashable_renderer_is_schema_error_not_crash():
     doc["renderer"] = ["vega-lite"]
     with pytest.raises(schemas.SchemaError):
         schemas.validate_chart(doc)
+
+
+def test_vegalite_bind_without_element_passes():
+    doc = copy.deepcopy(load("chart-vegalite.json"))
+    doc["spec"]["params"] = [{"name": "p", "value": 1, "bind": {"input": "range", "min": 0, "max": 10}}]
+    assert schemas.validate_chart(doc) is doc
+
+
+def test_data_file_trailing_newline_is_rejected():
+    # jsonschema applies `pattern` with re.search, and Python's `$` also
+    # matches just before a trailing "\n", so the schema's own pattern lets
+    # this through. validate_chart must catch it with an explicit fullmatch.
+    doc = copy.deepcopy(load("chart-vegalite.json"))
+    doc["data"]["file"] = "data.0123456789abcdef.json\n"
+    with pytest.raises(schemas.SchemaError) as excinfo:
+        schemas.validate_chart(doc)
+    assert "data/file: must be data.<16 hex>.<json|parquet>" in str(excinfo.value)
+
+
+def test_vegalite_layer_without_its_own_data_passes():
+    doc = copy.deepcopy(load("chart-vegalite.json"))
+    doc["spec"]["layer"] = [{"mark": "line"}, {"mark": "rule"}]
+    assert schemas.validate_chart(doc) is doc
+
+
+def _append_newline(doc: dict, path: str) -> None:
+    parts = path.split(".")
+    target = doc
+    for part in parts[:-1]:
+        target = target[int(part)] if part.isdigit() else target[part]
+    last = int(parts[-1]) if parts[-1].isdigit() else parts[-1]
+    target[last] = target[last] + "\n"
+
+
+# Adopter fix A3: every id, slug and column name must match its pattern in full.
+# jsonschema applies "pattern" with re.search, so "$" also matches before a trailing newline.
+@pytest.mark.parametrize("path", ["id", "controls.0.id", "controls.0.column", "layout.0.chart"])
+def test_dashboard_trailing_newline_is_rejected(path):
+    doc = copy.deepcopy(load("dashboard.json"))
+    _append_newline(doc, path)
+    with pytest.raises(schemas.SchemaError) as excinfo:
+        schemas.validate_dashboard(doc)
+    slash_path = path.replace(".", "/")
+    matching = [e for e in excinfo.value.errors if e.startswith(f"{slash_path}:")]
+    assert len(matching) == 1
+    assert matching[0].startswith(f"{slash_path}: must match ^")
+
+
+@pytest.mark.parametrize("fixture,path", [
+    ("chart-vegalite.json", "id"),
+    ("chart-vegalite.json", "data.columns.0.name"),
+    ("chart-stat.json", "spec.value"),
+    ("chart-stat.json", "spec.compare.column"),
+])
+def test_chart_trailing_newline_is_rejected(fixture, path):
+    doc = copy.deepcopy(load(fixture))
+    _append_newline(doc, path)
+    with pytest.raises(schemas.SchemaError) as excinfo:
+        schemas.validate_chart(doc)
+    slash_path = path.replace(".", "/")
+    matching = [e for e in excinfo.value.errors if e.startswith(f"{slash_path}: must match ^")]
+    assert len(matching) == 1
+
+
+def test_pattern_recheck_does_not_repeat_a_schema_error():
+    doc = copy.deepcopy(load("dashboard.json"))
+    doc["id"] = "Not An Id"
+    with pytest.raises(schemas.SchemaError) as excinfo:
+        schemas.validate_dashboard(doc)
+    assert len([e for e in excinfo.value.errors if e.startswith("id:")]) == 1

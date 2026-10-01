@@ -43,3 +43,14 @@ def test_main_logs_the_plan_and_exits_zero(tmp_path, monkeypatch, capsys):
     assert "sales/revenue-by-region" in out
     assert "0 6 * * *" in out
     assert "1 refreshable chart" in out
+
+
+def test_plan_skips_a_chart_with_nan(tmp_path, caplog):
+    """Adopter fix A1: NaN in an otherwise valid chart is a validation error, not a planned refresh."""
+    shutil.copytree(SAMPLE / "viz", tmp_path / "viz")
+    path = tmp_path / "viz" / "charts" / "sales" / "revenue-by-region" / "chart.json"
+    text = json.dumps(json.loads(path.read_text(encoding="utf-8")))
+    path.write_text(text.replace('"spec": {', '"spec": {"width": NaN, ', 1), encoding="utf-8")
+    settings = _settings(tmp_path)
+    assert plan(settings, get_storage(settings)) == []
+    assert "NaN/Infinity is not allowed" in caplog.text

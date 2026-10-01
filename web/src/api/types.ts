@@ -15,6 +15,9 @@ export type Renderer = 'vega-lite' | 'stat';
 
 export interface ChartData {
   format: 'json' | 'parquet';
+  // Content-addressed data file name, data.<16 hex>.<format>. The server
+  // resolves it; the front end always fetches /api/data/<id>.
+  file: string;
   lane: 'small' | 'large';
   rows: number;
   bytes: number;

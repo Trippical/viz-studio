@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Control } from '../api/types';
 import type { Filter } from '../data/filters';
-import { decodeFilters, encodeFilters } from './urlState';
+import { CLEARED, decodeFilters, encodeFilters } from './urlState';
 
 const controls: Control[] = [
   { id: 'period', type: 'date-range', label: 'Period', column: 'month', default: { last: '1y' } },
@@ -21,7 +21,7 @@ describe('encodeFilters', () => {
     const params = encodeFilters(filters);
     expect(params.get('period')).toBe('2026-01-01..');
     expect(params.get('region')).toBe('EMEA,N%2CA');
-    expect(params.get('minrev')).toBe('-');
+    expect(params.get('minrev')).toBe(':none');
   });
 });
 
@@ -59,5 +59,36 @@ describe('decodeFilters', () => {
     const tooMany = { region: { options: [], tooMany: true } };
     expect(decodeFilters(new URLSearchParams('region=~em'), controls, tooMany, today)[1].value).toEqual({ type: 'text', text: 'em' });
     expect(decodeFilters(new URLSearchParams(''), controls, tooMany, today)[1].value).toEqual({ type: 'text', text: '' });
+  });
+});
+
+describe('the cleared marker (A12)', () => {
+  it('cannot collide with a select value, even "-"', () => {
+    const withDash = { region: { options: ['-', 'EMEA'], tooMany: false } };
+    const filters: Filter[] = [{ controlId: 'region', column: 'region', value: { type: 'select', values: ['-'] } }];
+    const params = encodeFilters(filters);
+    expect(params.get('region')).toBe('-');
+    expect(decodeFilters(params, controls, withDash, today)[1].value).toEqual({ type: 'select', values: ['-'] });
+  });
+
+  it('writes and reads the new marker for every control type', () => {
+    const cleared: Filter[] = [
+      { controlId: 'period', column: 'month', value: { type: 'date-range', from: null, to: null } },
+      { controlId: 'region', column: 'region', value: { type: 'select', values: [] } },
+      { controlId: 'minrev', column: 'revenue', value: { type: 'number-range', min: null, max: null } },
+    ];
+    const params = encodeFilters(cleared);
+    for (const id of ['period', 'region', 'minrev']) expect(params.get(id)).toBe(CLEARED);
+    expect(CLEARED).toBe(':none');
+    const out = decodeFilters(new URLSearchParams(params.toString()), controls, options, today);
+    expect(out[0].value).toEqual({ type: 'date-range', from: null, to: null });
+    expect(out[1].value).toEqual({ type: 'select', values: [] });
+    expect(out[2].value).toEqual({ type: 'number-range', min: null, max: null });
+  });
+
+  it('still reads the old "-" marker on range controls', () => {
+    const out = decodeFilters(new URLSearchParams('period=-&minrev=-'), controls, options, today);
+    expect(out[0].value).toEqual({ type: 'date-range', from: null, to: null });
+    expect(out[2].value).toEqual({ type: 'number-range', min: null, max: null });
   });
 });

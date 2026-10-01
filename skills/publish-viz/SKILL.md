@@ -30,13 +30,14 @@ data, checks it and uploads it. The site never runs SQL.
 2. For `viz query`, the user's environment has `DATABRICKS_HOST`,
    `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID`. Never ask for the
    token in the conversation.
-3. `viz query` stamps charts with the Databricks login. When
-   `DATABRICKS_HOST` and `DATABRICKS_TOKEN` are set, `viz validate` asks
-   Databricks for the current user and accepts that login. Without them it
-   checks `VIZ_AUTHOR` instead, so ask the user to set `VIZ_AUTHOR` to their
+3. The CLI stamps `author` on every chart and dashboard. It records who
+   published (attribution); it is not a permission check. When
+   `DATABRICKS_HOST`, `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are
+   all set, `author` is the Databricks login for every command. Otherwise
+   the CLI uses `VIZ_AUTHOR`, so ask the user to set `VIZ_AUTHOR` to their
    Databricks login email. If validation says
    `author '<a>' does not match the resolved identity '<b>'`, show the user
-   both values and ask which identity is right. Never edit `author` by hand.
+   both values and ask which one is right. Never edit `author` by hand.
 
 ## Workflow
 
@@ -46,9 +47,9 @@ data, checks it and uploads it. The site never runs SQL.
 2. **Write the SQL** so the result is small: aggregate in the warehouse,
    select only needed columns, name columns with letters, digits and
    underscores. Details: `references/data.md`.
-3. **Stage the rows.**
-   `viz query --sql @query.sql --id sales/emea/revenue-by-region` runs the
-   SQL and stages the result. For a file the user already has:
+3. **Stage the rows.** Write the SQL to a file, then
+   `viz query --sql-file query.sql --id sales/emea/revenue-by-region` runs
+   it and stages the result. For a file the user already has:
    `viz stage --from rows.csv --id sales/emea/revenue-by-region`.
    Read the printed column summary. If it warns about personal data, rerun
    with `--drop-columns` unless the user asked for that column by name.
@@ -58,9 +59,15 @@ data, checks it and uploads it. The site never runs SQL.
    `.viz-staging/charts/<id>/chart.json`: set `title`, a one-sentence
    `description`, and the `spec`. Pick the form and start from the matching
    example in `references/vega-lite.md`. Only edit `title`, `description`,
-   `tags`, `spec`, and for a large-lane chart `aggregate`. Keep `source`.
+   `tags`, `spec`, `renderer`, and for a large-lane chart `aggregate`.
+   Set `renderer` to `"stat"` only for a single headline number (see the
+   stat tile in `references/vega-lite.md`). Keep `source`.
 5. **Validate.** `viz validate .viz-staging/charts/<id>`. Fix every error
-   it prints and run it again until it prints `ok:`.
+   it prints and run it again until it prints `ok:`. The exception is an
+   error that says `ask the user`: it needs the user's consent, not a fix.
+   Stop, show the user that line, and wait for their answer. The same goes
+   for `viz publish`, `viz move` and the dashboard commands.
+   Never add `--force`, `--yes` or `--allow-row-level` on your own.
 6. **Preview when unsure.** `viz preview` serves the staging directory on
    `http://127.0.0.1:8000`; the chart is at `/c/<id>` when the front end is
    available (`VIZ_WEB_DIST` set). Give the user the link.
@@ -79,9 +86,16 @@ data, checks it and uploads it. The site never runs SQL.
   who published it and when. Show the user that line and ask.
 - `--yes` on `viz move`: run `viz move <old> <new>` without it first, show
   the user the printed plan (which dashboards change), and add `--yes` only
-  after they agree.
+  after they agree. If `viz move` says the id is both a chart and a
+  dashboard, ask the user which one they mean and add `--kind chart` or
+  `--kind dashboard`.
 - `--allow-row-level`: a large-lane chart shares every row. Ask whether the
   row-level data may be shared, or rewrite the SQL to aggregate.
+- `VIZ_STORAGE` is not set: `viz publish` and `viz move` refuse to run.
+  Ask the user which bucket to publish to. Do not pick one yourself.
+- `VIZ_STORAGE=local` without `VIZ_LOCAL_DIR`: `viz publish` and
+  `viz move` refuse to run. Ask the user which folder to publish to. Do not
+  set `VIZ_LOCAL_DIR` to `./sample-bucket` or any folder yourself.
 - Selecting an identifier or free-text column the user did not name.
 
 ## Never

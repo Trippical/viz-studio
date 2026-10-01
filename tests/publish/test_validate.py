@@ -1,14 +1,16 @@
+import hashlib
 import json
 from datetime import date, datetime, timezone
 
 import pyarrow as pa
 import pytest
 
+from viz.ids import data_file_name
 from viz.publish import staging
 from viz.publish.cli import main
 from viz.publish.staging import write_staged_chart
 from viz.publish.validate import (
-    check_aggregate, conflicting_ids, validate_dashboard_file, validate_staged_chart,
+    PLACEHOLDER_ERROR, check_aggregate, conflicting_ids, validate_dashboard_file, validate_staged_chart,
 )
 
 NOW = datetime(2026, 9, 22, 10, 0, 0, tzinfo=timezone.utc)
@@ -73,18 +75,58 @@ def test_data_file_checks(settings, storage, staging_root):
     assert any(e.startswith("data.columns: declared names") for e in errors)
 
     staged.data_path.unlink()
-    assert validate_staged_chart(staged.dir, settings, storage) == ["data.json: not found"]
+    assert validate_staged_chart(staged.dir, settings, storage) == [f"{staged.data_path.name}: not found"]
+
+
+def _replace_data(staged, payload: bytes) -> dict:
+    """Swap the staged data for new bytes under their content-addressed name; return the updated doc."""
+    name = data_file_name(hashlib.sha256(payload).hexdigest(), "json")
+    staged.data_path.unlink()
+    (staged.dir / name).write_bytes(payload)
+    doc = json.loads(json.dumps(staged.doc))
+    doc["data"]["file"] = name
+    doc["data"]["bytes"] = len(payload)
+    _rewrite(staged, doc)
+    return doc
 
 
 def test_integer_file_column_satisfies_declared_number(settings, storage, staging_root):
     staged = _staged(staging_root)
     rows = [{"month": "2024-01-01", "region": "EMEA", "revenue": 100}, {"month": "2024-02-01", "region": "NA", "revenue": 200}]
-    payload = json.dumps(rows).encode("utf-8")
-    staged.data_path.write_bytes(payload)
-    doc = json.loads(json.dumps(staged.doc))
-    doc["data"]["bytes"] = len(payload)
-    _rewrite(staged, doc)
+    _replace_data(staged, json.dumps(rows).encode("utf-8"))
     assert validate_staged_chart(staged.dir, settings, storage) == []
+
+
+def test_data_file_name_must_match_its_sha256(settings, storage, staging_root):
+    staged = _staged(staging_root)
+    wrong = "data.0000000000000000.json"
+    staged.data_path.rename(staged.dir / wrong)
+    doc = json.loads(json.dumps(staged.doc))
+    doc["data"]["file"] = wrong
+    _rewrite(staged, doc)
+    errors = validate_staged_chart(staged.dir, settings, storage)
+    assert errors == [
+        f"data.file: '{wrong}' does not match the file's SHA-256; it should be named '{staged.data_path.name}'"
+    ]
+
+
+def test_edited_data_without_renaming_fails(settings, storage, staging_root):
+    staged = _staged(staging_root)
+    payload = staged.data_path.read_bytes().replace(b"100.5", b"999.5")
+    staged.data_path.write_bytes(payload)
+    errors = validate_staged_chart(staged.dir, settings, storage)
+    assert any(e.startswith(f"data.file: '{staged.data_path.name}' does not match the file's SHA-256") for e in errors)
+
+
+def test_other_data_files_in_the_staged_directory_fail(settings, storage, staging_root):
+    staged = _staged(staging_root)
+    (staged.dir / "data.json").write_text("[]", encoding="utf-8")
+    (staged.dir / "data.0000000000000000.parquet").write_bytes(b"PAR1")
+    errors = validate_staged_chart(staged.dir, settings, storage)
+    assert errors == [
+        "data: the staged directory holds other data files (data.0000000000000000.parquet, data.json); "
+        f"keep only '{staged.data_path.name}'"
+    ]
 
 
 def test_author_must_match_identity(settings, storage, staging_root):
@@ -116,11 +158,12 @@ def test_directory_must_match_id(settings, storage, staging_root):
 def test_large_lane_needs_allow_row_level_and_runs_the_aggregate(settings, storage, staging_root, monkeypatch):
     monkeypatch.setattr(staging, "SMALL_MAX_ROWS", 0)
     staged = _staged(staging_root, chart_id="sales/large")
-    assert staged.data_path.name == "data.parquet"
+    assert staged.data_path.name.endswith(".parquet")
     assert validate_staged_chart(staged.dir, settings, storage) == [
-        "large lane publishes row-level data; pass --allow-row-level to confirm"
+        PLACEHOLDER_ERROR,
+        "large lane publishes row-level data; ask the user before passing --allow-row-level to confirm",
     ]
-    assert validate_staged_chart(staged.dir, settings, storage, allow_row_level=True) == []
+    assert validate_staged_chart(staged.dir, settings, storage, allow_row_level=True) == [PLACEHOLDER_ERROR]
 
     doc = dict(staged.doc)
     doc["aggregate"] = "SELECT region, sum(revenue) AS total FROM data GROUP BY region"
@@ -201,3 +244,24 @@ def test_validate_command(env, staging_root, capsys):
 
     assert main(["validate", str(staging_root / "nowhere")]) == 2
     assert "error: path not found" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("chart_id", ["team/charts/revenue", "charts/revenue", "team/dashboards/revenue"])
+def test_chart_id_with_a_charts_or_dashboards_segment_validates(settings, storage, staging_root, chart_id):
+    staged = _staged(staging_root, chart_id=chart_id)
+    assert validate_staged_chart(staged.dir, settings, storage) == []
+
+
+@pytest.mark.parametrize("dashboard_id", ["team/dashboards/board", "dashboards/board", "team/charts/board"])
+def test_dashboard_id_with_a_charts_or_dashboards_segment_validates(settings, storage, staging_root, dashboard_id):
+    path = _write_dashboard(staging_root, _dashboard(dashboard_id=dashboard_id), name=dashboard_id)
+    assert validate_dashboard_file(path, settings, storage) == []
+
+
+def test_mismatch_under_a_charts_segment_still_reports_the_directory(settings, storage, staging_root):
+    staged = _staged(staging_root, chart_id="team/charts/one")
+    doc = dict(staged.doc)
+    doc["id"] = "team/charts/two"
+    _rewrite(staged, doc)
+    errors = validate_staged_chart(staged.dir, settings, storage)
+    assert "id: chart.json says 'team/charts/two' but the directory is 'one'" in errors

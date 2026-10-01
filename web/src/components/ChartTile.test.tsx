@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   },
   getAdapter: vi.fn(),
   queryLargeLane: vi.fn(),
+  distinctValues: vi.fn(),
 }));
 
 vi.mock('../api/client', async (importOriginal) => ({
@@ -26,7 +27,7 @@ vi.mock('../api/client', async (importOriginal) => ({
   fetchRows: mocks.fetchRows,
 }));
 vi.mock('../renderers', () => ({ getAdapter: mocks.getAdapter }));
-vi.mock('../data/duckdb', () => ({ queryLargeLane: mocks.queryLargeLane }));
+vi.mock('../data/duckdb', () => ({ queryLargeLane: mocks.queryLargeLane, distinctValues: mocks.distinctValues }));
 
 const chart: Chart = {
   schema_version: 1,
@@ -36,6 +37,7 @@ const chart: Chart = {
   spec: { data: { name: 'data' }, mark: 'line' },
   data: {
     format: 'json',
+    file: 'data.0123456789abcdef.json',
     lane: 'small',
     rows: 2,
     bytes: 10,
@@ -59,6 +61,7 @@ beforeEach(() => {
   mocks.adapter.destroy.mockClear();
   mocks.getAdapter.mockReset().mockReturnValue(mocks.adapter);
   mocks.queryLargeLane.mockReset();
+  mocks.distinctValues.mockReset().mockResolvedValue([]);
 });
 
 // vitest.config.ts does not set `test.globals`, so @testing-library/react's
@@ -263,6 +266,237 @@ describe('ChartTile', () => {
 
     await waitFor(() => expect(tile('sales/y').dataset.state).toBe('ready'));
     expect(screen.getByTestId('stat-value')).toHaveTextContent('3');
+  });
+});
+
+describe('ChartTile select options (A7)', () => {
+  const large: Chart = {
+    ...chart,
+    data: { ...chart.data, lane: 'large', format: 'parquet' },
+    aggregate: 'SELECT region, sum(revenue) AS revenue FROM data GROUP BY region',
+  };
+
+  it('reports the distinct values of each declared select column once, for the large lane', async () => {
+    mocks.fetchChart.mockResolvedValue(large);
+    mocks.queryLargeLane.mockResolvedValue([{ region: 'EMEA', revenue: 1 }]);
+    mocks.distinctValues.mockResolvedValue(['EMEA', 'NA']);
+    const onOptions = vi.fn();
+    const { rerender } = render(<ChartTile chartId="sales/x" filters={[]} optionColumns={['region', 'month', 'region']} onOptions={onOptions} />);
+    await waitFor(() => expect(onOptions).toHaveBeenCalledWith('sales/x', { region: ['EMEA', 'NA'] }));
+    expect(mocks.distinctValues).toHaveBeenCalledTimes(1);
+    expect(mocks.distinctValues).toHaveBeenCalledWith('sales/x', 'region', large.data.columns);
+
+    const filter = { controlId: 'r', column: 'region', value: { type: 'select' as const, values: ['NA'] } };
+    rerender(<ChartTile chartId="sales/x" filters={[filter]} optionColumns={['region', 'month', 'region']} onOptions={onOptions} />);
+    await waitFor(() => expect(mocks.queryLargeLane).toHaveBeenCalledTimes(2));
+    expect(mocks.distinctValues).toHaveBeenCalledTimes(1);
+    expect(onOptions).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an empty set when the chart declares none of the columns', async () => {
+    mocks.fetchChart.mockResolvedValue(large);
+    mocks.queryLargeLane.mockResolvedValue([]);
+    const onOptions = vi.fn();
+    render(<ChartTile chartId="sales/x" filters={[]} optionColumns={['month']} onOptions={onOptions} />);
+    await waitFor(() => expect(onOptions).toHaveBeenCalledWith('sales/x', {}));
+    expect(mocks.distinctValues).not.toHaveBeenCalled();
+  });
+
+  it('never lists options for the small lane (onRows covers it)', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    const onOptions = vi.fn();
+    render(<ChartTile chartId="sales/x" filters={[]} optionColumns={['region']} onOptions={onOptions} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(mocks.distinctValues).not.toHaveBeenCalled();
+    expect(onOptions).not.toHaveBeenCalled();
+  });
+});
+
+describe('ChartTile failure reporting (A8)', () => {
+  it('reports a failed tile through onFailed', async () => {
+    mocks.fetchChart.mockRejectedValue(new ApiError(404, 'not found'));
+    const onFailed = vi.fn();
+    render(<ChartTile chartId="sales/nope" filters={[]} onFailed={onFailed} />);
+    await waitFor(() => expect(onFailed).toHaveBeenCalledWith('sales/nope'));
+  });
+
+  it('does not call onFailed for a tile that renders', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    const onFailed = vi.fn();
+    render(<ChartTile chartId="sales/x" filters={[]} onFailed={onFailed} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(onFailed).not.toHaveBeenCalled();
+  });
+});
+
+describe('ChartTile empty state and badges (A9)', () => {
+  const periodOn = { controlId: 'period', column: 'month', value: { type: 'date-range' as const, from: '2026-01-01', to: null } };
+  const daysOff = { controlId: 'days', column: 'day', value: { type: 'date-range' as const, from: null, to: null } };
+  const regionNA = { controlId: 'r', column: 'region', value: { type: 'select' as const, values: ['NA'] } };
+  const regionAPAC = { controlId: 'r', column: 'region', value: { type: 'select' as const, values: ['APAC'] } };
+
+  it('says so when the filters leave no rows', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[regionAPAC]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(tile().dataset.rows).toBe('0');
+    expect(screen.getByText('No rows match the filters')).toBeInTheDocument();
+  });
+
+  it('says "No rows" when the chart has no rows and no filter applies', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue([]);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByText('No rows')).toBeInTheDocument();
+    expect(screen.queryByText('No rows match the filters')).toBeNull();
+  });
+
+  it('shows no empty state while rows remain', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[regionNA]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.queryByText('No rows match the filters')).toBeNull();
+  });
+
+  it('badges each active control whose column the chart does not declare', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[periodOn, daysOff, regionNA]} controlLabels={{ period: 'Period', days: 'Days', r: 'Region' }} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByText('not filtered by Period')).toBeInTheDocument();
+    expect(screen.queryByText('not filtered by Days')).toBeNull();
+    expect(screen.queryByText('not filtered by Region')).toBeNull();
+  });
+
+  it('falls back to the control id without labels', async () => {
+    mocks.fetchChart.mockResolvedValue(chart);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[periodOn]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByText('not filtered by period')).toBeInTheDocument();
+  });
+});
+
+describe('ChartTile download, label and freshness (A10)', () => {
+  const described: Chart = { ...chart, description: 'Monthly revenue.', updated_at: '2026-09-22T10:00:00Z' };
+
+  it('links the data file, labels the chart for screen readers and shows when the data is from', async () => {
+    mocks.fetchChart.mockResolvedValue(described);
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    const link = screen.getByRole('link', { name: 'Download data for Revenue' });
+    expect(link).toHaveAttribute('href', '/api/data/sales/x');
+    expect(link).toHaveAttribute('download');
+    expect(screen.getByRole('img', { name: 'Revenue. Monthly revenue.' })).toBe(tile().querySelector('.tile-chart'));
+    expect(screen.getByText('Data as of 2026-09-22 10:00 UTC')).toBeInTheDocument();
+  });
+
+  it('gives every download link an accessible name that names its own chart (B3)', async () => {
+    mocks.fetchChart.mockResolvedValue({ ...chart, title: 'Order lines' });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByRole('link', { name: 'Download data for Order lines' })).toHaveAttribute('aria-label', 'Download data for Order lines');
+  });
+
+  it('gives the accessible label to the chart wrapper only, never the tile body, the error card or a stat tile', async () => {
+    mocks.fetchChart.mockRejectedValue(new ApiError(404, 'not found'));
+    render(<ChartTile chartId="sales/nope" filters={[]} />);
+    await screen.findByRole('alert');
+    expect(tile('sales/nope').querySelector('[role="img"]')).toBeNull();
+
+    mocks.fetchChart.mockResolvedValue({ ...chart, id: 'sales/stat', renderer: 'stat', spec: { value: 'revenue', agg: 'sum' } });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/stat" filters={[]} />);
+    await waitFor(() => expect(tile('sales/stat').dataset.state).toBe('ready'));
+    expect(tile('sales/stat').querySelector('[role="img"]')).toBeNull();
+  });
+
+  it('uses the title alone without a description and skips an unreadable timestamp', async () => {
+    mocks.fetchChart.mockResolvedValue({ ...chart, updated_at: 'not a date' });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByRole('img', { name: 'Revenue' })).toBeInTheDocument();
+    expect(screen.queryByText(/^Data as of/)).toBeNull();
+  });
+
+  it('has no download link when the chart document failed to load', async () => {
+    mocks.fetchChart.mockRejectedValue(new ApiError(404, 'not found'));
+    render(<ChartTile chartId="sales/nope" filters={[]} />);
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('link', { name: 'Download data' })).toBeNull();
+  });
+
+  it('shows the data-as-of line and the download link on a stat tile too', async () => {
+    mocks.fetchChart.mockResolvedValue({ ...described, renderer: 'stat', spec: { value: 'revenue', agg: 'sum' } });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(screen.getByTestId('stat-value')).toHaveTextContent('3');
+    expect(screen.getByText('Data as of 2026-09-22 10:00 UTC')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Download data for Revenue' })).toHaveAttribute('href', '/api/data/sales/x');
+  });
+});
+
+describe('ChartTile with a preloaded chart (A12)', () => {
+  it('does not fetch the chart document again', async () => {
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/x" chart={chart} filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
+    expect(mocks.fetchChart).not.toHaveBeenCalled();
+    expect(mocks.fetchRows).toHaveBeenCalledWith('sales/x');
+  });
+
+  it('ignores a preloaded document for a different id', async () => {
+    mocks.fetchChart.mockResolvedValue({ ...chart, id: 'sales/y' });
+    mocks.fetchRows.mockResolvedValue(rows);
+    render(<ChartTile chartId="sales/y" chart={chart} filters={[]} />);
+    await waitFor(() => expect(tile('sales/y').dataset.state).toBe('ready'));
+    expect(mocks.fetchChart).toHaveBeenCalledWith('sales/y');
+  });
+});
+
+describe('ChartTile duckdb retry (I2)', () => {
+  // The DuckDB chunk import is cached at module scope (`duckdbModule` in
+  // ChartTile.tsx) for the life of the page, so the rejected-import case has
+  // to be exercised against a *fresh* copy of that module scope: the
+  // already-imported ChartTile at the top of this file may, by the time this
+  // test runs, already hold a resolved (non-null) `duckdbModule` from an
+  // earlier large-lane test, which would skip the import entirely. A fresh
+  // dynamic `import('./ChartTile')` after `vi.resetModules()` gets its own
+  // `duckdbModule = null` to start from.
+  //
+  // `vi.doMock` overrides the file's hoisted `vi.mock('../data/duckdb', ...)`
+  // for every import of that specifier from here on, not just the next one,
+  // so a second `vi.doMock` call switches it back to a resolving factory
+  // before the remount. That is what lets one `import()` reject and the
+  // next one (on the remounted tile) resolve.
+  it('shows the error card once, then renders on a remounted tile after the import is retried', async () => {
+    vi.resetModules();
+    vi.doMock('../data/duckdb', () => {
+      throw new Error('chunk load failed');
+    });
+    const { ChartTile: RetryChartTile } = await import('./ChartTile');
+
+    const large: Chart = { ...chart, data: { ...chart.data, lane: 'large', format: 'parquet' }, aggregate: 'SELECT 1' };
+    mocks.fetchChart.mockResolvedValue(large);
+    mocks.queryLargeLane.mockResolvedValue([{ region: 'EMEA', revenue: 1 }]);
+
+    const first = render(<RetryChartTile chartId="sales/x" filters={[]} />);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('render failed');
+    first.unmount();
+
+    vi.doMock('../data/duckdb', () => ({ queryLargeLane: mocks.queryLargeLane, distinctValues: mocks.distinctValues }));
+    render(<RetryChartTile chartId="sales/x" filters={[]} />);
+    await waitFor(() => expect(tile().dataset.state).toBe('ready'));
   });
 });
 

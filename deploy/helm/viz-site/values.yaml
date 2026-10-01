@@ -16,11 +16,23 @@ bucket:
 # other Host header get 400. The first entry is also sent by the probes.
 allowedHosts: viz.internal.example.com
 
-# Header the company SSO proxy sets with the signed-in user (logged only).
+# Header the company SSO proxy sets with the signed-in user. Logged with every
+# request, and required on every request when requireIdentity is true.
 authHeader: X-Forwarded-Email
 
+# VIZ_REQUIRE_IDENTITY. The site has no login of its own. When true, every
+# request except /api/health that does not carry the authHeader header gets
+# 401, so the site refuses traffic that did not come through the SSO proxy.
+# Set it to false only for a first smoke test before the proxy is in place
+# (docs/work-setup.md, step 7), and turn it back on afterwards.
+requireIdentity: true
+
 serviceAccount:
-  name: viz-site
+  # Empty: use the release's full name, which is the release name itself when
+  # it contains "viz-site" (helm install viz-site ... gives viz-site) and
+  # "<release>-viz-site" otherwise. The IRSA trust policy must name this
+  # service account: system:serviceaccount:<namespace>:<name>.
+  name: ""
   # IRSA: the IAM role the pods assume (deploy/aws/server-policy.json).
   # Never grant these permissions to the node role.
   roleArn: arn:aws:iam::123456789012:role/viz-site-server
@@ -29,9 +41,38 @@ ingress:
   enabled: true
   # The site must never be internet-facing: it serves company data to anyone
   # who can reach it. Use an internal load balancer.
+  # "nginx" (ingress-nginx) or "alb" (AWS Load Balancer Controller). The
+  # ingress.alb values are used only when className is "alb".
   className: nginx
   host: viz.internal.example.com
-  rateLimitPerSecond: 10
+  # The CIDRs of the SSO proxy; when set, only they can reach the site.
+  # Anyone else who reaches the load balancer could send the authHeader
+  # header themselves and pass as any user, so set this (or restrict the load
+  # balancer's security group) before you rely on requireIdentity.
+  # Rendered as alb.ingress.kubernetes.io/inbound-cidrs for className alb and
+  # as nginx.ingress.kubernetes.io/whitelist-source-range for className nginx.
+  # nginx must see the real client IP, and on AWS externalTrafficPolicy: Local
+  # alone is not enough: a Classic Load Balancer never keeps it. Put the
+  # ingress-nginx controller behind a Network Load Balancer that keeps it:
+  # instance targets with externalTrafficPolicy: Local, IP targets with
+  # preserve_client_ip.enabled=true, or proxy protocol turned on in both the
+  # NLB and the controller. If you cannot, leave this empty and instead limit
+  # the controller Service's loadBalancerSourceRanges (or its load balancer's
+  # security group) to the proxy CIDRs. Never widen this to the VPC to make
+  # it work: that lets every pod and node forge the identity header.
+  # Example: ["10.20.30.0/24"]
+  allowedSourceCidrs: []
+  # ingress-nginx only. nginx counts requests per client IP. With the company
+  # SSO proxy in front of the ingress, every request arrives from the proxy's
+  # IP, so all users share one limit and the site starts refusing everyone:
+  # set enabled to false when a proxy sits in front. Leave it on only when
+  # users reach the ingress directly.
+  rateLimit:
+    enabled: true
+    perSecond: 10
+  alb:
+    # ACM certificate for ingress.host, used by the HTTPS listener on 443.
+    certificateArn: arn:aws:acm:REPLACE_ME-region:123456789012:certificate/REPLACE_ME
   annotations: {}
 
 networkPolicy:
@@ -40,20 +81,28 @@ networkPolicy:
   ingressControllerNamespace: ingress-nginx
   # Egress on 443 only to these ranges. Required, must not be empty.
   # - S3 through a gateway VPC endpoint: list the S3 prefix-list CIDRs for your
-  #   region (aws ec2 describe-managed-prefix-lists, name com.amazonaws.<region>.s3);
-  #   a gateway endpoint has no IP of its own.
+  #   region (aws ec2 describe-managed-prefix-lists, name com.amazonaws.<region>.s3,
+  #   then aws ec2 get-managed-prefix-list-entries --prefix-list-id pl-...);
+  #   a gateway endpoint has no IP of its own. docs/work-setup.md step 5.
   # - STS for IRSA: the subnet CIDRs of an STS interface endpoint with private
   #   DNS, or the public STS ranges.
   # - S3 through an interface endpoint: its subnet CIDRs.
   # NetworkPolicy is only enforced if the cluster runs a policy engine
   # (EKS VPC CNI with enableNetworkPolicy=true, Calico or Cilium).
-  # NodeLocal DNSCache (169.254.20.10) is not allowed by the DNS rule; add it
-  # if your cluster uses it.
   egressCidrs:
     - 192.0.2.0/24  # REPLACE_ME: see the comment above
+  # Extra DNS resolvers outside kube-system, allowed on UDP and TCP 53. With
+  # NodeLocal DNSCache add its address, for example ["169.254.20.10/32"].
+  # The rule for kube-dns in kube-system stays in place either way.
+  dnsCidrs: []
   # With the AWS Load Balancer Controller (target type ip), traffic comes from
-  # the ALB's subnets, not a namespace: list those subnet CIDRs here. On ALB the
-  # nginx rate-limit annotation does nothing; use a WAF rate-based rule instead.
+  # the ALB's subnets, not a namespace: list those subnet CIDRs here. Every
+  # address in them can then reach the pods on 8000 and forge the identity
+  # header, so put the ALB in dedicated subnets that no node or pod uses
+  # (pin them with the alb.ingress.kubernetes.io/subnets annotation), or use
+  # Security Groups for Pods that allow only the ALB's security group. On ALB
+  # the nginx rate-limit annotation does nothing; use a WAF rate-based rule
+  # instead.
   ingressCidrs: []
 
 resources:

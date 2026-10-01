@@ -25,7 +25,8 @@ def test_stage_from_csv(env, staging_root, csv, capsys):
     assert doc["author"] == "tester@example.com"
     assert doc["data"]["rows"] == 2
     assert "source" not in doc
-    assert (staging_root / "charts" / "sales" / "from-csv" / "data.json").is_file()
+    assert (staging_root / "charts" / "sales" / "from-csv" / doc["data"]["file"]).is_file()
+    assert doc["data"]["file"].endswith(".json")
 
 
 def test_stage_honours_staging_flag(env, tmp_path, csv):

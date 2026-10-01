@@ -87,3 +87,65 @@ def test_skill_teaches_editing_the_large_lane_aggregate():
     assert "SELECT * FROM data LIMIT 1000" in data
     assert LARGE_DEFAULT_AGGREGATE in data
     assert "SELECT * FROM data LIMIT 1000" == LARGE_DEFAULT_AGGREGATE
+
+
+def test_skill_says_to_ask_when_viz_storage_is_not_set():
+    text = _text(SKILL / "SKILL.md")
+    assert "`VIZ_STORAGE` is not set" in text
+
+
+def test_skill_says_local_publishing_needs_viz_local_dir():
+    # C8: publish and move refuse VIZ_STORAGE=local without VIZ_LOCAL_DIR; the agent must ask, not guess.
+    text = " ".join(_text(SKILL / "SKILL.md").split())
+    assert ("`VIZ_STORAGE=local` without `VIZ_LOCAL_DIR`: `viz publish` and `viz move` refuse to run. "
+            "Ask the user which folder to publish to.") in text
+
+
+def _step(text: str, start: str, end: str) -> str:
+    return text[text.index(start):text.index(end)]
+
+
+def test_skill_stops_on_errors_that_need_the_user():
+    text = _text(SKILL / "SKILL.md")
+    step5 = _step(text, "5. **Validate.**", "6. **Preview")
+    assert "ask the user" in step5
+    assert "Never add `--force`, `--yes` or `--allow-row-level` on your own." in step5
+
+
+def test_skill_allows_editing_the_renderer():
+    text = _text(SKILL / "SKILL.md")
+    step4 = _step(text, "4. **Write the chart.**", "5. **Validate.**")
+    assert "`renderer`" in step4
+
+
+def test_dashboards_guide_calls_author_attribution():
+    text = _text(SKILL / "references" / "dashboards.md")
+    assert "must equal the identity" not in text
+    assert "with your identity" not in text
+    assert "attribution" in text
+
+
+def test_skill_uses_sql_file():
+    text = _text(SKILL / "SKILL.md")
+    assert "viz query --sql-file" in text
+    assert "--sql @" not in text
+
+
+def test_data_guide_names_content_addressed_data_files():
+    data = _text(SKILL / "references" / "data.md")
+    assert "`data.json`" not in data
+    assert "`data.parquet`" not in data
+    assert "data.<hash>.json" in data
+    assert "Never rename or edit the data file" in data
+
+
+def test_dashboards_guide_explains_the_pulled_version_refusal():
+    from viz.publish import publish
+
+    text = _text(SKILL / "references" / "dashboards.md")
+    assert "published again by someone else after you pulled it" in text
+    assert "published again by someone else after you pulled it" in publish.PULLED_CHANGED
+
+
+def test_skill_teaches_move_kind():
+    assert "--kind" in _text(SKILL / "SKILL.md")

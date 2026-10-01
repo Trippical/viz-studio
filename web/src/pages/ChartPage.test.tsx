@@ -18,8 +18,9 @@ vi.mock('../renderers', () => ({ getAdapter: () => mocks.adapter }));
 
 const chart: Chart = {
   schema_version: 1, id: 'sales/revenue', title: 'Revenue', description: 'Monthly *revenue*.', renderer: 'vega-lite',
+  updated_at: '2026-09-22T10:00:00Z',
   spec: { data: { name: 'data' }, mark: 'line' },
-  data: { format: 'json', lane: 'small', rows: 1, bytes: 1, columns: [{ name: 'month', type: 'date' }, { name: 'revenue', type: 'number' }] },
+  data: { format: 'json', file: 'data.0123456789abcdef.json', lane: 'small', rows: 1, bytes: 1, columns: [{ name: 'month', type: 'date' }, { name: 'revenue', type: 'number' }] },
   aggregate: null,
   source: { kind: 'databricks-sql', sql: 'SELECT month, revenue FROM t', show_sql: true, schedule: '0 6 * * *' },
 };
@@ -34,35 +35,61 @@ function renderAt(path: string) {
   );
 }
 
+function tileState(): string | null | undefined {
+  return document.querySelector('[data-tile="sales/revenue"]')?.getAttribute('data-state');
+}
+
 beforeEach(() => {
   mocks.fetchChart.mockReset().mockResolvedValue(chart);
   mocks.fetchRows.mockReset().mockResolvedValue([{ month: '2026-01-01', revenue: 1 }]);
 });
 
 describe('ChartPage', () => {
-  it('shows title, description, columns and SQL for a refreshable chart', async () => {
+  it('shows title, description, columns, source and SQL when show_sql is true', async () => {
     renderAt('/c/sales/revenue');
     expect(await screen.findByRole('heading', { name: 'Revenue' })).toBeInTheDocument();
     expect(screen.getByText('revenue', { selector: 'em' })).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'month' })).toBeInTheDocument();
+    expect(screen.getByText('Source: Databricks SQL')).toBeInTheDocument();
     expect(screen.getByText('SELECT month, revenue FROM t').tagName).toBe('PRE');
     expect(screen.queryByText('static')).toBeNull();
-    await waitFor(() => expect(document.querySelector('[data-tile="sales/revenue"]')?.getAttribute('data-state')).toBe('ready'));
+    await waitFor(() => expect(tileState()).toBe('ready'));
   });
 
-  it('shows the static badge for a one-off chart and the hidden-SQL note otherwise', async () => {
+  it('fetches the chart document exactly once (A12)', async () => {
+    renderAt('/c/sales/revenue');
+    await waitFor(() => expect(tileState()).toBe('ready'));
+    expect(mocks.fetchChart).toHaveBeenCalledTimes(1);
+  });
+
+  it('never promises a refresh or a schedule, and shows when the data is from', async () => {
+    renderAt('/c/sales/revenue');
+    await waitFor(() => expect(tileState()).toBe('ready'));
+    expect(screen.queryByText(/Refreshable/)).toBeNull();
+    expect(screen.queryByText(/schedule/)).toBeNull();
+    expect(screen.queryByText(/0 6 \* \* \*/)).toBeNull();
+    expect(screen.getByText('Data as of 2026-09-22 10:00 UTC')).toBeInTheDocument();
+  });
+
+  it('hides the SQL unless show_sql is true', async () => {
+    mocks.fetchChart.mockResolvedValue({ ...chart, source: { kind: 'databricks-sql', sql: 'SELECT secret FROM t', show_sql: false } });
+    renderAt('/c/sales/revenue');
+    expect(await screen.findByText('Source: Databricks SQL')).toBeInTheDocument();
+    expect(screen.queryByText('SELECT secret FROM t')).toBeNull();
+    expect(document.querySelector('pre.sql')).toBeNull();
+  });
+
+  it('shows the static badge and no source line for a one-off chart', async () => {
     mocks.fetchChart.mockResolvedValue({ ...chart, source: undefined });
     renderAt('/c/sales/revenue');
     expect(await screen.findByText('static')).toBeInTheDocument();
-
-    mocks.fetchChart.mockResolvedValue({ ...chart, source: { kind: 'databricks-sql', show_sql: false, schedule: '0 6 * * *' } });
-    renderAt('/c/sales/revenue');
-    expect(await screen.findByText(/SQL hidden/)).toBeInTheDocument();
+    expect(screen.queryByText('Source: Databricks SQL')).toBeNull();
   });
 
-  it('shows an error card when the chart is missing', async () => {
+  it('shows an error card when the chart is missing, with a link back to the chart list', async () => {
     mocks.fetchChart.mockRejectedValue(new Error('nope'));
     renderAt('/c/sales/x');
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: 'Browse all charts' })).toHaveAttribute('href', '/charts');
   });
 });

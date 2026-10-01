@@ -8,12 +8,34 @@ metadata:
   labels:
     {{- include "viz-site.labels" . | nindent 4 }}
   annotations:
-    # ingress-nginx: per-client-IP request rate limit.
-    nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.rateLimitPerSecond | quote }}
-    # AWS Load Balancer Controller: never create an internet-facing ALB. With
-    # ingress-nginx this annotation does nothing: make the controller's own
-    # Service internal (service.beta.kubernetes.io/aws-load-balancer-scheme: internal).
+    {{- if eq .Values.ingress.className "alb" }}
+    # AWS Load Balancer Controller: an internal ALB with an HTTPS listener,
+    # targets registered by pod IP, health checked on /api/health (which does
+    # not touch S3 and is answered before the host allow-list). The nginx
+    # rate limit does not apply here; use a WAF rate-based rule instead.
     alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.alb.certificateArn | quote }}
+    alb.ingress.kubernetes.io/healthcheck-path: /api/health
+    {{- with .Values.ingress.allowedSourceCidrs }}
+    # Only the SSO proxy may reach the load balancer.
+    alb.ingress.kubernetes.io/inbound-cidrs: {{ join "," . | quote }}
+    {{- end }}
+    {{- else }}
+    # ingress-nginx: make the controller's own Service internal
+    # (service.beta.kubernetes.io/aws-load-balancer-scheme: internal).
+    {{- with .Values.ingress.allowedSourceCidrs }}
+    # Only the SSO proxy may reach the site.
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ join "," . | quote }}
+    {{- end }}
+    {{- if .Values.ingress.rateLimit.enabled }}
+    # Counted per client IP. Behind an SSO proxy every request comes from the
+    # proxy's IP, so all users share one limit: set ingress.rateLimit.enabled
+    # to false there.
+    nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.rateLimit.perSecond | quote }}
+    {{- end }}
+    {{- end }}
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

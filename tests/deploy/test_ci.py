@@ -1,6 +1,8 @@
+import re
 from pathlib import Path
 
 import yaml
+from viz.config import Settings
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ci.yml"
 
@@ -53,13 +55,43 @@ def test_docker_and_helm_jobs():
 
 def test_docker_job_smoke_tests_the_image():
     docker = _runs(_workflow()["jobs"]["docker"])
-    for fragment in ("docker run", "--read-only", "/api/health"):
+    for fragment in (
+        "docker run",
+        "--read-only",
+        '-v "$PWD/sample-bucket:/data:ro"',
+        "-e VIZ_STORAGE=local",
+        "-e VIZ_LOCAL_DIR=/data",
+        "-e VIZ_ROOT_PREFIX=viz/",
+        "python3 .github/scripts/docker_smoke.py http://localhost:8000",
+        'test "$(docker exec viz id -u)" = "10001"',
+    ):
         assert fragment in docker, fragment
+    # The old check fetched the wasm with curl -o /dev/null and passed on the index.html fallback.
+    assert "curl -fsS -o /dev/null" not in docker
 
 
-def test_helm_job_proves_an_empty_egress_list_fails():
-    helm = _runs(_workflow()["jobs"]["helm"])
-    assert "networkPolicy.egressCidrs=[]" in helm
+def test_docker_job_env_names_are_real_settings():
+    docker = _runs(_workflow()["jobs"]["docker"])
+    names = re.findall(r"-e (VIZ_[A-Z_]+)=", docker)
+    assert {"VIZ_STORAGE", "VIZ_LOCAL_DIR", "VIZ_ROOT_PREFIX", "VIZ_ALLOWED_HOSTS"} <= set(names)
+    for name in names:
+        assert name.removeprefix("VIZ_").lower() in Settings.model_fields, name
+
+
+def test_docker_job_always_removes_the_container():
+    steps = _workflow()["jobs"]["docker"]["steps"]
+    cleanup = [step for step in steps if step.get("if") == "always()"]
+    assert cleanup and "docker rm -f viz" in cleanup[0]["run"]
+
+
+def test_helm_job_runs_the_render_checks():
+    job = _workflow()["jobs"]["helm"]
+    helm = _runs(job)
+    assert 'python -m pip install "pyyaml>=6"' in helm
+    assert "python .github/scripts/helm_checks.py" in helm
+    assert any(step.get("uses", "").startswith("actions/setup-python") for step in job["steps"])
+    # A28: the old inline check passed on any failure; the script checks the message.
+    assert "> /dev/null 2>&1" not in helm
 
 
 def test_gitleaks_scans_full_history():

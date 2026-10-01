@@ -76,3 +76,102 @@ def test_readme_warns_about_the_key_policy_and_break_glass():
     text = (AWS / "README.md").read_text(encoding="utf-8")
     assert "key policy" in text
     assert "break-glass" in text
+
+
+def _statement(sid: str) -> dict:
+    found = [s for s in _policy("bucket-policy.json")["Statement"] if s.get("Sid") == sid]
+    assert len(found) == 1, sid
+    return found[0]
+
+
+def test_writes_are_denied_to_everyone_but_the_publisher_role():
+    deny = _statement("DenyWritesExceptThePublisherRole")
+    assert deny["Effect"] == "Deny"
+    assert deny["Principal"] == "*"
+    # DeleteObjectVersion too: the bucket is versioned, and deleting a version is a write.
+    assert sorted(deny["Action"]) == ["s3:DeleteObject", "s3:DeleteObjectVersion", "s3:PutObject"]
+    assert deny["Resource"] == "arn:aws:s3:::REPLACE_ME-viz-bucket/*"
+    assert deny["Condition"] == {
+        "ArnNotLike": {"aws:PrincipalArn": ["arn:aws:iam::123456789012:role/viz-site-publisher"]}
+    }
+
+
+def test_read_deny_covers_old_versions_too():
+    # C7: the bucket is versioned; without GetObjectVersion an old version could be read from anywhere.
+    deny = _statement("DenyReadsOutsideTheVpcEndpointExceptPublishers")
+    assert sorted(deny["Action"]) == ["s3:GetObject", "s3:GetObjectVersion", "s3:ListBucket"]
+
+
+def test_write_deny_exempts_the_same_publisher_as_the_read_deny():
+    write = _statement("DenyWritesExceptThePublisherRole")["Condition"]["ArnNotLike"]
+    read = _statement("DenyReadsOutsideTheVpcEndpointExceptPublishers")["Condition"]["ArnNotLike"]
+    assert write == read
+
+
+def test_readme_explains_the_write_deny_and_endpoint_order():
+    text = " ".join((AWS / "README.md").read_text(encoding="utf-8").split())
+    assert ("denies `s3:PutObject`, `s3:DeleteObject` and `s3:DeleteObjectVersion` to every principal "
+            "except the publisher role") in text
+    assert text.index("S3 gateway VPC endpoint") < text.index("**Bucket policy**")
+
+
+def test_readme_shows_the_irsa_trust_policy():
+    text = (AWS / "README.md").read_text(encoding="utf-8")
+    assert "system:serviceaccount:viz:viz-site" in text
+    assert "sts:AssumeRoleWithWebIdentity" in text
+    assert "choose the namespace and the\nHelm release name before you create the role" in text
+
+
+def _principal_statement(policy: dict, arn: str) -> dict:
+    found = [s for s in policy["Statement"] if s["Principal"] == {"AWS": arn}]
+    assert len(found) == 1, arn
+    return found[0]
+
+
+def test_key_policy_lets_the_server_decrypt_and_the_publisher_encrypt():
+    # C5: a customer-managed key needs the roles in its key policy.
+    policy = _policy("key-policy.json")
+    admin = _principal_statement(policy, "arn:aws:iam::123456789012:root")
+    assert admin["Action"] == "kms:*" and admin["Resource"] == "*"
+    server = _principal_statement(policy, "arn:aws:iam::123456789012:role/viz-site-server")
+    assert server["Action"] == "kms:Decrypt"
+    publisher = _principal_statement(policy, "arn:aws:iam::123456789012:role/viz-site-publisher")
+    assert sorted(publisher["Action"]) == ["kms:Decrypt", "kms:GenerateDataKey"]
+    assert all(s["Effect"] == "Allow" for s in policy["Statement"])
+
+
+def test_publisher_trust_policy_names_who_may_assume_the_role():
+    policy = _policy("publisher-trust-policy.json")
+    [statement] = policy["Statement"]
+    assert statement["Effect"] == "Allow"
+    assert statement["Action"] == "sts:AssumeRole"
+    assert statement["Principal"] == {"AWS": "arn:aws:iam::123456789012:root"}
+    allowed = statement["Condition"]["ArnLike"]["aws:PrincipalArn"]
+    assert allowed and all(arn.startswith("arn:aws:iam::123456789012:") and "REPLACE_ME" in arn for arn in allowed)
+
+
+def test_readme_creates_the_key_before_the_roles_and_the_key_policy_after():
+    text = (AWS / "README.md").read_text(encoding="utf-8")
+    create_key = text.index("aws kms create-key")
+    assert "REPLACE_ME-key-id" in text[create_key:text.index("## ", create_key)]
+    assert create_key < text.index("aws iam create-role --role-name viz-site-server")
+    assert text.index("aws iam create-role --role-name viz-site-publisher") < text.index("aws kms put-key-policy")
+    for name in ("key-policy.json", "publisher-trust-policy.json", "server-policy.json", "publisher-policy.json"):
+        assert f"file://{name}" in text, name
+
+
+def test_publisher_trust_matches_sso_roles_with_and_without_a_region_segment():
+    # Fix round 1, item 4: older IAM Identity Center roles have no region in their path.
+    [statement] = _policy("publisher-trust-policy.json")["Statement"]
+    allowed = statement["Condition"]["ArnLike"]["aws:PrincipalArn"]
+    assert "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_REPLACE_ME-publishers_*" in allowed
+    assert "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_REPLACE_ME-publishers_*" in allowed
+    readme = " ".join((AWS / "README.md").read_text(encoding="utf-8").split())
+    assert "no region segment" in readme
+
+
+def test_readme_limits_the_exemption_advice_to_sso_roles_that_publish_directly():
+    # Fix round 1, item 5.
+    readme = " ".join((AWS / "README.md").read_text(encoding="utf-8").split())
+    assert "If publishers sign in with a different role (for example an AWS SSO role), add its ARN to both exemptions." not in readme
+    assert "publish directly with that role instead of assuming `viz-site-publisher`" in readme

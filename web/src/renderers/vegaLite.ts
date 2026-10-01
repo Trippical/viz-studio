@@ -1,5 +1,6 @@
 import type { Column, Row } from '../api/types';
 import type { Adapter } from './adapter';
+import { createTextTooltip, type TextTooltip } from './textTooltip';
 import { sanitize } from './vegaLiteSanitize';
 
 interface EmbedView {
@@ -22,6 +23,7 @@ export function rejectingLoader() {
 
 export function createAdapter(): Adapter {
   let result: EmbedResult | null = null;
+  let tooltip: TextTooltip | null = null;
 
   return {
     async mount(el: HTMLElement, spec: unknown, rows: Row[], _columns: Column[]): Promise<void> {
@@ -29,12 +31,19 @@ export function createAdapter(): Adapter {
       if (clean.width === undefined) clean.width = 'container';
       if (clean.height === undefined) clean.height = 'container';
       const [{ default: embed }, { expressionInterpreter }] = await Promise.all([import('vega-embed'), import('vega-interpreter')]);
+      tooltip?.destroy();
+      tooltip = createTextTooltip();
+      // embed() runs the view once on the empty named dataset; the rows go in
+      // right after. Both runs finish inside one task (vega-view and
+      // vega-scenegraph render through microtasks only), so the empty frame
+      // is never painted. Checked in plan 5c; no fix needed.
       const embedded = await embed(el, clean as never, {
         actions: false,
         renderer: 'canvas',
         ast: true,
         expr: expressionInterpreter as never,
         loader: rejectingLoader() as never,
+        tooltip: tooltip.handler as never,
       });
       result = embedded as unknown as EmbedResult;
       result.view.data('data', rows);
@@ -50,6 +59,8 @@ export function createAdapter(): Adapter {
     destroy(): void {
       result?.finalize();
       result = null;
+      tooltip?.destroy();
+      tooltip = null;
     },
   };
 }

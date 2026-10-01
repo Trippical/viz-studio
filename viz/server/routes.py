@@ -33,7 +33,7 @@ def _document(loader, request: Request, doc_id: str) -> dict:
         raise HTTPException(status_code=422, detail={"errors": err.errors}) from err
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok"}
 
@@ -82,7 +82,7 @@ def data(chart_id: str, request: Request):
     settings = request.app.state.settings
     storage = request.app.state.storage
     fmt = doc["data"]["format"]
-    key = data_key(settings.root_prefix, chart_id, fmt)
+    key = data_key(settings.root_prefix, chart_id, doc["data"]["file"])
     try:
         info = storage.head(key)
     except NotFound as err:

@@ -44,6 +44,7 @@ describe('vega-lite adapter', () => {
     for (const name of ['load', 'sanitize', 'http', 'file']) await expect(loader[name]()).rejects.toThrow();
     expect(mocks.view.data).toHaveBeenCalledWith('data', rows);
     expect(mocks.view.runAsync).toHaveBeenCalled();
+    adapter.destroy();
   });
 
   it('update replaces the dataset and destroy finalizes', async () => {
@@ -66,5 +67,20 @@ describe('vega-lite adapter', () => {
     const loader = rejectingLoader();
     await expect(loader.load('x')).rejects.toThrow(/disabled/);
     await expect(loader.http('x')).rejects.toThrow(/disabled/);
+  });
+
+  it('passes a text-only tooltip handler, never vega-tooltip (A6)', async () => {
+    const adapter = createAdapter();
+    await adapter.mount(document.createElement('div'), spec, rows, columns);
+    const opts = (mocks.embed.mock.calls[0] as unknown as [HTMLElement, unknown, Record<string, unknown>])[2];
+    expect(typeof opts.tooltip).toBe('function');
+    const handler = opts.tooltip as (h: unknown, e: MouseEvent, item: unknown, value: unknown) => void;
+    handler(null, new MouseEvent('mousemove', { clientX: 5, clientY: 6 }), {}, { title: '<b>x</b>', image: 'https://evil.example/x.png', revenue: 1 });
+    expect(document.querySelector('img')).toBeNull();
+    const tip = document.querySelector('.viz-tooltip');
+    expect(tip?.textContent).toBe('<b>x</b>\nrevenue: 1');
+    expect(tip?.querySelector('b')).toBeNull();
+    adapter.destroy();
+    expect(document.querySelector('.viz-tooltip')).toBeNull();
   });
 });

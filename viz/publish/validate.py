@@ -7,14 +7,15 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from .. import strict_json
 from ..config import Settings
-from ..ids import chart_key, is_ancestor
+from ..ids import chart_key, data_file_name, is_ancestor
 from ..schemas import SchemaError, validate_chart, validate_dashboard
 from ..storage import NotFound, Storage
-from .identity import check_author
-from .query import QueryError, current_user, databricks_configured
+from .identity import author_errors, publisher_author
+from .query import QueryError
 from .infer import UnsupportedColumn, infer_columns, table_from_file
-from .staging import LARGE_MAX_BYTES, SMALL_MAX_BYTES, SMALL_MAX_ROWS
+from .staging import LARGE_DEFAULT_AGGREGATE, LARGE_MAX_BYTES, SMALL_MAX_BYTES, SMALL_MAX_ROWS, file_sha256
 
 DUCKDB_LOCKDOWN = (
     "SET autoinstall_known_extensions=false",
@@ -30,9 +31,11 @@ def read_document(path: Path) -> tuple[dict | None, list[str]]:
     if not path.is_file():
         return None, [f"{path}: not found"]
     try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as err:
+        doc = strict_json.loads(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as err:
         return None, [f"{path.name}: invalid JSON ({err})"]
+    except strict_json.InvalidJson as err:
+        return None, [err.describe(path.name)]
     return doc, []
 
 
@@ -50,15 +53,36 @@ def conflicting_ids(chart_id: str, existing: list[str]) -> list[str]:
     return sorted(e for e in existing if e != chart_id and (is_ancestor(chart_id, e) or is_ancestor(e, chart_id)))
 
 
-def _id_from_path(path: Path, kind: str) -> str | None:
-    """The id implied by a path under a `charts` or `dashboards` directory, or None."""
+def _id_from_path(path: Path, kind: str, doc_id: str) -> str | None:
+    """The id implied by a path under a `charts` or `dashboards` directory, or None.
+
+    doc_id is the id the document declares. When the path ends with <kind>/<doc_id>,
+    that is the answer, even if doc_id itself has a `charts` or `dashboards` segment
+    (for example `team/charts/revenue`). Otherwise the id is everything after the
+    last <kind> directory, which is what the error message reports."""
     parts = list(Path(path).parts)
+    if kind == "dashboards" and parts and parts[-1].endswith(".json"):
+        parts[-1] = parts[-1][:-5]
+    id_parts = doc_id.split("/")
+    n = len(id_parts)
+    if len(parts) > n and parts[-n:] == id_parts and parts[-n - 1] == kind:
+        return doc_id
     if kind not in parts:
         return None
     tail = parts[len(parts) - parts[::-1].index(kind):]
-    if kind == "dashboards" and tail and tail[-1].endswith(".json"):
-        tail[-1] = tail[-1][:-5]
     return "/".join(tail) if tail else None
+
+
+PLACEHOLDER_ERROR = (
+    f"aggregate: still the staging placeholder '{LARGE_DEFAULT_AGGREGATE}'; "
+    "replace it with a SELECT that summarizes the rows for this chart"
+)
+
+
+def is_placeholder_aggregate(aggregate: str) -> bool:
+    """True for the aggregate staging writes, ignoring case, spacing and a trailing semicolon."""
+    normalized = " ".join(aggregate.split()).rstrip(";").strip().lower()
+    return normalized == LARGE_DEFAULT_AGGREGATE.lower()
 
 
 def check_aggregate(aggregate: str, parquet_path: Path) -> list[str]:
@@ -102,17 +126,21 @@ def _compare_columns(declared: list[dict], inferred: list[dict]) -> list[str]:
     return errors
 
 
-def _check_chart_author(doc: dict, settings: Settings) -> list[str]:
-    """A chart staged by `viz query` carries the Databricks login as its author. When the
-    Databricks variables are set, confirm that login; otherwise check VIZ_AUTHOR as usual."""
+def _source_warehouse(doc: dict) -> str | None:
+    """The warehouse a `viz query` chart ran on, so validation asks the same warehouse."""
     source = doc.get("source") or {}
-    if source.get("kind") != "databricks-sql" or not databricks_configured():
-        return check_author(doc, settings)
+    return source.get("warehouse_id") if source.get("kind") == "databricks-sql" else None
+
+
+def _check_stamped_author(doc: dict, settings: Settings, warehouse_id: str | None = None) -> list[str]:
+    """The author must equal what the CLI stamps now (publisher_author). Attribution only."""
     try:
-        user = current_user(source.get("warehouse_id"))
+        expected = publisher_author(settings, warehouse_id=warehouse_id)
     except QueryError as err:
         return [f"author: could not confirm the Databricks user: {err}"]
-    return check_author(doc, settings, databricks_user=user)
+    except Exception as err:  # the AWS caller identity lookup can fail too
+        return [f"author: could not resolve the author: {err}"]
+    return author_errors(doc, expected)
 
 
 def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage, allow_row_level: bool = False) -> list[str]:
@@ -125,15 +153,21 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
     except SchemaError as err:
         return [f"chart.json: {e}" for e in err.errors]
 
-    implied = _id_from_path(chart_dir, "charts")
+    implied = _id_from_path(chart_dir, "charts", doc["id"])
     if implied is not None and implied != doc["id"]:
         errors.append(f"id: chart.json says '{doc['id']}' but the directory is '{implied}'")
 
     data = doc["data"]
-    fmt, lane = data["format"], data["lane"]
-    data_path = chart_dir / f"data.{fmt}"
+    fmt, lane, file_name = data["format"], data["lane"], data["file"]
+    data_path = chart_dir / file_name
     if not data_path.is_file():
-        return errors + [f"data.{fmt}: not found"]
+        return errors + [f"{file_name}: not found"]
+    expected_name = data_file_name(file_sha256(data_path), fmt)
+    if expected_name != file_name:
+        errors.append(f"data.file: '{file_name}' does not match the file's SHA-256; it should be named '{expected_name}'")
+    others = sorted(p.name for p in chart_dir.glob("data.*") if p.name != file_name)
+    if others:
+        errors.append(f"data: the staged directory holds other data files ({', '.join(others)}); keep only '{file_name}'")
     size = data_path.stat().st_size
     if size != data["bytes"]:
         errors.append(f"data.bytes: declared {data['bytes']}, file is {size} bytes")
@@ -142,33 +176,35 @@ def validate_staged_chart(chart_dir: Path, settings: Settings, storage: Storage,
         try:
             table = table_from_file(data_path)
         except (UnsupportedColumn, ValueError) as err:
-            return errors + [f"data.json: {err}"]
+            return errors + [f"{file_name}: {err}"]
         rows = len(table)
     else:
         try:
             rows = pq.read_metadata(data_path).num_rows
             table = pq.read_table(data_path)
         except (pa.ArrowException, OSError, ValueError) as err:
-            return errors + [f"data.parquet: {err}"]
+            return errors + [f"{file_name}: {err}"]
     if rows != data["rows"]:
         errors.append(f"data.rows: declared {data['rows']}, file has {rows}")
     try:
         errors += _compare_columns(data["columns"], infer_columns(table))
     except UnsupportedColumn as err:
-        errors.append(f"data.{fmt}: {err}")
+        errors.append(f"{file_name}: {err}")
 
     if lane == "small" and (rows > SMALL_MAX_ROWS or size > SMALL_MAX_BYTES):
         errors.append(f"data: small lane allows at most {SMALL_MAX_ROWS} rows and {SMALL_MAX_BYTES} bytes")
     if lane == "large" and size > LARGE_MAX_BYTES:
         errors.append(f"data: large lane allows at most {LARGE_MAX_BYTES} bytes")
 
-    errors += _check_chart_author(doc, settings)
+    errors += _check_stamped_author(doc, settings, _source_warehouse(doc))
     for other in conflicting_ids(doc["id"], existing_chart_ids(storage, settings.root_prefix)):
         errors.append(f"id: '{doc['id']}' conflicts with existing chart '{other}'")
 
     if lane == "large":
+        if is_placeholder_aggregate(doc["aggregate"]):
+            errors.append(PLACEHOLDER_ERROR)
         if not allow_row_level:
-            errors.append("large lane publishes row-level data; pass --allow-row-level to confirm")
+            errors.append("large lane publishes row-level data; ask the user before passing --allow-row-level to confirm")
         else:
             errors += check_aggregate(doc["aggregate"], data_path)
     return errors
@@ -183,7 +219,7 @@ def validate_dashboard_file(path: Path, settings: Settings, storage: Storage) ->
         validate_dashboard(doc)
     except SchemaError as err:
         return [f"dashboard: {e}" for e in err.errors]
-    implied = _id_from_path(path, "dashboards")
+    implied = _id_from_path(path, "dashboards", doc["id"])
     if implied is not None and implied != doc["id"]:
         errors.append(f"id: dashboard says '{doc['id']}' but the file is '{implied}'")
     for i, tile in enumerate(doc["layout"]):
@@ -193,5 +229,5 @@ def validate_dashboard_file(path: Path, settings: Settings, storage: Storage) ->
             storage.head(chart_key(settings.root_prefix, tile["chart"]))
         except NotFound:
             errors.append(f"layout/{i}/chart: chart '{tile['chart']}' is not published")
-    errors += check_author(doc, settings)
+    errors += _check_stamped_author(doc, settings)
     return errors

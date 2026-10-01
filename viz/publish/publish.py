@@ -1,12 +1,25 @@
-"""Copy a validated staged chart or dashboard into the bucket. Data first, then the document."""
+"""Copy a validated staged chart or dashboard into the bucket.
+
+A chart publish is three steps (hardening decision B2):
+1. PUT the data file under its content-addressed key. Same bytes, same key, so a retry is harmless.
+2. PUT chart.json conditionally. This is the single commit point: a new chart is written only if
+   no chart.json exists (if_none_match); an overwrite only if chart.json still has the ETag read
+   during the overwrite guard (if_match). Readers see the old chart or the new one, never a
+   chart.json whose data file is missing.
+3. Delete every other data.* object of the chart except the file the replaced chart.json named,
+   so a reader still holding the old chart.json can fetch its data. One generation is kept.
+"""
 import json
+import re
 import sys
 from pathlib import Path
 
+from .. import strict_json
 from ..config import Settings
-from ..ids import chart_key, dashboard_key, data_key
-from ..storage import NotFound, Storage
+from ..ids import DATA_FILE_PATTERN, chart_key, dashboard_key, data_key
+from ..storage import NotFound, PreconditionFailed, Storage
 from .validate import read_document, validate_dashboard_file, validate_staged_chart
+from .dashboards import clear_pulled_etag, read_pulled_etag
 
 MEDIA_TYPES = {"json": "application/json", "parquet": "application/octet-stream"}
 
@@ -17,27 +30,98 @@ class PublishRefused(Exception):
         super().__init__("; ".join(self.errors))
 
 
-def _existing(storage: Storage, key: str) -> dict | None:
+def _existing(storage: Storage, key: str) -> tuple[dict | None, str | None]:
+    """The published document at key and the ETag it was read with, or (None, None).
+    The ETag is read before the body: if the object changes in between, the later
+    conditional PUT fails instead of overwriting something nobody was shown."""
     try:
+        etag = storage.head(key).etag
         raw = storage.get(key)
     except NotFound:
-        return None
+        return None, None
     try:
-        doc = json.loads(raw)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return {}
-    return doc if isinstance(doc, dict) else {}
+        doc = strict_json.loads(raw)
+    except strict_json.InvalidJson:
+        return {}, etag
+    return (doc if isinstance(doc, dict) else {}), etag
 
 
-def _guard_overwrite(storage: Storage, key: str, force: bool, out) -> None:
-    existing = _existing(storage, key)
+def _guard_overwrite(storage: Storage, key: str, force: bool, out) -> tuple[dict | None, str | None]:
+    """Refuse to overwrite without force. Returns the existing document and its ETag,
+    or (None, None) when nothing is published at key."""
+    existing, etag = _existing(storage, key)
     if existing is None:
-        return
+        return None, None
     author = existing.get("author", "unknown")
     updated = existing.get("updated_at", "unknown")
     if not force:
-        raise PublishRefused([f"id exists: author {author}, updated_at {updated}; pass --force to overwrite"])
+        raise PublishRefused([f"id exists: author {author}, updated_at {updated}; ask the user before passing --force to overwrite"])
     print(f"overwriting: author {author}, updated_at {updated}", file=out)
+    return existing, etag
+
+
+def _commit(storage: Storage, key: str, payload: bytes, doc_id: str, etag: str | None) -> None:
+    """The conditional PUT that makes a publish visible. etag None means a new document."""
+    try:
+        if etag is None:
+            storage.put(key, payload, "application/json", if_none_match=True)
+        else:
+            storage.put(key, payload, "application/json", if_match=etag)
+    except PreconditionFailed as err:
+        raise PublishRefused([f"{doc_id} changed since you checked it; run the command again"]) from err
+
+
+def _named_data_file(doc: dict | None) -> str | None:
+    """The data.file a published chart.json names, if it is a valid content-addressed name."""
+    if not isinstance(doc, dict):
+        return None
+    data = doc.get("data")
+    name = data.get("file") if isinstance(data, dict) else None
+    if isinstance(name, str) and DATA_FILE_PATTERN.fullmatch(name):
+        return name
+    return None
+
+
+def _delete_other_data_files(storage: Storage, root: str, chart_id: str, keep: set[str]) -> None:
+    """Delete every data.* object directly under charts/<id>/ whose name is not in keep.
+    Keys one level deeper belong to another chart id and are never touched."""
+    prefix = f"{root}charts/{chart_id}/"
+    for info in storage.list(prefix):
+        name = info.key[len(prefix):]
+        if "/" in name or not name.startswith("data.") or name in keep:
+            continue
+        storage.delete(info.key)
+
+
+def destination(settings: Settings, key: str) -> str:
+    """Where a key lives, for the success line: s3://<bucket>/<key>, or a local file path."""
+    if settings.storage == "s3":
+        return f"s3://{settings.s3_bucket}/{key}"
+    return str((Path(settings.local_dir) / key).resolve())
+
+
+CREATED_AT_PATTERN = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
+
+
+def keep_created_at(existing: dict | None, staged_file: Path) -> None:
+    """Republishing an id keeps the created_at of the published document (finding A20).
+    `existing` is the document the overwrite guard read (None for a new id). The staged
+    file is rewritten before the upload, so the bytes in the bucket still equal the staged
+    file byte for byte. The published value is untrusted: it is copied only when it is a
+    plain UTC timestamp such as 2026-09-29T10:00:00Z."""
+    if not isinstance(existing, dict):
+        return
+    created = existing.get("created_at")
+    if not isinstance(created, str) or not CREATED_AT_PATTERN.fullmatch(created):
+        return
+    staged_file = Path(staged_file)
+    doc = json.loads(staged_file.read_text(encoding="utf-8"))
+    if doc.get("created_at") == created:
+        return
+    doc["created_at"] = created
+    tmp = staged_file.with_name(staged_file.name + ".tmp")
+    tmp.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+    tmp.replace(staged_file)
 
 
 def publish_chart(chart_dir: Path, settings: Settings, storage: Storage, force: bool = False,
@@ -50,16 +134,41 @@ def publish_chart(chart_dir: Path, settings: Settings, storage: Storage, force: 
     doc, _ = read_document(chart_dir / "chart.json")
     chart_id = doc["id"]
     fmt = doc["data"]["format"]
+    file_name = doc["data"]["file"]
     root = settings.root_prefix
     key = chart_key(root, chart_id)
-    _guard_overwrite(storage, key, force, out)
+    existing, etag = _guard_overwrite(storage, key, force, out)
+    keep_created_at(existing, chart_dir / "chart.json")
 
-    storage.put(data_key(root, chart_id, fmt), (chart_dir / f"data.{fmt}").read_bytes(), MEDIA_TYPES[fmt])
-    storage.put(key, (chart_dir / "chart.json").read_bytes(), "application/json")
-    other = "parquet" if fmt == "json" else "json"
-    storage.delete(data_key(root, chart_id, other))
-    print(f"published: {chart_id}", file=out)
+    storage.put(data_key(root, chart_id, file_name), (chart_dir / file_name).read_bytes(), MEDIA_TYPES[fmt])
+    _commit(storage, key, (chart_dir / "chart.json").read_bytes(), chart_id, etag)
+    keep = {file_name}
+    previous = _named_data_file(existing)
+    if previous is not None:
+        keep.add(previous)
+    _delete_other_data_files(storage, root, chart_id, keep)
+    print(f"published: {chart_id} -> {destination(settings, key)}", file=out)
     return chart_id
+
+
+PULLED_CHANGED = (
+    "dashboard '{id}' was published again by someone else after you pulled it; "
+    "ask the user before running viz pull-dashboard {id} --force, which replaces your staged edits "
+    "with the new version"
+)
+PULLED_DELETED = "dashboard '{id}' was deleted after you pulled it; ask the user before publishing it again"
+
+
+def _check_pulled_version(storage: Storage, key: str, dashboard_id: str, pulled: str) -> None:
+    """A dashboard staged by `viz pull-dashboard` may only replace the version it was
+    pulled from (finding A25). This runs after the overwrite guard; the PUT then uses the
+    pulled ETag as if_match, so a change after this check is refused by storage."""
+    try:
+        current = storage.head(key).etag
+    except NotFound as err:
+        raise PublishRefused([PULLED_DELETED.format(id=dashboard_id)]) from err
+    if current != pulled:
+        raise PublishRefused([PULLED_CHANGED.format(id=dashboard_id)])
 
 
 def publish_dashboard(path: Path, settings: Settings, storage: Storage, force: bool = False, out=None) -> str:
@@ -71,7 +180,14 @@ def publish_dashboard(path: Path, settings: Settings, storage: Storage, force: b
     doc, _ = read_document(path)
     dashboard_id = doc["id"]
     key = dashboard_key(settings.root_prefix, dashboard_id)
-    _guard_overwrite(storage, key, force, out)
-    storage.put(key, path.read_bytes(), "application/json")
-    print(f"published: {dashboard_id}", file=out)
+    existing, etag = _guard_overwrite(storage, key, force, out)
+    pulled = read_pulled_etag(path)
+    if pulled is not None:
+        _check_pulled_version(storage, key, dashboard_id, pulled)
+    keep_created_at(existing, path)
+    # A pulled dashboard may only replace the version it was pulled from, so the
+    # commit is conditional on the pulled ETag (plan 5a's _commit passes it as if_match).
+    _commit(storage, key, path.read_bytes(), dashboard_id, pulled if pulled is not None else etag)
+    print(f"published: {dashboard_id} -> {destination(settings, key)}", file=out)
+    clear_pulled_etag(path)
     return dashboard_id

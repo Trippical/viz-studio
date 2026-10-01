@@ -28,6 +28,9 @@ def _chart_node(storage, settings, chart_id: str) -> dict:
         return {"type": "chart", "id": chart_id, "error": "not found"}
     except (SchemaError, DocumentTooLarge) as err:
         return {"type": "chart", "id": chart_id, "error": str(err)}
+    except Exception as err:  # noqa: BLE001 - one unreadable object must not take down the tree
+        _log.warning("could not load chart %s: %r", chart_id, err)
+        return {"type": "chart", "id": chart_id, "error": f"could not load ({type(err).__name__})"}
     return {
         "type": "chart", "id": chart_id, "title": doc["title"], "description": doc.get("description"),
         "tags": doc.get("tags", []), "renderer": doc["renderer"], "lane": doc["data"]["lane"],
@@ -45,6 +48,9 @@ def _dashboard_node(storage, settings, dashboard_id: str) -> dict:
         return {"type": "dashboard", "id": dashboard_id, "error": "not found"}
     except (SchemaError, DocumentTooLarge) as err:
         return {"type": "dashboard", "id": dashboard_id, "error": str(err)}
+    except Exception as err:  # noqa: BLE001 - one unreadable object must not take down the tree
+        _log.warning("could not load dashboard %s: %r", dashboard_id, err)
+        return {"type": "dashboard", "id": dashboard_id, "error": f"could not load ({type(err).__name__})"}
     return {
         "type": "dashboard", "id": dashboard_id, "title": doc["title"], "description": doc.get("description"),
         "tags": doc.get("tags", []), "controls": doc.get("controls", []), "updated_at": doc.get("updated_at"),
@@ -59,7 +65,37 @@ def _mark_conflicts(nodes: list[dict]) -> None:
             nodes[i] = {"type": node["type"], "id": node["id"], "error": f"id conflicts with {', '.join(sorted(others))}"}
 
 
+def _is_valid_id(value: str) -> bool:
+    try:
+        validate_id(value)
+    except InvalidId:
+        return False
+    return True
+
+
+def _valid_folder_paths(kind: str, folder_paths: set[str]) -> set[str]:
+    """Folder paths come from _folder.json keys in the bucket. Only valid ids are
+    nested into the tree; any other path is logged and skipped, so a very deep key
+    cannot exhaust recursion when the tree is built or serialized (adopter fix A4)."""
+    valid = set()
+    for path in folder_paths:
+        if path == "" or _is_valid_id(path):
+            valid.add(path)
+        else:
+            _log.warning("skipping folder metadata with an invalid path: %s/%.200s", kind, path)
+    return valid
+
+
+def _parent_path(item_id: str) -> str:
+    """The folder an item sits in. An item with an invalid id (already an error node)
+    sits at the root, so its unvalidated id is never used to nest folders."""
+    if "/" not in item_id or not _is_valid_id(item_id):
+        return ""
+    return item_id.rsplit("/", 1)[0]
+
+
 def _assemble(kind: str, storage, settings, items: list[dict], folder_paths: set[str]) -> dict:
+    folder_paths = _valid_folder_paths(kind, folder_paths)
     root = _folder_node("")
     index = {"": root}
 
@@ -76,8 +112,7 @@ def _assemble(kind: str, storage, settings, items: list[dict], folder_paths: set
     for path in sorted(folder_paths):
         folder_for(path)
     for item in items:
-        parent_path = item["id"].rsplit("/", 1)[0] if "/" in item["id"] else ""
-        folder_for(parent_path)["items"].append(item)
+        folder_for(_parent_path(item["id"]))["items"].append(item)
 
     for path, node in index.items():
         if path not in folder_paths and path != "":
@@ -86,6 +121,10 @@ def _assemble(kind: str, storage, settings, items: list[dict], folder_paths: set
             meta = load_folder(storage, settings, kind, path)
         except (SchemaError, DocumentTooLarge) as err:
             node["error"] = str(err)
+            continue
+        except Exception as err:  # noqa: BLE001 - one unreadable object must not take down the tree
+            _log.warning("could not load folder metadata %s/%s: %r", kind, path, err)
+            node["error"] = f"could not load ({type(err).__name__})"
             continue
         if meta:
             node["title"] = meta.get("title")
@@ -124,9 +163,11 @@ def build_tree(storage: Storage, settings: Settings) -> dict:
             dashboard_ids.append(rel[: -len(".json")])
 
     charts = [_chart_node(storage, settings, cid) for cid in chart_ids]
+    # Chart ids `a` and `a/b` conflict: charts/a/ would hold both a's files and the
+    # folder of b. Dashboards have no such problem (dashboards/a.json and
+    # dashboards/a/b.json are separate keys), so they get no conflict check.
     _mark_conflicts(charts)
     dashboards = [_dashboard_node(storage, settings, did) for did in dashboard_ids]
-    _mark_conflicts(dashboards)
 
     return {
         "charts": _assemble("charts", storage, settings, charts, chart_folders),

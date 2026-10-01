@@ -8,6 +8,11 @@ Setting it up at work (fresh clone, AWS, Databricks, deployment):
 
 ## Trust assumptions, read these first
 
+- The site has no login of its own. It relies on the company SSO proxy in
+  front of it and, by default in the Helm chart (`requireIdentity: true`),
+  refuses with 401 every request that did not come through that proxy.
+  Anyone the proxy lets in can see every chart and dashboard: publishing is
+  sharing.
 - Publishing a chart or dashboard means sharing it with every person who can
   reach the site. There are no per-object permissions.
 - Folders are organization, not permission.
@@ -27,8 +32,8 @@ Setting it up at work (fresh clone, AWS, Databricks, deployment):
 
     viz stage --from rows.csv --id sales/emea/revenue   # stage a csv, json or parquet file
     viz stage --from rows.csv --id sales/emea/revenue --drop-columns a,b --staging DIR
-    viz query --sql @q.sql --id sales/emea/revenue      # run SQL on Databricks and stage the result
-    viz query --sql @q.sql --id sales/emea/revenue --drop-columns a,b --staging DIR
+    viz query --sql-file q.sql --id sales/emea/revenue  # run SQL on Databricks and stage the result
+    viz query --sql-file q.sql --id sales/emea/revenue --drop-columns a,b --staging DIR
     viz validate .viz-staging/charts/sales/emea/revenue # schema, data file, columns, author, id conflicts
     viz preview                                         # serve ./.viz-staging on 127.0.0.1:8000
     viz publish .viz-staging/charts/sales/emea/revenue  # validate, then upload (data first, then chart.json)
@@ -42,12 +47,25 @@ Setting it up at work (fresh clone, AWS, Databricks, deployment):
 The staging directory `./.viz-staging` mirrors the bucket, so `viz preview` is
 the real server pointed at it. `viz query` needs `pip install -e ".[databricks]"`
 (from a checkout) and `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_WAREHOUSE_ID`; nothing
-else in the package reads them. Publisher settings: `VIZ_AUTHOR` (overrides the
-AWS caller identity when set; the Databricks user from `viz query` always wins,
-and `viz validate` confirms it with Databricks when the `DATABRICKS_*` variables
-are set; author is attribution, not authentication), `VIZ_QUERY_DENY` (comma-separated
-catalogs or `catalog.schema` that `viz query` refuses), `VIZ_PII_PATTERN`,
-`VIZ_STAGING_DIR`. `--force` and `--yes` are flags only.
+else in the package reads them. Publisher settings: `VIZ_AUTHOR` (used unless
+`DATABRICKS_HOST`, `DATABRICKS_TOKEN` and `DATABRICKS_WAREHOUSE_ID` are all set;
+with all three, every command stamps the Databricks login and `viz validate`
+confirms it; without `VIZ_AUTHOR` the fallback is the AWS caller identity
+when `VIZ_STORAGE=s3`, and `<user>@local` (your operating system login) when
+`VIZ_STORAGE=local`; author is attribution, not authentication),
+`VIZ_QUERY_DENY` (comma-separated catalogs or `catalog.schema` that
+`viz query` refuses), `VIZ_PII_PATTERN`, `VIZ_STAGING_DIR`. `--force` and
+`--yes` are flags only. `viz publish` and `viz move` refuse to run unless
+`VIZ_STORAGE` is set in the environment, so a missing setting never publishes
+into `./sample-bucket`: `VIZ_STORAGE=s3` needs `VIZ_S3_BUCKET`, and
+`VIZ_STORAGE=local` needs `VIZ_LOCAL_DIR`, the folder to publish into. On
+success they print where the document went (`s3://<bucket>/<key>` or a local
+path).
+
+`viz-server` takes no options; it reads the same `VIZ_STORAGE`,
+`VIZ_LOCAL_DIR` (default `./sample-bucket`) and `VIZ_S3_BUCKET`, plus
+`VIZ_HOST` (default `127.0.0.1`) and `VIZ_PORT` (default `8000`) for the
+address it listens on. `viz-server --help` lists every variable it reads.
 
 The `publish-viz` Claude skill (`skills/publish-viz/`) teaches an agent this
 whole path, with a Vega-Lite authoring guide. Every chart form in the guide

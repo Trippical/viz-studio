@@ -1,8 +1,8 @@
 """Load and validate one document from storage. The only way the server reads JSON."""
-import json
 import logging
 from typing import Callable
 
+from .. import strict_json
 from ..config import Settings
 from ..ids import chart_key, dashboard_key, folder_key
 from ..schemas import SchemaError, validate_chart, validate_dashboard, validate_folder
@@ -22,9 +22,9 @@ def _read(storage: Storage, settings: Settings, key: str) -> dict:
         raise DocumentTooLarge(f"document exceeds {settings.max_document_bytes} bytes")
     raw = storage.get(key)
     try:
-        return json.loads(raw)
-    except (UnicodeDecodeError, json.JSONDecodeError) as err:
-        raise SchemaError([f"$: invalid JSON ({err})"]) from err
+        return strict_json.loads(raw)
+    except strict_json.InvalidJson as err:
+        raise SchemaError([err.describe("$")]) from err
 
 
 def _load(storage, settings, key, validate: Callable[[dict], dict], expected_id: str) -> dict:

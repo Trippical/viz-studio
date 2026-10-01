@@ -22,7 +22,8 @@ def test_paved_path_end_to_end(env, settings, staging_root, tmp_path, capsys):
     # stage
     assert main(["stage", "--from", str(csv), "--id", "ops/orders-by-day"]) == 0
     chart_dir = staging_root / "charts" / "ops" / "orders-by-day"
-    assert (chart_dir / "chart.json").is_file() and (chart_dir / "data.json").is_file()
+    staged_doc = json.loads((chart_dir / "chart.json").read_text(encoding="utf-8"))
+    assert (chart_dir / staged_doc["data"]["file"]).is_file()
 
     # validate and publish
     assert main(["validate", str(chart_dir)]) == 0

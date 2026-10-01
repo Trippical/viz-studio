@@ -5,17 +5,19 @@ grid and adds filter controls. It holds no data.
 
 ## Start the file with the CLI
 
-Never write a dashboard file from nothing: `author` must equal the identity
-the CLI resolves, and the CLI stamps it for you.
+Never write a dashboard file from nothing: the CLI stamps `author` for you.
+`author` records who published the dashboard (attribution). It is not a
+permission check, and `viz validate` rejects a hand-typed value.
 
 - New dashboard: `viz new-dashboard sales/emea/overview --chart sales/emea/revenue --chart sales/emea/total-revenue --title "EMEA overview"`
   writes `.viz-staging/dashboards/sales/emea/overview.json` with one
   `w: 6, h: 4` tile per chart.
 - Change a published dashboard: `viz pull-dashboard sales/emea/overview`
-  copies it into staging with your identity and a new `updated_at`.
+  copies it into staging with you as `author` and a new `updated_at`.
 
-Both refuse to replace a staged file you may have edited. Add `--force` only
-when you mean to discard the staged copy.
+Both refuse to replace a staged file you may have edited. The refusal says
+`ask the user before passing --force`: do that, because `--force` discards
+the staged copy.
 
 ## The file
 
@@ -91,6 +93,13 @@ current author and `updated_at`. Tell the user and ask before adding
 After `viz pull-dashboard`, this refusal is expected, because the dashboard
 already exists. Still show the user who published it last and ask before
 adding `--force`.
+
+`viz pull-dashboard` also remembers which version you pulled, in a file next
+to the staged one whose name ends in `.pulled-etag`. If someone publishes the
+dashboard again before you do, `viz publish --force` refuses with
+`published again by someone else after you pulled it`. Show the user that
+line. Never delete the `.pulled-etag` file to get past it. Ask the user
+whether to pull the new version and redo the edits.
 
 The published dashboard is at `/d/<id>` on the site, for example
 `/d/sales/emea/overview`. A chart is at `/c/<id>`.
