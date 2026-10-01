@@ -81,6 +81,27 @@ def test_missing_asset_is_a_real_404_not_the_index_fallback(settings, tmp_path):
     assert r.headers["cache-control"] == IMMUTABLE
 
 
+def test_assets_mounted_even_when_dist_assets_missing_at_startup(settings, tmp_path):
+    # Reproduces CI's startup order: the server starts before `vite build` has
+    # run, so dist/assets does not exist yet when create_app() mounts the SPA.
+    # /assets must still be mounted so that files appearing later are served.
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    settings.web_dist = dist
+    client = TestClient(create_app(settings))
+
+    (dist / "assets").mkdir()
+    (dist / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
+
+    r = client.get("/assets/app.js")
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == IMMUTABLE
+    assert r.text == "console.log(1)"
+
+    r = client.get("/assets/missing.js")
+    assert r.status_code == 404
+
+
 def test_wasm_asset_has_wasm_content_type(settings, tmp_path):
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)

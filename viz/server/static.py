@@ -17,8 +17,12 @@ def mount_spa(app: FastAPI, dist: Path) -> None:
     dist = Path(dist)
     index = dist / "index.html"
     assets = dist / "assets"
-    if assets.is_dir():
-        app.mount("/assets", ImmutableStaticFiles(directory=assets), name="assets")
+    # Mount /assets unconditionally: viz-server can start before `vite build`
+    # has run (e.g. under Playwright's webServer, which starts before its
+    # globalSetup builds the front end). check_dir=False lets StaticFiles
+    # mount against a directory that does not exist yet; files that appear
+    # under it later are served normally once they exist.
+    app.mount("/assets", ImmutableStaticFiles(directory=assets, check_dir=False), name="assets")
 
     @app.exception_handler(StarletteHTTPException)
     async def spa_fallback(request: Request, exc: StarletteHTTPException):
